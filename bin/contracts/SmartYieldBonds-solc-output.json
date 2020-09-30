@@ -1,0 +1,90 @@
+{
+    "contracts": {
+        "c:/_work/barnbridge/BarnBridge-SmartYieldBonds/contracts/SmartYieldBonds.sol": {
+            "SmartYieldBonds": {
+                "abi": [],
+                "devdoc": {
+                    "kind": "dev",
+                    "methods": {},
+                    "version": 1
+                },
+                "evm": {
+                    "bytecode": {
+                        "linkReferences": {},
+                        "object": "6080604052348015600f57600080fd5b50603f80601d6000396000f3fe6080604052600080fdfea264697066735822122072459cf7555d608a7908b2cc243ae6fc67b78e57f9257497a0ab9e9656eb5a3164736f6c634300060c0033",
+                        "opcodes": "PUSH1 0x80 PUSH1 0x40 MSTORE CALLVALUE DUP1 ISZERO PUSH1 0xF JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST POP PUSH1 0x3F DUP1 PUSH1 0x1D PUSH1 0x0 CODECOPY PUSH1 0x0 RETURN INVALID PUSH1 0x80 PUSH1 0x40 MSTORE PUSH1 0x0 DUP1 REVERT INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 PUSH19 0x459CF7555D608A7908B2CC243AE6FC67B78E57 0xF9 0x25 PUSH21 0x97A0AB9E9656EB5A3164736F6C634300060C003300 ",
+                        "sourceMap": "67:35:0:-:0;;;;;;;;;;;;;;;;;;;"
+                    },
+                    "deployedBytecode": {
+                        "immutableReferences": {},
+                        "linkReferences": {},
+                        "object": "6080604052600080fdfea264697066735822122072459cf7555d608a7908b2cc243ae6fc67b78e57f9257497a0ab9e9656eb5a3164736f6c634300060c0033",
+                        "opcodes": "PUSH1 0x80 PUSH1 0x40 MSTORE PUSH1 0x0 DUP1 REVERT INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 PUSH19 0x459CF7555D608A7908B2CC243AE6FC67B78E57 0xF9 0x25 PUSH21 0x97A0AB9E9656EB5A3164736F6C634300060C003300 ",
+                        "sourceMap": "67:35:0:-:0;;;;;"
+                    },
+                    "gasEstimates": {
+                        "creation": {
+                            "codeDepositCost": "12600",
+                            "executionCost": "66",
+                            "totalCost": "12666"
+                        }
+                    },
+                    "methodIdentifiers": {}
+                },
+                "metadata": "{\"compiler\":{\"version\":\"0.6.12+commit.27d51765\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"c:/_work/barnbridge/BarnBridge-SmartYieldBonds/contracts/SmartYieldBonds.sol\":\"SmartYieldBonds\"},\"evmVersion\":\"istanbul\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"c:/_work/barnbridge/BarnBridge-SmartYieldBonds/contracts/SmartYieldBonds.sol\":{\"keccak256\":\"0x42c0333665079ff3ee50e355279865226f14e1d82ff6ca62909ba26938e61154\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://dbe4ca040768999c90d78a9b0cad652b1f2969f87dd38cb636581280d4c72f61\",\"dweb:/ipfs/QmcyHEENuHYcYfKN3kYdsyYVt9h2gMryycReQL3Bsb5HRo\"]}},\"version\":1}",
+                "userdoc": {
+                    "kind": "user",
+                    "methods": {},
+                    "version": 1
+                }
+            }
+        }
+    },
+    "sources": {
+        "c:/_work/barnbridge/BarnBridge-SmartYieldBonds/contracts/SmartYieldBonds.sol": {
+            "ast": {
+                "absolutePath": "c:/_work/barnbridge/BarnBridge-SmartYieldBonds/contracts/SmartYieldBonds.sol",
+                "exportedSymbols": {
+                    "SmartYieldBonds": [
+                        2
+                    ]
+                },
+                "id": 3,
+                "license": "Apache-2.0",
+                "nodeType": "SourceUnit",
+                "nodes": [
+                    {
+                        "id": 1,
+                        "literals": [
+                            "solidity",
+                            "^",
+                            "0.6",
+                            ".0"
+                        ],
+                        "nodeType": "PragmaDirective",
+                        "src": "40:23:0"
+                    },
+                    {
+                        "abstract": false,
+                        "baseContracts": [],
+                        "contractDependencies": [],
+                        "contractKind": "contract",
+                        "documentation": null,
+                        "fullyImplemented": true,
+                        "id": 2,
+                        "linearizedBaseContracts": [
+                            2
+                        ],
+                        "name": "SmartYieldBonds",
+                        "nodeType": "ContractDefinition",
+                        "nodes": [],
+                        "scope": 3,
+                        "src": "67:35:0"
+                    }
+                ],
+                "src": "40:62:0"
+            },
+            "id": 0
+        }
+    }
+}
