@@ -4,18 +4,22 @@ pragma solidity ^0.6.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+import "./lib/SafeMath16.sol";
 import "./compound-finance/CTokenInterfaces.sol";
 
 import "./SeniorBondToken.sol";
 
 contract SmartYieldPool is ReentrancyGuard {
-    using Counters for Counters.Counter;
+    using SafeMath16 for uint16;
     using SafeMath for uint256;
-    using SafeMath for uint16;
+    using Counters for Counters.Counter;
 
-    uint16 public constant EPOCH_LEN = uint16(1 days);
+    uint256 public constant BLOCKS_PER_YEAR = 2102400;
+    uint256 public constant BLOCKS_PER_DAY = BLOCKS_PER_YEAR / 365;
+    uint256 public constant EPOCH_LEN = 1 days;
     uint16 public constant BOND_LIFE_MAX_EPOCHS = 182; // ~ 6mo
 
     // DAI
@@ -31,7 +35,7 @@ contract SmartYieldPool is ReentrancyGuard {
     struct SeniorBond {
         uint256 principal;
         uint256 gain;
-        uint16 issuedAt;
+        uint256 issuedAtBlock;
         uint16 maturesAt;
     }
 
@@ -89,6 +93,15 @@ contract SmartYieldPool is ReentrancyGuard {
 
         uint256 bondId = _seniorBondIds.current();
         _seniorBondIds.increment();
+
+        uint16 maturesAtEpoch = uint16(currentEpoch()).add(forEpochs);
+        uint256 ratePerBlock = bondRatePerBlockSlippage(principalAmount);
+        seniorBond[bondId] = SeniorBond(
+            principalAmount,
+            ratePerBlock,
+            block.number,
+            maturesAtEpoch
+        );
     }
 
     function currentEpoch() public view returns (uint16) {
@@ -96,11 +109,17 @@ contract SmartYieldPool is ReentrancyGuard {
         return 0;
     }
 
+    function bondGain(uint256 principalAmount, uint16 forEpochs)
+        public
+        view
+        returns (uint256)
+    {}
+
     /**
      * @notice computes the bondRate per block takeing into account the slippage
      * @return (the bondRate after slippage)
      */
-    function bondRatePerBlockSlippage(uint256 principalAmount)
+    function bondRatePerBlockSlippage(uint256 addedPrincipalAmount)
         public
         view
         returns (uint256)
@@ -122,5 +141,23 @@ contract SmartYieldPool is ReentrancyGuard {
 
     function claimTokenTotal() public view returns (uint256) {
         return claimToken.balanceOf(address(this));
+    }
+
+    function compound(
+        uint256 principal,
+        uint256 ratio,
+        uint16 n
+    ) public pure returns (uint256) {
+        // from https://medium.com/coinmonks/math-in-solidity-part-4-compound-interest-512d9e13041b
+        while (n > 0) {
+            if (n % 2 == 1) {
+                principal += principal * ratio;
+                n -= 1;
+            } else {
+                ratio = 2 * ratio + ratio * ratio;
+                n /= 2;
+            }
+        }
+        return principal;
     }
 }

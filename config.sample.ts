@@ -1,0 +1,48 @@
+import { HardhatUserConfig } from 'hardhat/config';
+
+const config: HardhatUserConfig = {
+  // Your type-safe config goes here
+  networks: {
+    // Needed for `solidity-coverage`
+    coverage: {
+      url: 'http://localhost:8555',
+    },
+
+    // Rinkeby
+    rinkeby: {
+      url: 'https://rinkeby.infura.io/v3/API-KEY-HERE',
+      chainId: 4,
+      accounts: {
+        mnemonic: 'cost major because spoon bitter insect voyage ribbon between type provide thank',
+        path: 'm/44\'/60\'/0\'/0',
+        initialIndex: 0,
+        count: 10,
+      },
+      gas: 'auto',
+      gasPrice: 1000000000, // 1 gwei
+      gasMultiplier: 1.5,
+    },
+
+    // Mainnet
+    mainnet: {
+      url: 'https://mainnet.infura.io/v3/API-KEY-HERE',
+      chainId: 1,
+      accounts: {
+        mnemonic: 'cost major because spoon bitter insect voyage ribbon between type provide thank',
+        path: 'm/44\'/60\'/0\'/0',
+        initialIndex: 1,
+        count: 10,
+      },
+      gas: 'auto',
+      gasPrice: 73000000000, // 1 gwei
+      gasMultiplier: 1.5,
+    },
+  },
+  // Use to verify contracts on Etherscan
+  // https://buidler.dev/plugins/nomiclabs-buidler-etherscan.html
+  etherscan: {
+    apiKey: 'API-KEY-HERE',
+  },
+};
+
+export default config;
