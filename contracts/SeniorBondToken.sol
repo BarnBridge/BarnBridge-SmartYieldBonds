@@ -13,7 +13,7 @@ contract SeniorBondToken is Context, AccessControl, ERC721 {
         string memory symbol,
         address pool
     ) public ERC721(name, symbol) {
-        grantRole(MINT_BURN_ROLE, pool);
+        _setupRole(MINT_BURN_ROLE, pool);
     }
 
     function mint(address to, uint256 tokenId) public {

@@ -7,27 +7,28 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import "./lib/SafeMath16.sol";
+import "./lib/math/Exponential.sol";
+import "./lib/math/SafeMath16.sol";
 import "./compound-finance/CTokenInterfaces.sol";
 
 import "./SeniorBondToken.sol";
 
-contract SmartYieldPool is ReentrancyGuard {
+contract SmartYieldPool is ReentrancyGuard, Exponential {
     using SafeMath16 for uint16;
     using SafeMath for uint256;
     using Counters for Counters.Counter;
 
     uint256 public constant BLOCKS_PER_YEAR = 2102400;
-    uint256 public constant BLOCKS_PER_DAY = BLOCKS_PER_YEAR / 365;
+    uint256 public constant BLOCKS_PER_EPOCH = BLOCKS_PER_YEAR / 365;
     uint256 public constant EPOCH_LEN = 1 days;
-    uint16 public constant BOND_LIFE_MAX_EPOCHS = 182; // ~ 6mo
+    uint16 public constant BOND_LIFE_MAX_EPOCHS = 365; // ~ 6mo
 
     // DAI
     IERC20 public underlying;
     // cDAI
-    CErc20Interface public claimToken;
+    CErc20Interface public cToken;
     // COMP
-    IERC20 public rewardToken;
+    IERC20 public rewardCToken;
 
     uint256 underlyingLoaned;
 
@@ -50,16 +51,14 @@ contract SmartYieldPool is ReentrancyGuard {
     // junior POOL tokens
     IERC20 public juniorPoolToken;
 
-    constructor(
-        address _claimToken,
-        address _rewardToken,
-        address _seniorBondToken,
-        address _juniorPoolToken
-    ) public {
-        claimToken = CErc20Interface(_claimToken);
-        underlying = IERC20(claimToken.underlying());
+    constructor(address _cToken, address _rewardCToken) public {
+        cToken = CErc20Interface(_cToken);
+        underlying = IERC20(cToken.underlying());
+        rewardCToken = IERC20(_rewardCToken);
+    }
 
-        rewardToken = IERC20(_rewardToken);
+    function setup(address _seniorBondToken, address _juniorPoolToken) public {
+        // @TODO:
         seniorBondToken = SeniorBondToken(_seniorBondToken);
         juniorPoolToken = IERC20(_juniorPoolToken);
     }
@@ -82,11 +81,11 @@ contract SmartYieldPool is ReentrancyGuard {
         );
 
         underlying.transferFrom(msg.sender, address(this), principalAmount);
-        underlying.approve(address(claimToken), principalAmount);
+        underlying.approve(address(cToken), principalAmount);
 
         require(
-            claimToken.mint(principalAmount) == 0,
-            "SmartYieldPool: failed to mint claimToken"
+            cToken.mint(principalAmount) == 0,
+            "SmartYieldPool: failed to mint cToken"
         );
 
         underlyingLoaned = underlyingLoaned.add(principalAmount);
@@ -105,15 +104,17 @@ contract SmartYieldPool is ReentrancyGuard {
     }
 
     function currentEpoch() public view returns (uint16) {
-        // @TODO:
-        return 0;
+        block.number / BLOCKS_PER_EPOCH + 1;
     }
 
-    function bondGain(uint256 principalAmount, uint16 forEpochs)
-        public
-        view
-        returns (uint256)
-    {}
+    function bondGain(
+        uint256 principalAmount,
+        uint256 ratePerBlock,
+        uint16 forEpochs
+    ) public view returns (uint256) {
+        uint256 ratePerEpoch = ratePerBlock * BLOCKS_PER_EPOCH;
+        return compound(principalAmount, ratePerEpoch, forEpochs);
+    }
 
     /**
      * @notice computes the bondRate per block takeing into account the slippage
@@ -125,7 +126,7 @@ contract SmartYieldPool is ReentrancyGuard {
         returns (uint256)
     {
         // @TODO: formula + COPM valuation
-        return claimToken.supplyRatePerBlock();
+        return cToken.supplyRatePerBlock();
     }
 
     /**
@@ -133,30 +134,26 @@ contract SmartYieldPool is ReentrancyGuard {
      */
     function underlyingTotal() public view returns (uint256) {
         return
-            claimToken
+            cToken
                 .balanceOf(address(this))
-                .mul(claimToken.exchangeRateStored())
+                .mul(cToken.exchangeRateStored())
                 .div(1e18);
     }
 
     function claimTokenTotal() public view returns (uint256) {
-        return claimToken.balanceOf(address(this));
+        return cToken.balanceOf(address(this));
     }
 
     function compound(
         uint256 principal,
-        uint256 ratio,
-        uint16 n
+        uint256 epochRate,
+        uint16 epochs
     ) public pure returns (uint256) {
         // from https://medium.com/coinmonks/math-in-solidity-part-4-compound-interest-512d9e13041b
-        while (n > 0) {
-            if (n % 2 == 1) {
-                principal += principal * ratio;
-                n -= 1;
-            } else {
-                ratio = 2 * ratio + ratio * ratio;
-                n /= 2;
-            }
+        epochs -= 1;
+        while (epochs > 0) {
+            principal += (principal * epochRate) / 10**18;
+            epochs -= 1;
         }
         return principal;
     }
