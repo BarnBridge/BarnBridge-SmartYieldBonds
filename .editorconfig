@@ -5,7 +5,6 @@ end_of_line = lf
 indent_style = space
 quote_type = single
 indent_size = 2
-tab_width = 2
 charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
@@ -15,3 +14,4 @@ quote_type = double
 
 [{*.sol}]
 quote_type = double
+indent_size = 4

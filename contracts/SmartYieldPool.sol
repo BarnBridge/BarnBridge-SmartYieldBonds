@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.6.0;
 
+// @TODO:
+import "hardhat/console.sol";
+
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
@@ -12,16 +15,18 @@ import "./lib/math/SafeMath16.sol";
 import "./compound-finance/CTokenInterfaces.sol";
 
 import "./SeniorBondToken.sol";
+import "./JuniorPoolToken.sol";
 
 contract SmartYieldPool is ReentrancyGuard, Exponential {
-    using SafeMath16 for uint16;
+    //using SafeMath16 for uint16;
     using SafeMath for uint256;
     using Counters for Counters.Counter;
 
     uint256 public constant BLOCKS_PER_YEAR = 2102400;
-    uint256 public constant BLOCKS_PER_EPOCH = BLOCKS_PER_YEAR / 365;
-    uint256 public constant EPOCH_LEN = 1 days;
-    uint16 public constant BOND_LIFE_MAX_EPOCHS = 365; // ~ 6mo
+    uint256 public constant BLOCKS_PER_DAY = BLOCKS_PER_YEAR / 365;
+    uint256 public constant BOND_LIFE_MAX = 365; // in days
+
+    uint256 public feePercent = (10**18 * 1) / 1000; // 0.1%
 
     // DAI
     IERC20 public underlying;
@@ -30,26 +35,36 @@ contract SmartYieldPool is ReentrancyGuard, Exponential {
     // COMP
     IERC20 public rewardCToken;
 
-    uint256 underlyingLoaned;
+    struct PoolState {
+        uint256 underlyingPrincipal; // amount sent to provider
+        uint256 underlyingInBonds; // amount locked in bonds to be paid out
+        uint256 underlyingPoolFees; // amount locked in fees
+    }
+
+    PoolState public poolState;
 
     // senior BONDs
     struct SeniorBond {
         uint256 principal;
         uint256 gain;
-        uint256 issuedAtBlock;
-        uint16 maturesAt;
+        uint256 issuedAt;
+        uint256 maturesAt;
     }
 
     SeniorBondToken public seniorBondToken;
 
     Counters.Counter private _seniorBondIds;
 
-    // bond id => bond data (SeniorBond)
+    // bond id => bond (SeniorBond)
     mapping(uint256 => SeniorBond) public seniorBond;
+
     // senior BONDs
 
-    // junior POOL tokens
-    IERC20 public juniorPoolToken;
+    // junior POOL token
+    JuniorPoolToken public juniorToken;
+
+    // junior POOL k
+    uint256 juniorTokenK;
 
     constructor(address _cToken, address _rewardCToken) public {
         cToken = CErc20Interface(_cToken);
@@ -57,26 +72,45 @@ contract SmartYieldPool is ReentrancyGuard, Exponential {
         rewardCToken = IERC20(_rewardCToken);
     }
 
-    function setup(address _seniorBondToken, address _juniorPoolToken) public {
+    function setup(
+        address _seniorBondToken,
+        address _juniorToken,
+        uint256 _underlyingAmount,
+        uint256 _jTokenAmount
+    ) public {
         // @TODO:
         seniorBondToken = SeniorBondToken(_seniorBondToken);
-        juniorPoolToken = IERC20(_juniorPoolToken);
+        juniorToken = JuniorPoolToken(_juniorToken);
+
+        require(
+            _underlyingAmount <=
+                underlying.allowance(msg.sender, address(this)),
+            "SmartYieldPool: setup not enought allowance"
+        );
+
+        underlying.transferFrom(msg.sender, address(this), _underlyingAmount);
+        underlying.approve(address(cToken), _underlyingAmount);
+
+        require(
+            0 == cToken.mint(_underlyingAmount),
+            "SmartYieldPool: setup failed to mint cToken"
+        );
+
+        juniorToken.mint(msg.sender, _jTokenAmount);
+
+        juniorTokenK = _jTokenAmount.mul(_underlyingAmount);
     }
 
     /**
      * @notice Purchase a senior bond with principalAmount underlying for forEpochs
      * @dev
      */
-    function buyBond(uint256 principalAmount, uint16 forEpochs)
+    function buyBond(uint256 principalAmount, uint16 forDays)
         public
         nonReentrant
     {
         require(
-            0 < forEpochs && forEpochs <= BOND_LIFE_MAX_EPOCHS,
-            "SmartYieldPool: buyBond forEpochs has to be 0 < forEpochs <= BOND_LIFE_MAX_EPOCHS"
-        );
-        require(
-            underlying.allowance(msg.sender, address(this)) >= principalAmount,
+            principalAmount <= underlying.allowance(msg.sender, address(this)),
             "SmartYieldPool: buyBond not enought allowance"
         );
 
@@ -84,36 +118,150 @@ contract SmartYieldPool is ReentrancyGuard, Exponential {
         underlying.approve(address(cToken), principalAmount);
 
         require(
-            cToken.mint(principalAmount) == 0,
-            "SmartYieldPool: failed to mint cToken"
+            0 == cToken.mint(principalAmount),
+            "SmartYieldPool: buyBond cToken mint failed"
         );
 
-        underlyingLoaned = underlyingLoaned.add(principalAmount);
+        require(
+            0 < forDays && forDays <= BOND_LIFE_MAX,
+            "SmartYieldPool: buyBond forDays invalid"
+        );
 
-        uint256 bondId = _seniorBondIds.current();
-        _seniorBondIds.increment();
-
-        uint16 maturesAtEpoch = uint16(currentEpoch()).add(forEpochs);
         uint256 ratePerBlock = bondRatePerBlockSlippage(principalAmount);
-        seniorBond[bondId] = SeniorBond(
+
+        mintBond(
+            msg.sender,
             principalAmount,
             ratePerBlock,
-            block.number,
-            maturesAtEpoch
+            block.timestamp,
+            forDays
         );
     }
 
-    function currentEpoch() public view returns (uint16) {
-        block.number / BLOCKS_PER_EPOCH + 1;
+    function redeemBond(uint256 _bondId) public nonReentrant {
+        require(
+            block.timestamp > seniorBond[_bondId].maturesAt,
+            "SmartYieldPool: redeemBond not matured"
+        );
+
+        require(
+            0 == cToken.redeemUnderlying(seniorBond[_bondId].gain),
+            "SmartYieldPool: redeemBond redeemUnderlying failed"
+        );
+
+        underlying.transfer(
+            seniorBondToken.ownerOf(_bondId),
+            seniorBond[_bondId].gain
+        );
+
+        poolState.underlyingPrincipal = poolState.underlyingPrincipal.sub(
+            seniorBond[_bondId].principal
+        );
+        poolState.underlyingInBonds = poolState.underlyingInBonds.sub(
+            seniorBond[_bondId].gain
+        );
+
+        delete seniorBond[_bondId];
+        seniorBondToken.burn(_bondId);
+    }
+
+    function buyToken(uint256 _underlying, uint256 _minTokens)
+        public
+        nonReentrant
+    {
+        uint256 toReceive = getsTokens(_underlying);
+        require(
+            _minTokens <= toReceive,
+            "SmartYieldPool: buyToken min required"
+        );
+
+        require(
+            _underlying <= underlying.allowance(msg.sender, address(this)),
+            "SmartYieldPool: buyToken allowance"
+        );
+
+        underlying.transferFrom(msg.sender, address(this), _underlying);
+        underlying.approve(address(cToken), _underlying);
+
+        require(
+            0 == cToken.mint(_underlying),
+            "SmartYieldPool: buyBond cToken mint failed"
+        );
+
+        juniorToken.mint(msg.sender, toReceive);
+    }
+
+    function sellToken(uint256 _juniorTokens, uint256 _minUnderlying)
+        public
+        nonReentrant
+    {
+        uint256 toReceive = getsUnderlying(_juniorTokens);
+        require(
+            _minUnderlying <= toReceive,
+            "SmartYieldPool: sellToken min required"
+        );
+
+        require(
+            _juniorTokens <= juniorToken.balanceOf(msg.sender),
+            "SmartYieldPool: sellToken balance required"
+        );
+
+        juniorToken.burn(msg.sender, _juniorTokens);
+
+        require(
+            0 == cToken.redeemUnderlying(toReceive),
+            "SmartYieldPool: sellToken redeemUnderlying failed"
+        );
+
+        underlying.transfer(msg.sender, toReceive);
+    }
+
+    // unsafe: does not check liquidity
+    function lockFeeFor(uint256 _underlyingFeeable) internal {
+        poolState.underlyingPoolFees.add(feeFor(_underlyingFeeable));
+    }
+
+    function mintBond(
+        address to,
+        uint256 principal,
+        uint256 ratePerBlock,
+        uint256 startingAt,
+        uint16 forDays
+    ) internal {
+        uint256 bondId = _seniorBondIds.current();
+        _seniorBondIds.increment();
+
+        uint256 maturesAt = startingAt.add(uint256(1 days).mul(forDays));
+        uint256 gain = bondGain(principal, ratePerBlock, forDays);
+        uint256 fee = feeFor(principal);
+
+        require(
+            gain.sub(principal).add(fee) <=
+                underlyingLiquidity().add(underlyingLiquidityBuffer())
+        );
+        lockFeeFor(principal);
+
+        seniorBond[bondId] = SeniorBond(principal, gain, startingAt, maturesAt);
+
+        poolState.underlyingPrincipal = poolState.underlyingPrincipal.add(
+            principal
+        );
+        poolState.underlyingInBonds = poolState.underlyingInBonds.add(gain);
+
+        seniorBondToken.mint(to, bondId);
+    }
+
+    function feeFor(uint256 _underlyingFeeable) public view returns (uint256) {
+        return _underlyingFeeable.mul(feePercent).div(10**18);
     }
 
     function bondGain(
         uint256 principalAmount,
         uint256 ratePerBlock,
-        uint16 forEpochs
-    ) public view returns (uint256) {
-        uint256 ratePerEpoch = ratePerBlock * BLOCKS_PER_EPOCH;
-        return compound(principalAmount, ratePerEpoch, forEpochs);
+        uint16 forDays
+    ) public pure returns (uint256) {
+        uint256 ratePerEpoch = ratePerBlock * BLOCKS_PER_DAY;
+        return compound(principalAmount, ratePerEpoch, forDays);
     }
 
     /**
@@ -137,7 +285,21 @@ contract SmartYieldPool is ReentrancyGuard, Exponential {
             cToken
                 .balanceOf(address(this))
                 .mul(cToken.exchangeRateStored())
-                .div(1e18);
+                .div(10**18);
+    }
+
+    /**
+     * @notice current underlying liquidity, without accruing interest
+     */
+    function underlyingLiquidity() public view returns (uint256) {
+        return
+            underlyingTotal() -
+            poolState.underlyingInBonds -
+            poolState.underlyingPoolFees;
+    }
+
+    function underlyingLiquidityBuffer() public pure returns (uint256) {
+        return 0;
     }
 
     function claimTokenTotal() public view returns (uint256) {
@@ -145,16 +307,38 @@ contract SmartYieldPool is ReentrancyGuard, Exponential {
     }
 
     function compound(
-        uint256 principal,
-        uint256 epochRate,
-        uint16 epochs
+        uint256 _principal,
+        uint256 _ratePerDay,
+        uint16 _days
     ) public pure returns (uint256) {
         // from https://medium.com/coinmonks/math-in-solidity-part-4-compound-interest-512d9e13041b
-        epochs -= 1;
-        while (epochs > 0) {
-            principal += (principal * epochRate) / 10**18;
-            epochs -= 1;
+        _days -= 1;
+        while (_days > 0) {
+            _principal += (_principal * _ratePerDay) / 10**18;
+            _days -= 1;
         }
-        return principal;
+        return _principal;
+    }
+
+    function getsTokens(uint256 _underlyingAmount)
+        public
+        view
+        returns (uint256)
+    {
+        return
+            juniorTokenK.div(underlyingLiquidity().add(_underlyingAmount)).sub(
+                juniorToken.totalSupply()
+            );
+    }
+
+    function getsUnderlying(uint256 _juniorTokenAmount)
+        public
+        view
+        returns (uint256)
+    {
+        return
+            juniorTokenK
+                .div(juniorToken.totalSupply().add(_juniorTokenAmount))
+                .sub(underlyingLiquidity());
     }
 }

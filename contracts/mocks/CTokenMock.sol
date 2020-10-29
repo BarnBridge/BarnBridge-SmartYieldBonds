@@ -7,7 +7,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract CTokenMock is CErc20Interface, ERC20 {
     uint256 public supplyRatePerBlock_ = 0;
 
-    constructor() public ERC20("cDAI Mock", "cDAI") {}
+    constructor(address _underlying) public ERC20("cDAI Mock", "cDAI") {
+        underlying = _underlying;
+    }
 
     // CErc20Interface
 

@@ -67,24 +67,27 @@ describe('Senior Bond Rates', function () {
       await ethers.provider.send('evm_revert', [snapshotId]);
     });
 
-    ctoken = (await deployContract(<Wallet>deployerSign, CTokenMockArtefact, [])) as CTokenMock;
     rewardCtoken = (await deployContract(<Wallet>deployerSign, Erc20MockArtefact, ['COMP', 'COMP'])) as Erc20Mock;
     underliying = (await deployContract(<Wallet>deployerSign, Erc20MockArtefact, ['DAI', 'DAI'])) as Erc20Mock;
+    ctoken = (await deployContract(<Wallet>deployerSign, CTokenMockArtefact, [underliying.address])) as CTokenMock;
 
     pool = (await deployContract(<Wallet>deployerSign, SmartYieldPoolArtefact, [ctoken.address, rewardCtoken.address])) as SmartYieldPool;
 
     juniorToken = (await deployContract(<Wallet>deployerSign, Erc20MockArtefact, ['jBOND', 'jBOND'])) as Erc20Mock;
     seniorToken = (await deployContract(<Wallet>deployerSign, SeniorBondTokenArtefact, ['sBOND', 'sBOND', pool.address])) as SeniorBondToken;
 
-    await pool.setup(seniorToken.address, juniorToken.address);
+    await underliying.connect(deployerSign).mint(deployerAddr, 5000);
+    await underliying.connect(deployerSign).approve(pool.address, 5000);
+
+    await pool.setup(seniorToken.address, juniorToken.address, 5000, 5000);
   });
 
   it('should compute compounding rates the way compound.finance does', async function () {
 
-    const BLOCKS_PER_EPOCH = await pool.BLOCKS_PER_EPOCH();
+    const BLOCKS_PER_DAY = await pool.BLOCKS_PER_DAY();
 
     for (let n = 1; n < 366; n++) {
-      const ratePerEpoch = new BNj(BLOCKS_PER_EPOCH.mul(13504323262).toString()).div(new BNj(10).pow(18)); // 13504323262
+      const ratePerEpoch = new BNj(BLOCKS_PER_DAY.mul(13504323262).toString()).div(new BNj(10).pow(18)); // 13504323262
       const principal = new BNj(0.11);
       //const n = 365; // compounding intervals
 
