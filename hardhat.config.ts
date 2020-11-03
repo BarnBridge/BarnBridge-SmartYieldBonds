@@ -1,9 +1,10 @@
 import defaults from './config';
-import { task } from 'hardhat/config';
+import { task, HardhatUserConfig } from 'hardhat/config';
 
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import 'hardhat-typechain';
+import 'hardhat-gas-reporter';
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -18,13 +19,23 @@ task('accounts', 'Prints the list of accounts', async (args, hre) => {
 // You need to export an object to set up your config
 // Go to https://hardhat.org/config/ to learn more
 
-export default {
-  ... defaults,
-  solidity: '0.6.12',
-  settings: {
-    optimizer: {
-      enabled: true,
-      runs: 1000,
+const config: HardhatUserConfig = {
+  ...defaults,
+
+  solidity: {
+    version: '0.6.12',
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 1000,
+      },
     },
   },
+
+  gasReporter: {
+    currency: 'USD',
+    enabled: true,
+  },
 };
+
+export default config;

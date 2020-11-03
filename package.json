@@ -22,6 +22,7 @@
     "ethereum-waffle": "^3.1.1",
     "ethers": "^5.0.19",
     "hardhat": "^2.0.0",
+    "hardhat-gas-reporter": "^1.0.0",
     "hardhat-typechain": "^0.3.3",
     "solhint": "^3.2.2",
     "ts-generator": "^0.1.1",
