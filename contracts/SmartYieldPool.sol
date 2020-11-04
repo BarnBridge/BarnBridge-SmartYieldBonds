@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+import "./lib/math/Math.sol";
 import "./lib/math/Exponential.sol";
 import "./lib/math/SafeMath16.sol";
 import "./compound-finance/CTokenInterfaces.sol";
@@ -218,7 +219,7 @@ contract SmartYieldPool is ReentrancyGuard, Exponential {
 
     // unsafe: does not check liquidity
     function lockFeeFor(uint256 _underlyingFeeable) internal {
-        poolState.underlyingPoolFees.add(feeFor(_underlyingFeeable));
+        poolState.underlyingPoolFees = poolState.underlyingPoolFees.add(feeFor(_underlyingFeeable));
     }
 
     function mintBond(
@@ -260,8 +261,8 @@ contract SmartYieldPool is ReentrancyGuard, Exponential {
         uint256 ratePerBlock,
         uint16 forDays
     ) public pure returns (uint256) {
-        uint256 ratePerEpoch = ratePerBlock * BLOCKS_PER_DAY;
-        return compound(principalAmount, ratePerEpoch, forDays);
+        uint256 ratePerDay = ratePerBlock * BLOCKS_PER_DAY;
+        return Math.compound(principalAmount, ratePerDay, forDays);
     }
 
     /**
@@ -304,20 +305,6 @@ contract SmartYieldPool is ReentrancyGuard, Exponential {
 
     function claimTokenTotal() public view returns (uint256) {
         return cToken.balanceOf(address(this));
-    }
-
-    function compound(
-        uint256 _principal,
-        uint256 _ratePerDay,
-        uint16 _days
-    ) public pure returns (uint256) {
-        // from https://medium.com/coinmonks/math-in-solidity-part-4-compound-interest-512d9e13041b
-        _days -= 1;
-        while (_days > 0) {
-            _principal += (_principal * _ratePerDay) / 10**18;
-            _days -= 1;
-        }
-        return _principal;
     }
 
     function getsTokens(uint256 _underlyingAmount)

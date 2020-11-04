@@ -6,13 +6,24 @@ import "../../lib/math/Math.sol";
 
 contract SeniorBondSlippageV1 is IBondSlippageModel {
     function slippage(
-      uint256 principal,
-      uint256 ratePerBlock,
-      uint256 forDays,
-      uint256 seniorTotal,
-      uint256 juniorTotal
-    ) external pure returns (uint256) {
-      // TODO: REVIEW &/ CHANGE
-      return (-principal - juniorTotal - seniorTotal + Math.sqrt((principal + juniorTotal + seniorTotal)^2 + 4 * principal * juniorTotal * n^2 * t))/(2 * principal * n * t);
+        uint256 principal,
+        uint256 providerRatePerDay,
+        uint256 seniorTotal,
+        uint256 juniorTotal,
+        uint16 forDays
+    ) external override pure returns (uint256) {
+        // TODO: REVIEW &/ CHANGE &/ SIMPLIFY
+        uint256 b = Math.sqrt(
+            (principal + juniorTotal + seniorTotal)**2 +
+                (((principal * providerRatePerDay**2) / (10**18)**2) *
+                    4 *
+                    juniorTotal *
+                    forDays) /
+                356
+        );
+        uint256 a = (b - principal - juniorTotal - seniorTotal);
+        return
+            a /
+            ((((principal * providerRatePerDay) / 10**18) * 2 * forDays) / 356);
     }
 }

@@ -19,4 +19,18 @@ library Math {
             z = 1;
         }
     }
+
+    function compound(
+        uint256 principal,
+        uint256 ratePerPeriod,
+        uint16 periods
+    ) public pure returns (uint256) {
+        // from https://medium.com/coinmonks/math-in-solidity-part-4-compound-interest-512d9e13041b
+        periods -= 1;
+        while (periods > 0) {
+            principal += (principal * ratePerPeriod) / 10**18;
+            periods -= 1;
+        }
+        return principal;
+    }
 }
