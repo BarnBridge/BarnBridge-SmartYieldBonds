@@ -5,15 +5,21 @@ import { BigNumber as BNj } from 'bignumber.js';
 import { deployContract } from 'ethereum-waffle';
 
 import { SmartYieldPool } from '../typechain/SmartYieldPool';
+import { SeniorBondToken } from '../typechain/SeniorBondToken';
+import { TokenPriceV1 } from '../typechain/TokenPriceV1';
+import { SeniorBondSlippageV1 } from '../typechain/SeniorBondSlippageV1';
+
 import { CTokenMock } from '../typechain/CTokenMock';
 import { Erc20Mock } from '../typechain/Erc20Mock';
-import { SeniorBondToken } from '../typechain/SeniorBondToken';
 
 import SmartYieldPoolArtefact from '../artifacts/contracts/SmartYieldPool.sol/SmartYieldPool.json';
 import SeniorBondTokenArtefact from '../artifacts/contracts/SeniorBondToken.sol/SeniorBondToken.json';
+import TokenPriceV1Artefact from '../artifacts/contracts/Model/Token/TokenPriceV1.sol/TokenPriceV1.json';
+import SeniorBondSlippageV1Artefact from '../artifacts/contracts/Model/Bond/SeniorBondSlippageV1.sol/SeniorBondSlippageV1.json';
 
 import CTokenMockArtefact from '../artifacts/contracts/mocks/CTokenMock.sol/CTokenMock.json';
 import Erc20MockArtefact from '../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
+
 import { withCompoundRate } from './helpers/rates';
 import { toWei } from './helpers/misc';
 
@@ -46,7 +52,12 @@ describe('Senior Bond Rates', function () {
 
   let deployerSign: Signer, ownerSign: Signer, junior1Sign: Signer, junior2Sign: Signer, senior1Sign: Signer, senior2Sign: Signer;
   let deployerAddr: string, ownerAddr: string, junior1Addr: string, junior2Addr: string, senior1Addr: string, senior2Addr: string;
-  let ctoken: CTokenMock, rewardCtoken: Erc20Mock, juniorToken: Erc20Mock, seniorToken: SeniorBondToken, pool: SmartYieldPool, underliying: Erc20Mock;
+
+  let juniorModel: TokenPriceV1;
+  let seniorModel: SeniorBondSlippageV1;
+
+  let ctoken: CTokenMock, rewardCtoken: Erc20Mock, juniorToken: Erc20Mock, seniorToken: SeniorBondToken, underliying: Erc20Mock;
+  let pool: SmartYieldPool;
   let snapshotId: any;
 
 
@@ -71,7 +82,10 @@ describe('Senior Bond Rates', function () {
     underliying = (await deployContract(<Wallet>deployerSign, Erc20MockArtefact, ['DAI', 'DAI'])) as Erc20Mock;
     ctoken = (await deployContract(<Wallet>deployerSign, CTokenMockArtefact, [underliying.address])) as CTokenMock;
 
-    pool = (await deployContract(<Wallet>deployerSign, SmartYieldPoolArtefact, [ctoken.address, rewardCtoken.address])) as SmartYieldPool;
+    juniorModel = (await deployContract(deployerSign, TokenPriceV1Artefact, [])) as TokenPriceV1;
+    seniorModel = (await deployContract(deployerSign, SeniorBondSlippageV1Artefact, [])) as SeniorBondSlippageV1;
+
+    pool = (await deployContract(<Wallet>deployerSign, SmartYieldPoolArtefact, [ctoken.address, rewardCtoken.address, juniorModel.address, seniorModel.address])) as SmartYieldPool;
 
     juniorToken = (await deployContract(<Wallet>deployerSign, Erc20MockArtefact, ['jBOND', 'jBOND'])) as Erc20Mock;
     seniorToken = (await deployContract(<Wallet>deployerSign, SeniorBondTokenArtefact, ['sBOND', 'sBOND', pool.address])) as SeniorBondToken;
@@ -92,7 +106,7 @@ describe('Senior Bond Rates', function () {
       //const n = 365; // compounding intervals
 
       const okPrincipal = withCompoundRate(principal, ratePerEpoch, n);
-      const testPrincipal = await pool.compound(toWei(principal), toWei(ratePerEpoch), BN.from(n));
+      const testPrincipal = await pool.bondGain(toWei(principal), toWei(ratePerEpoch), BN.from(n));
 
       expect(testPrincipal).to.equalWithin(okPrincipal.times(new BNj(10).pow(18)), OK_ERROR_MARGIN);
     }

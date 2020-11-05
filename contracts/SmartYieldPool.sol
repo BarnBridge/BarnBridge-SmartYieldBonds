@@ -4,22 +4,50 @@ pragma solidity ^0.6.0;
 // @TODO:
 import "hardhat/console.sol";
 
+import "./lib/math/Math.sol";
+
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import "./lib/math/Math.sol";
-//import "./lib/math/Exponential.sol";
-import "./lib/math/SafeMath16.sol";
+import "./compound-finance/CTokenInterfaces.sol";
+import "./Model/Bond/IBondSlippageModel.sol";
+import "./Model/Token/ITokenPriceModel.sol";
+
+import "./SeniorBondToken.sol";
+import "./JuniorPoolToken.sol";
 
 import "./ISmartYieldPool.sol";
 
 contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
     //using SafeMath16 for uint16;
     using SafeMath for uint256;
+    using Math for uint256;
+
     using Counters for Counters.Counter;
+
+    uint256 public constant BLOCKS_PER_YEAR = 2102400;
+    uint256 public constant BLOCKS_PER_DAY = BLOCKS_PER_YEAR / 365;
+    uint256 public constant BOND_LIFE_MAX = 365 * 2; // in days
+    uint256 public constant DAYS_IN_YEAR = 365;
+
+    // DAI
+    IERC20 public underlying;
+    // cDAI
+    CErc20Interface public cToken;
+    // COMP
+    IERC20 public rewardCToken;
+
+    // senior BOND NFT
+    SeniorBondToken public seniorBondToken;
+
+    // junior POOL Token
+    JuniorPoolToken public juniorToken;
+
+    IBondSlippageModel public seniorModel;
+    ITokenPriceModel public juniorModel;
 
     // @TODO:
     uint256 public feePercent = (10**18 * 1) / 1000; // 0.1%
@@ -58,8 +86,8 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         cToken = CErc20Interface(_cToken);
         underlying = IERC20(cToken.underlying());
         rewardCToken = IERC20(_rewardCToken);
-        seniorModel = IBondSlippageModel(_seniorModel);
         juniorModel = ITokenPriceModel(_juniorModel);
+        seniorModel = IBondSlippageModel(_seniorModel);
     }
 
     function setup(
@@ -263,7 +291,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         uint256 principalAmount,
         uint256 ratePerDay,
         uint16 forDays
-    ) internal pure returns (uint256) {
+    ) public pure returns (uint256) {
         return Math.compound(principalAmount, ratePerDay, forDays);
     }
 
