@@ -46,12 +46,6 @@ abstract contract ISmartYieldPool {
 
     function feeFor(uint256 _underlyingFeeable) external virtual view returns (uint256);
 
-    function bondGain(
-        uint256 principalAmount,
-        uint256 ratePerBlock,
-        uint16 forDays
-    ) external virtual pure returns (uint256);
-
     /**
      * @notice computes the bondRate per block takeing into account the slippage
      * @return (the bondRate after slippage)

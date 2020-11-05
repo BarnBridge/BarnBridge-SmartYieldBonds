@@ -225,7 +225,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         _seniorBondIds.increment();
 
         uint256 maturesAt = startingAt.add(uint256(1 days).mul(forDays));
-        uint256 gain = this.bondGain(principal, ratePerDay, forDays);
+        uint256 gain = bondGain(principal, ratePerDay, forDays);
         uint256 fee = this.feeFor(principal);
 
         require(gain.sub(principal).add(fee) <= this.underlyingLiquidity());
@@ -263,7 +263,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         uint256 principalAmount,
         uint256 ratePerDay,
         uint16 forDays
-    ) external override pure returns (uint256) {
+    ) internal pure returns (uint256) {
         return Math.compound(principalAmount, ratePerDay, forDays);
     }
 
