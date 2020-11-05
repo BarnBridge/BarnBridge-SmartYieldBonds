@@ -14,7 +14,7 @@ import "./JuniorPoolToken.sol";
 import "./Model/Bond/IBondSlippageModel.sol";
 import "./Model/Token/ITokenPriceModel.sol";
 
-interface ISmartYieldPool {
+abstract contract ISmartYieldPool {
     uint256 public constant BLOCKS_PER_YEAR = 2102400;
     uint256 public constant BLOCKS_PER_DAY = BLOCKS_PER_YEAR / 365;
     uint256 public constant BOND_LIFE_MAX = 365 * 2; // in days
@@ -36,21 +36,21 @@ interface ISmartYieldPool {
     IBondSlippageModel public seniorModel;
     ITokenPriceModel public juniorModel;
 
-    function buyBond(uint256 principalAmount, uint16 forDays) external;
+    function buyBond(uint256 principalAmount, uint16 forDays) external virtual;
 
-    function redeemBond(uint256 _bondId) external;
+    function redeemBond(uint256 _bondId) external virtual;
 
-    function buyToken(uint256 _underlying, uint256 _minTokens) external;
+    function buyToken(uint256 _underlying) external virtual;
 
-    function sellToken(uint256 _juniorTokens, uint256 _minUnderlying) external;
+    function sellToken(uint256 _juniorTokens, uint256 _minUnderlying) external virtual;
 
-    function feeFor(uint256 _underlyingFeeable) external view returns (uint256);
+    function feeFor(uint256 _underlyingFeeable) external virtual view returns (uint256);
 
     function bondGain(
         uint256 principalAmount,
         uint256 ratePerBlock,
         uint16 forDays
-    ) external pure returns (uint256);
+    ) external virtual pure returns (uint256);
 
     /**
      * @notice computes the bondRate per block takeing into account the slippage
@@ -58,20 +58,23 @@ interface ISmartYieldPool {
      */
     function bondRatePerBlockSlippage(uint256 addedPrincipalAmount)
         external
+        virtual
         view
         returns (uint256);
 
     /**
      * @notice current total underlying balance, without accruing interest
      */
-    function underlyingTotal() external view returns (uint256);
+    function underlyingTotal() external virtual view returns (uint256);
 
     /**
      * @notice current underlying liquidity, without accruing interest
      */
-    function underlyingLiquidity() external view returns (uint256);
+    function underlyingLiquidity() external virtual view returns (uint256);
 
-    function claimTokenTotal() external view returns (uint256);
+    function underlyingJunior()  external virtual view returns (uint256);
 
-    function ratePerDay() external view returns (uint256);
+    function claimTokenTotal() external virtual view returns (uint256);
+
+    function ratePerDay() external virtual view returns (uint256);
 }

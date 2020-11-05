@@ -15,6 +15,7 @@ contract TokenPriceV1 is ITokenPriceModel {
 
     function price(uint256 _underlyingJunior, uint256 _totalSupplyToken)
         external
+        override
         pure
         returns (uint256)
     {
