@@ -116,12 +116,12 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
             "SmartYieldPool: buyBond forDays invalid"
         );
 
-        uint256 ratePerBlock = this.bondRatePerBlockSlippage(principalAmount);
+        uint256 ratePerDay = this.bondRatePerDaySlippage(principalAmount, forDays);
 
         mintBond(
             msg.sender,
             principalAmount,
-            ratePerBlock,
+            ratePerDay,
             block.timestamp,
             forDays
         );
@@ -217,7 +217,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
     function mintBond(
         address to,
         uint256 principal,
-        uint256 ratePerBlock,
+        uint256 ratePerDay,
         uint256 startingAt,
         uint16 forDays
     ) internal {
@@ -225,7 +225,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         _seniorBondIds.increment();
 
         uint256 maturesAt = startingAt.add(uint256(1 days).mul(forDays));
-        uint256 gain = this.bondGain(principal, ratePerBlock, forDays);
+        uint256 gain = this.bondGain(principal, ratePerDay, forDays);
         uint256 fee = this.feeFor(principal);
 
         require(gain.sub(principal).add(fee) <= this.underlyingLiquidity());
@@ -261,10 +261,9 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
 
     function bondGain(
         uint256 principalAmount,
-        uint256 ratePerBlock,
+        uint256 ratePerDay,
         uint16 forDays
     ) external override pure returns (uint256) {
-        uint256 ratePerDay = ratePerBlock * BLOCKS_PER_DAY;
         return Math.compound(principalAmount, ratePerDay, forDays);
     }
 
@@ -272,14 +271,14 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
      * @notice computes the bondRate per block takeing into account the slippage
      * @return (the bondRate after slippage)
      */
-    function bondRatePerBlockSlippage(uint256 addedPrincipalAmount)
+    function bondRatePerDaySlippage(uint256 addedPrincipalAmount, uint16 forDays)
         external
         override
         view
         returns (uint256)
     {
         // @TODO: formula + COPM valuation
-        return cToken.supplyRatePerBlock();
+        return this.ratePerDay().mul(seniorModel.slippage(address(this), addedPrincipalAmount, forDays));
     }
 
     /**

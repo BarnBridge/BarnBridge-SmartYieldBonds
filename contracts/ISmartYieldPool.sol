@@ -56,7 +56,7 @@ abstract contract ISmartYieldPool {
      * @notice computes the bondRate per block takeing into account the slippage
      * @return (the bondRate after slippage)
      */
-    function bondRatePerBlockSlippage(uint256 addedPrincipalAmount)
+    function bondRatePerDaySlippage(uint256 addedPrincipalAmount, uint16 forDays)
         external
         virtual
         view
