@@ -9,6 +9,6 @@ interface IBondSlippageModel {
       uint256 seniorTotal,
       uint256 juniorTotal,
       uint16 forDays
-    ) external pure returns (uint256);
+    ) external view returns (uint256);
 
 }
