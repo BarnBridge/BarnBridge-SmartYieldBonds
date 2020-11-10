@@ -75,7 +75,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
     // bond id => bond (SeniorBond)
     mapping(uint256 => SeniorBond) public seniorBond;
 
-    // senior BONDs
+    // /senior BONDs
 
     constructor(
         address _cToken,
@@ -90,31 +90,10 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         seniorModel = IBondSlippageModel(_seniorModel);
     }
 
-    function setup(
-        address _seniorBondToken,
-        address _juniorToken,
-        uint256 _underlyingAmount,
-        uint256 _jTokenAmount
-    ) public {
+    function setup(address _seniorBondToken, address _juniorToken) public {
         // @TODO:
         seniorBondToken = SeniorBondToken(_seniorBondToken);
         juniorToken = JuniorPoolToken(_juniorToken);
-
-        require(
-            _underlyingAmount <=
-                underlying.allowance(msg.sender, address(this)),
-            "SmartYieldPool: setup not enought allowance"
-        );
-
-        underlying.transferFrom(msg.sender, address(this), _underlyingAmount);
-        underlying.approve(address(cToken), _underlyingAmount);
-
-        require(
-            0 == cToken.mint(_underlyingAmount),
-            "SmartYieldPool: setup failed to mint cToken"
-        );
-
-        juniorToken.mint(msg.sender, _jTokenAmount);
     }
 
     /**
@@ -125,7 +104,14 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         external
         override
         nonReentrant
+        returns (uint256)
     {
+        uint256 ratePerDay = this.bondRatePerDaySlippage(
+            principalAmount,
+            forDays
+        );
+        console.log("got rate", ratePerDay);
+
         require(
             principalAmount <= underlying.allowance(msg.sender, address(this)),
             "SmartYieldPool: buyBond not enought allowance"
@@ -144,15 +130,14 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
             "SmartYieldPool: buyBond forDays invalid"
         );
 
-        uint256 ratePerDay = this.bondRatePerDaySlippage(principalAmount, forDays);
-
-        mintBond(
-            msg.sender,
-            principalAmount,
-            ratePerDay,
-            block.timestamp,
-            forDays
-        );
+        return
+            mintBond(
+                msg.sender,
+                principalAmount,
+                ratePerDay,
+                block.timestamp,
+                forDays
+            );
     }
 
     function redeemBond(uint256 _bondId) external override nonReentrant {
@@ -180,6 +165,24 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
 
         delete seniorBond[_bondId];
         seniorBondToken.burn(_bondId);
+    }
+
+    function getBond(uint256 _bondId)
+        public
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256
+        )
+    {
+        return (
+            seniorBond[_bondId].principal,
+            seniorBond[_bondId].gain,
+            seniorBond[_bondId].issuedAt,
+            seniorBond[_bondId].maturesAt
+        );
     }
 
     function buyToken(uint256 _underlying) external override nonReentrant {
@@ -248,7 +251,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         uint256 ratePerDay,
         uint256 startingAt,
         uint16 forDays
-    ) internal {
+    ) internal returns (uint256) {
         uint256 bondId = _seniorBondIds.current();
         _seniorBondIds.increment();
 
@@ -276,6 +279,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         );
 
         seniorBondToken.mint(to, bondId);
+        return bondId;
     }
 
     function feeFor(uint256 _underlyingFeeable)
@@ -299,14 +303,19 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
      * @notice computes the bondRate per block takeing into account the slippage
      * @return (the bondRate after slippage)
      */
-    function bondRatePerDaySlippage(uint256 addedPrincipalAmount, uint16 forDays)
-        external
-        override
-        view
-        returns (uint256)
-    {
+    function bondRatePerDaySlippage(
+        uint256 addedPrincipalAmount,
+        uint16 forDays
+    ) external override view returns (uint256) {
         // @TODO: formula + COPM valuation
-        return this.ratePerDay().mul(seniorModel.slippage(address(this), addedPrincipalAmount, forDays));
+        return
+            //this.ratePerDay().mul(
+                seniorModel.slippage(
+                    address(this),
+                    addedPrincipalAmount,
+                    forDays
+                );
+            //);
     }
 
     /**

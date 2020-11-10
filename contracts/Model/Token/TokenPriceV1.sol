@@ -22,6 +22,6 @@ contract TokenPriceV1 is ITokenPriceModel {
         return
             _totalSupplyToken == 0
                 ? 10**18
-                : _underlyingJunior.div(_totalSupplyToken.div(10**18));
+                : _underlyingJunior.mul(10**18).div(_totalSupplyToken);
     }
 }

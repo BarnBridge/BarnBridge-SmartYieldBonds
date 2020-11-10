@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.6.0;
 
+import "hardhat/console.sol";
+
 import "../compound-finance/CTokenInterfaces.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract CTokenMock is CErc20Interface, ERC20 {
     uint256 public supplyRatePerBlock_ = 0;
+    uint256 public exchangeRateStored_ = 0;
 
     constructor(address _underlying) public ERC20("cDAI Mock", "cDAI") {
         underlying = _underlying;
@@ -14,7 +17,7 @@ contract CTokenMock is CErc20Interface, ERC20 {
     // CErc20Interface
 
     function mint(uint256 mintAmount) external override returns (uint256) {
-        return 0;
+        _mint(msg.sender, mintAmount.mul(10**18).div(exchangeRateStored_));
     }
 
     function redeem(uint256 redeemTokens) external override returns (uint256) {
@@ -33,22 +36,25 @@ contract CTokenMock is CErc20Interface, ERC20 {
         return supplyRatePerBlock_;
     }
 
-    function balanceOfUnderlying(address owner)
-        external
-        override
-        returns (uint256)
-    {
-        return 0;
-    }
-
     function exchangeRateStored() public override view returns (uint256) {
-        return 0;
+        return exchangeRateStored_;
     }
 
     // helpers
 
-    function setSupplyRatePerBlock(uint256 newRate) public returns (uint256) {
+    function setSupplyRatePerBlock(uint256 newRate) public {
         supplyRatePerBlock_ = newRate;
-        return supplyRatePerBlock_;
+    }
+
+    function setExchangeRateStored(uint256 newRate) public {
+        exchangeRateStored_ = newRate;
+    }
+
+    function mockMint(address account, uint256 amount) public {
+        _mint(account, amount);
+    }
+
+    function mockBurn(address account, uint256 amount) public {
+        _burn(account, amount);
     }
 }

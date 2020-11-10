@@ -9,9 +9,10 @@
   },
   "include": [
     "./scripts",
-    "./test"
+    "./test", "index.d.ts"
   ],
   "files": [
-    "./hardhat.config.ts"
-  ]
+    "./hardhat.config.ts",
+    "./types.d.ts"
+  ],
 }

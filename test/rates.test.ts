@@ -1,8 +1,10 @@
-import { expect, Assertion } from 'chai';
+import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { deployContract } from 'ethereum-waffle';
+
+import { withCompoundRate, toWei, OK_ERROR_MARGIN } from './helpers';
 
 import { SmartYieldPool } from '../typechain/SmartYieldPool';
 import { SeniorBondToken } from '../typechain/SeniorBondToken';
@@ -20,35 +22,8 @@ import SeniorBondSlippageV1Artefact from '../artifacts/contracts/Model/Bond/Seni
 import CTokenMockArtefact from '../artifacts/contracts/mocks/CTokenMock.sol/CTokenMock.json';
 import Erc20MockArtefact from '../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
 
-import { withCompoundRate } from './helpers/rates';
-import { toWei } from './helpers/misc';
-
-Assertion.addMethod('equalWithin', function (toCheck: BNj, within: BNj) {
-  new Assertion(this._obj).to.be.instanceof(BN);
-
-  const obj = new BNj((this._obj as BN).toString());
-  const errorMargin = (obj.gt(toCheck) ? obj.minus(toCheck) : toCheck.minus(obj)).div(toCheck);
-
-  this.assert(
-    errorMargin.abs().lt(within)
-    , `expected #{this} to be within #{exp} but got withing #{act} (v=${toCheck.toString()})`
-    , `expected #{this} to not be within #{exp} but got withing #{act} (v=${toCheck.toString()})`
-    , within.toString()        // expected
-    , errorMargin.abs().toString()   // actual
-  );
-});
-
-declare global {
-  export namespace Chai {
-    interface Assertion {
-      equalWithin(toCheck: BNj, within: BNj): Promise<void>;
-    }
-  }
-}
-
 
 describe('Senior Bond Rates', function () {
-  const OK_ERROR_MARGIN = new BNj(1).div(new BNj(10).pow(10)); // 0.0000001 %
 
   let deployerSign: Signer, ownerSign: Signer, junior1Sign: Signer, junior2Sign: Signer, senior1Sign: Signer, senior2Sign: Signer;
   let deployerAddr: string, ownerAddr: string, junior1Addr: string, junior2Addr: string, senior1Addr: string, senior2Addr: string;
@@ -90,10 +65,7 @@ describe('Senior Bond Rates', function () {
     juniorToken = (await deployContract(<Wallet>deployerSign, Erc20MockArtefact, ['jBOND', 'jBOND'])) as Erc20Mock;
     seniorToken = (await deployContract(<Wallet>deployerSign, SeniorBondTokenArtefact, ['sBOND', 'sBOND', pool.address])) as SeniorBondToken;
 
-    await underliying.connect(deployerSign).mint(deployerAddr, 5000);
-    await underliying.connect(deployerSign).approve(pool.address, 5000);
-
-    await pool.setup(seniorToken.address, juniorToken.address, 5000, 5000);
+    await pool.setup(seniorToken.address, juniorToken.address);
   });
 
   it('should compute compounding rates the way compound.finance does', async function () {
@@ -112,4 +84,5 @@ describe('Senior Bond Rates', function () {
     }
 
   });
+
 });

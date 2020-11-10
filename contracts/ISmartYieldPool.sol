@@ -2,7 +2,7 @@
 pragma solidity ^0.6.0;
 
 interface ISmartYieldPool {
-    function buyBond(uint256 principalAmount, uint16 forDays) external;
+    function buyBond(uint256 principalAmount, uint16 forDays) external returns (uint256);
 
     function redeemBond(uint256 _bondId) external;
 

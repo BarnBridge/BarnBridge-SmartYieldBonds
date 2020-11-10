@@ -19,7 +19,7 @@ abstract contract CErc20Interface is CErc20Storage, IERC20 {
 
     function supplyRatePerBlock() virtual external view returns (uint);
 
-    function balanceOfUnderlying(address owner) virtual external returns (uint);
+    //function balanceOfUnderlying(address owner) virtual external returns (uint);
 
     function exchangeRateStored() virtual public view returns (uint);
 }
