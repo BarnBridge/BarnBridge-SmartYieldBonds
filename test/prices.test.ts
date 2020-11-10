@@ -20,7 +20,7 @@ import SeniorBondSlippageV1Artefact from '../artifacts/contracts/Model/Bond/Seni
 import CTokenMockArtefact from '../artifacts/contracts/mocks/CTokenMock.sol/CTokenMock.json';
 import Erc20MockArtefact from '../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
 
-import { withCompoundRate, toWei, OK_ERROR_MARGIN, bondSlippage, toBNj } from './helpers';
+import { withCompoundRate, toWei, OK_ERROR_MARGIN, bondSlippage, toBNj, e18 } from './helpers';
 
 describe('sBond & jToken Prices', function () {
 
@@ -110,32 +110,35 @@ describe('sBond & jToken Prices', function () {
     const BLOCKS_PER_DAY = await pool.BLOCKS_PER_DAY();
     const ratePerDay = BLOCKS_PER_DAY.mul(supplyRatePerBlock);
 
-    const e = BN.from(10).pow(18);
-
     await ctoken.setSupplyRatePerBlock(supplyRatePerBlock);
     await ctoken.setExchangeRateStored(exchangeRateStored);
 
-    await underliying.mintMock(junior1Addr, BN.from(1000).mul(e));
-    await underliying.connect(junior1Sign).approve(pool.address, BN.from(1000).mul(e));
+    await underliying.mintMock(junior1Addr, e18(1000));
+    await underliying.connect(junior1Sign).approve(pool.address, e18(1000));
 
-    await pool.connect(junior1Sign).buyToken(BN.from(1000).mul(e));
+    await pool.connect(junior1Sign).buyToken(e18(1000));
 
-    expect(await juniorToken.balanceOf(junior1Addr)).deep.equals(BN.from(1000).mul(e), 'Should have received 1000 jToken');
+    expect(await juniorToken.balanceOf(junior1Addr)).deep.equals(e18(1000), 'Should have received 1000 jToken');
 
-    await underliying.mintMock(senior1Addr, BN.from(1000).mul(e));
-    await underliying.connect(senior1Sign).approve(pool.address, BN.from(1000).mul(e));
+    await underliying.mintMock(senior1Addr, e18(1000));
+    await underliying.connect(senior1Sign).approve(pool.address, e18(1000));
 
-    await pool.connect(senior1Sign).buyBond(BN.from(1000).mul(e), BN.from(365));
+    const underlyingLiquidity = await pool.underlyingLiquidity();
+    const underlyingTotal = await pool.underlyingTotal();
+
+    await pool.connect(senior1Sign).buyBond(e18(1000), BN.from(365));
 
     const bond = await pool.getBond(0);
     const ideal = await pool.bondGain(toWei(1000), ratePerDay, BN.from(365));
 
-    console.error('x=', bondSlippage(new BNj(1000).times(new BNj(10).pow(18)), 365, toBNj(ratePerDay), toBNj(await pool.underlyingLiquidity()), toBNj(await pool.underlyingTotal())).toString());
+    const comparisonRate = bondSlippage(new BNj(1000), 365, toBNj(ratePerDay).div(toBNj(e18(1))), toBNj(underlyingLiquidity).div(toBNj(e18(1))), toBNj(underlyingTotal).div(toBNj(e18(1))));
+    const comparisonGain = withCompoundRate(toBNj(1000), comparisonRate, 356).toFixed(18);
+
 
     console.error('principal:', bond[0].toString(), 'gain:', bond[1].toString(), );
     console.error('ideal gain:', ideal.toString());
 
-    expect(await pool.getsTokens(1)).deep.equals(BN.from(1), 'Token price should still be 1');
+    expect(await pool.getsTokens(1)).equalWithin(BN.from(1), 'Token price should still be 1');
   });
 
 

@@ -106,11 +106,12 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         nonReentrant
         returns (uint256)
     {
-        uint256 ratePerDay = this.bondRatePerDaySlippage(
+        uint256 _ratePerDay = this.bondRatePerDaySlippage(
             principalAmount,
             forDays
         );
-        console.log("got rate", ratePerDay);
+        console.log("prov rate", this.ratePerDay());
+        console.log("got  rate", _ratePerDay);
 
         require(
             principalAmount <= underlying.allowance(msg.sender, address(this)),
@@ -134,7 +135,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
             mintBond(
                 msg.sender,
                 principalAmount,
-                ratePerDay,
+                _ratePerDay,
                 block.timestamp,
                 forDays
             );
@@ -309,13 +310,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
     ) external override view returns (uint256) {
         // @TODO: formula + COPM valuation
         return
-            //this.ratePerDay().mul(
-                seniorModel.slippage(
-                    address(this),
-                    addedPrincipalAmount,
-                    forDays
-                );
-            //);
+            seniorModel.slippage(address(this), addedPrincipalAmount, forDays);
     }
 
     /**

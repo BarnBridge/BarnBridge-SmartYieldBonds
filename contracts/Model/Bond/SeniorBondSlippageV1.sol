@@ -22,13 +22,13 @@ contract SeniorBondSlippageV1 is IBondSlippageModel {
         uint16 forDays
     ) external override view returns (uint256) {
         // (-b - o - b n^2 t + sqrt(4 b j n^2 t + (b + o + b n^2 t)^2))/(2 b n t)
-        uint256 t = uint256(forDays).mul(1000).div(365);
+        uint256 t = uint256(forDays).mul(100000).div(365);
 
         uint256 ratePerDay2 = (ISmartYieldPool(pool).ratePerDay())
             .mul(ISmartYieldPool(pool).ratePerDay())
             .div(10**18);
 
-        uint256 bn2t = principal.mul(t).div(1000).mul(ratePerDay2).div(10**18);
+        uint256 bn2t = principal.mul(t).div(100000).mul(ratePerDay2).div(10**18);
 
         return
             nume(
@@ -74,7 +74,7 @@ contract SeniorBondSlippageV1 is IBondSlippageModel {
     ) internal view returns (uint256) {
         return
             principal.mul(2).mul(ISmartYieldPool(pool).ratePerDay()).div(10**18).mul(t).div(
-                1000
+                100000
             );
     }
 }

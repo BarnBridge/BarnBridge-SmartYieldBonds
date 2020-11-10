@@ -1,4 +1,5 @@
 import { BigNumber as BNj } from 'bignumber.js';
+import { e18, toBNj } from './misc';
 
 export const DAYS_IN_YEAR = 365;
 
@@ -13,11 +14,12 @@ export const bondSlippage = (principal: BNj, forDays: number, ratePerDay: BNj, u
   // x = (cur_j - (bond*x*n*t)) / (cur_tot + bond + (bond*x*n*t)) * n
   // (-b - o - b n^2 t + sqrt(4 b j n^2 t + (b + o + b n^2 t)^2))/(2 b n t)
 
-  const e18 = new BNj(10).pow(18);
-  const t = new BNj(forDays).div(DAYS_IN_YEAR);
-  const bn2t = principal.times(ratePerDay.pow(2).div(e18)).times(t);
+  console.log('bondSlippage:', principal.toFixed(18), forDays, ratePerDay.toFixed(18), underlyingLiquidity.toFixed(18), underlyingTotal.toFixed(18));
 
-  const nume = bn2t.times(underlyingLiquidity).times(principal).times(4).plus(bn2t.plus(underlyingTotal).plus(principal).pow(2).div(e18)).sqrt().minus(bn2t).minus(underlyingTotal).minus(principal);
+  const t = new BNj(forDays).div(DAYS_IN_YEAR);
+  const bn2t = principal.times(ratePerDay.times(ratePerDay)).times(t);
+
+  const nume = bn2t.times(underlyingLiquidity).times(4).plus(bn2t.plus(underlyingTotal).plus(principal).pow(2)).sqrt().minus(bn2t).minus(underlyingTotal).minus(principal);
   return nume.div(principal.times(2).times(ratePerDay).times(t));
 };
 
