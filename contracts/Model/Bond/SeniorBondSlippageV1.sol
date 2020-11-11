@@ -16,65 +16,53 @@ contract SeniorBondSlippageV1 is IBondSlippageModel {
     using SafeMath for uint256;
     using Math for uint256;
 
+    struct SlippageLocalVars {
+        uint256 t;
+        uint256 underlyingTotal;
+        uint256 underlyingLiquidity;
+        uint256 ratePerDay2;
+        uint256 bn2t;
+        uint256 nume;
+        uint256 deno;
+    }
+
     function slippage(
         address pool,
         uint256 principal,
         uint16 forDays
     ) external override view returns (uint256) {
+        SlippageLocalVars memory v;
         // (-b - o - b n^2 t + sqrt(4 b j n^2 t + (b + o + b n^2 t)^2))/(2 b n t)
-        uint256 t = uint256(forDays).mul(100000).div(365);
+        v.t = uint256(forDays).mul(10**18).div(365);
 
-        uint256 ratePerDay2 = (ISmartYieldPool(pool).ratePerDay())
+        v.ratePerDay2 = (ISmartYieldPool(pool).ratePerDay())
             .mul(ISmartYieldPool(pool).ratePerDay())
             .div(10**18);
 
-        uint256 bn2t = principal.mul(t).div(100000).mul(ratePerDay2).div(10**18);
+        v.bn2t = principal.mul(v.t).div(10**18).mul(v.ratePerDay2).div(10**18);
+        v.underlyingLiquidity = ISmartYieldPool(pool).underlyingLiquidity();
+        v.underlyingTotal = ISmartYieldPool(pool).underlyingTotal();
 
-        return
-            nume(
-                pool,
-                principal,
-                ISmartYieldPool(pool).underlyingLiquidity(),
-                bn2t
-            ).mul(10**18)
-                .div(deno(pool, principal, t));
-    }
-
-    function nume(
-        address pool,
-        uint256 principal,
-        uint256 underlyingLiquidity,
-        uint256 bn2t
-    ) internal view returns (uint256) {
-        uint256 nume0 = underlyingLiquidity
+        v.nume = v.underlyingLiquidity
             .mul(4)
-            .mul(bn2t)//.div(10**18)
+            .mul(v.bn2t)
             .add(
-            bn2t
-                .add(ISmartYieldPool(pool).underlyingTotal())
-                .add(principal)
-                .mul(
-                bn2t.add(ISmartYieldPool(pool).underlyingTotal()).add(principal)
+            v.bn2t.add(v.underlyingTotal).add(principal).mul(
+                v.bn2t.add(v.underlyingTotal).add(principal)
             )
-            //.div(10**18)
         )
             .sqrt();
 
-        nume0 = nume0.sub(bn2t).sub(principal).sub(
-            ISmartYieldPool(pool).underlyingTotal()
-        );
-
-        return nume0;
-    }
-
-    function deno(
-        address pool,
-        uint256 principal,
-        uint256 t
-    ) internal view returns (uint256) {
+        v.nume = v.nume.sub(v.bn2t).sub(principal).sub(v.underlyingTotal);
+        v.deno = principal
+                .mul(2)
+                .mul(ISmartYieldPool(pool).ratePerDay())
+                .div(10**18)
+                .mul(v.t)
+                .div(10**18);
         return
-            principal.mul(2).mul(ISmartYieldPool(pool).ratePerDay()).div(10**18).mul(t).div(
-                100000
-            );
+            v.nume
+                .mul(10**18)
+                .div(v.deno);
     }
 }

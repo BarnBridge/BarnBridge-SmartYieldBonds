@@ -110,8 +110,6 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
             principalAmount,
             forDays
         );
-        console.log("prov rate", this.ratePerDay());
-        console.log("got  rate", _ratePerDay);
 
         require(
             principalAmount <= underlying.allowance(msg.sender, address(this)),

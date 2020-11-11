@@ -11,14 +11,15 @@ Assertion.addMethod('equalWithin', function (toCheck: BNj, within: BNj) {
 
   this.assert(
     errorMargin.abs().lt(within)
-    , `expected #{this} to be within #{exp} but got withing #{act} (v=${toCheck.toString()})`
-    , `expected #{this} to not be within #{exp} but got withing #{act} (v=${toCheck.toString()})`
-    , within.toString()        // expected
-    , errorMargin.abs().toString()   // actual
+    , `expected ${obj.toFixed(18)} to be within ${within.toFixed(18)} of ${toCheck.toFixed(18)}`
+    , `expected ${obj.toFixed(18)} not to be within ${within.toFixed(18)} of ${toCheck.toFixed(18)}`
+    , within.toFixed(18)        // expected
+    , errorMargin.abs().toFixed(18)   // actual
   );
 });
 
-export const OK_ERROR_MARGIN = new BNj(1).div(new BNj(10).pow(10)); // 0.0000001 %
+export const ERROR_MARGIN_PREFERED = new BNj(1).div(new BNj(10).pow(10)); // 0.00000001 %
+export const ERROR_MARGIN_ACCEPTABLE = new BNj(5).div(new BNj(10).pow(4)); // 0.05 %
 
 export * from './misc';
 export * from './rates';

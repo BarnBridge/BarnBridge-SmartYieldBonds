@@ -4,7 +4,7 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { deployContract } from 'ethereum-waffle';
 
-import { withCompoundRate, toWei, OK_ERROR_MARGIN } from './helpers';
+import { withCompoundRate, toWei, ERROR_MARGIN_PREFERED } from './helpers';
 
 import { SmartYieldPool } from '../typechain/SmartYieldPool';
 import { SeniorBondToken } from '../typechain/SeniorBondToken';
@@ -80,7 +80,7 @@ describe('Senior Bond Rates', function () {
       const okPrincipal = withCompoundRate(principal, ratePerEpoch, n);
       const testPrincipal = await pool.bondGain(toWei(principal), toWei(ratePerEpoch), BN.from(n));
 
-      expect(testPrincipal).to.equalWithin(okPrincipal.times(new BNj(10).pow(18)), OK_ERROR_MARGIN);
+      expect(testPrincipal).to.equalWithin(okPrincipal.times(new BNj(10).pow(18)), ERROR_MARGIN_PREFERED);
     }
 
   });
