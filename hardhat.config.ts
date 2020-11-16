@@ -1,10 +1,10 @@
 import defaults from './config';
 import { task, HardhatUserConfig } from 'hardhat/config';
 
+import 'hardhat-gas-reporter';
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import 'hardhat-typechain';
-import 'hardhat-gas-reporter';
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html

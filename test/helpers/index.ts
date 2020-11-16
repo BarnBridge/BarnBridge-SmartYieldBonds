@@ -18,7 +18,7 @@ Assertion.addMethod('equalWithin', function (toCheck: BNj, within: BNj) {
   );
 });
 
-export const ERROR_MARGIN_PREFERED = new BNj(1).div(new BNj(10).pow(10)); // 0.00000001 %
+export const ERROR_MARGIN_PREFERED = new BNj(1).div(new BNj(10).pow(10));  // 0.00000001 %
 export const ERROR_MARGIN_ACCEPTABLE = new BNj(5).div(new BNj(10).pow(4)); // 0.05 %
 
 export * from './misc';
