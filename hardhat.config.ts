@@ -2,6 +2,7 @@ import defaults from './config';
 import { task, HardhatUserConfig } from 'hardhat/config';
 
 import 'hardhat-gas-reporter';
+import 'solidity-coverage';
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import 'hardhat-typechain';

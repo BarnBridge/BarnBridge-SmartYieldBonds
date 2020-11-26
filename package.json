@@ -27,6 +27,7 @@
     "hardhat-typechain": "^0.3.3",
     "solc": "^0.6.12",
     "solhint": "^3.2.2",
+    "solidity-coverage": "^0.7.12",
     "ts-generator": "^0.1.1",
     "ts-node": "^9.0.0",
     "tsconfig-paths": "^3.9.0",
@@ -35,6 +36,7 @@
   },
   "scripts": {
     "test": "hardhat test",
+    "coverage": "hardhat coverage",
     "recompile": "hardhat clean && hardhat compile"
   },
   "author": "",

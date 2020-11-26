@@ -60,14 +60,50 @@ const fixture = async (wallets: Wallet[]) => {
   };
 };
 
-describe('Senior Bond Rates', function () {
+describe('Senior Bond Rates', async function () {
 
-  it('should compute compounding rates the way compound.finance does', async function () {
+  it('should compute compounding rates the way compound.finance does 1/3', async function () {
     const { pool } = await bbFixtures(fixture);
 
     const BLOCKS_PER_DAY = await pool.BLOCKS_PER_DAY();
 
-    for (let n = 1; n < 366; n++) {
+    for (let n = 1; n < 120; n++) {
+      const ratePerEpoch = new BNj(BLOCKS_PER_DAY.mul(13504323262).toString()).div(new BNj(10).pow(18)); // 13504323262
+      const principal = new BNj(0.11);
+      //const n = 365; // compounding intervals
+
+      const okPrincipal = withCompoundRate(principal, ratePerEpoch, n);
+      const testPrincipal = await pool.bondGain(toWei(principal), toWei(ratePerEpoch), BN.from(n));
+
+      expect(testPrincipal).to.equalWithin(okPrincipal.times(new BNj(10).pow(18)), ERROR_MARGIN_PREFERED);
+    }
+
+  });
+
+  it('should compute compounding rates the way compound.finance does 2/3', async function () {
+    const { pool } = await bbFixtures(fixture);
+
+    const BLOCKS_PER_DAY = await pool.BLOCKS_PER_DAY();
+
+    for (let n = 120; n < 240; n++) {
+      const ratePerEpoch = new BNj(BLOCKS_PER_DAY.mul(13504323262).toString()).div(new BNj(10).pow(18)); // 13504323262
+      const principal = new BNj(0.11);
+      //const n = 365; // compounding intervals
+
+      const okPrincipal = withCompoundRate(principal, ratePerEpoch, n);
+      const testPrincipal = await pool.bondGain(toWei(principal), toWei(ratePerEpoch), BN.from(n));
+
+      expect(testPrincipal).to.equalWithin(okPrincipal.times(new BNj(10).pow(18)), ERROR_MARGIN_PREFERED);
+    }
+
+  });
+
+  it('should compute compounding rates the way compound.finance does 3/3', async function () {
+    const { pool } = await bbFixtures(fixture);
+
+    const BLOCKS_PER_DAY = await pool.BLOCKS_PER_DAY();
+
+    for (let n = 240; n < 366; n++) {
       const ratePerEpoch = new BNj(BLOCKS_PER_DAY.mul(13504323262).toString()).div(new BNj(10).pow(18)); // 13504323262
       const principal = new BNj(0.11);
       //const n = 365; // compounding intervals
