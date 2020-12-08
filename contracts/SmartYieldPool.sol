@@ -17,8 +17,6 @@ import "./Model/Bond/IBondSlippageModel.sol";
 import "./Model/Token/ITokenPriceModel.sol";
 
 import "./SeniorBondToken.sol";
-import "./JuniorPoolToken.sol";
-
 import "./ISmartYieldPool.sol";
 
 contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
@@ -42,9 +40,6 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
 
     // senior BOND NFT
     SeniorBondToken public seniorBondToken;
-
-    // junior POOL Token
-    JuniorPoolToken public juniorToken;
 
     IBondSlippageModel public seniorModel;
     ITokenPriceModel public juniorModel;
@@ -93,7 +88,6 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
     function setup(address _seniorBondToken, address _juniorToken) public {
         // @TODO:
         seniorBondToken = SeniorBondToken(_seniorBondToken);
-        juniorToken = JuniorPoolToken(_juniorToken);
     }
 
     /**
@@ -106,7 +100,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
         nonReentrant
         returns (uint256)
     {
-        uint256 _ratePerDay = this.bondRatePerDaySlippage(
+        uint256 _ratePerDay = this.bondRate(
             principalAmount,
             forDays
         );
@@ -302,13 +296,13 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
      * @notice computes the bondRate per block takeing into account the slippage
      * @return (the bondRate after slippage)
      */
-    function bondRatePerDaySlippage(
-        uint256 addedPrincipalAmount,
+    function bondRate(
+        uint256 principalAmount,
         uint16 forDays
     ) external override view returns (uint256) {
         // @TODO: formula + COPM valuation
         return
-            seniorModel.slippage(address(this), addedPrincipalAmount, forDays);
+            seniorModel.slippage(address(this), principalAmount, forDays);
     }
 
     /**

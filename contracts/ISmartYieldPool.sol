@@ -2,6 +2,15 @@
 pragma solidity ^0.6.0;
 
 interface ISmartYieldPool {
+
+    // senior BONDs
+    struct Bond {
+        uint256 principal;
+        uint256 gain;
+        uint256 issuedAt;
+        uint256 maturesAt;
+    }
+
     function buyBond(uint256 principalAmount, uint16 forDays) external returns (uint256);
 
     function redeemBond(uint256 _bondId) external;
@@ -16,7 +25,7 @@ interface ISmartYieldPool {
      * @notice computes the bondRate per block takeing into account the slippage
      * @return (the bondRate after slippage)
      */
-    function bondRatePerDaySlippage(uint256 addedPrincipalAmount, uint16 forDays)
+    function bondRate(uint256 principalAmount, uint16 forDays)
         external
         view
         returns (uint256);
