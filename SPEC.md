@@ -316,6 +316,12 @@ function juniorFinishWithdraw() {
 }
 ```
 
+This 2-step process sends the "unlocked" portion of user's DAI immediately to them. This allows instant arbitrage opportunities between our pool and secondary markets where jTokens are traded, like Uniswap.
+
+At the liquidation event, the remaining DAI (if any) are assigned to the user.
+
+In the production version of Smart Yield, the user should be able to withdraw any amount without having to withdraw all jTokens at once. Each 2 step withdraw initiation will create a non-transferrable NFT with a maturity date for the second step. The second and final step of withdraw, can be called publicly by anyone and it will burn the NFT and send the remaining owed DAI to NFT's owner.
+
 
 ## Pool overview
 ![](https://i.imgur.com/lNdoOL8.jpg)
