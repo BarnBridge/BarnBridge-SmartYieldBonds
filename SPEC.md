@@ -101,6 +101,8 @@ Where:
 x = guaranteed_rate
 
 cur_j = current junior liquidity = total_pool_dai - senior_dai_deposits - locked_dai - (jtokens_total_queued_for_withdrawal * bbcDAI_to_DAI_ratio)
+total_pool_dai should always be total_dai_holdings - owed_dai + settled_dai
+total_dai_holdings = cdai.balanceOf(address(this)) * cdai_to_dai_price + comp.balanceOf(address(this)) * comp_to_dai_price
 
 locked_dai = MAX(0, ABOND.reward - (jtokens_queued_for_withdrawal_at_risk * bbcDAI_to_DAI_ratio))
 
@@ -198,7 +200,7 @@ function juniorInitiateWithdraw() {
   uint256 memory userJtokens = balanceOf(msg.sender);
 
   // basically the portion of jToken that represents the ABOND.reward x elapsed_ABOND_duration_multiplier (1 meaning full duration left, 0.5 meaning half duration left)
-  uint256 memory userJtokensAtRisk = userJtokens * (ABOND.reward / bbcDAI_to_DAI_ratio / total_bbcDAI_supply) * (ABOND.end - block.timestamp) / (ABOND.end - ABOND.start);
+  uint256 memory userJtokensAtRisk = userJtokens * (ABOND.reward / bbcDAI_to_DAI_ratio / total_bbcDAI_supply) * (ABOND.end - MIN(block.timestamp, ABOND.end) / (ABOND.end - ABOND.start);
 
   uint256 memory min_dai = (userJtokens - userJtokensAtRisk) * bbcDAI_to_DAI_ratio;
 
@@ -222,20 +224,6 @@ function juniorInitiateWithdraw() {
   user_liquidation.timestamp = ABOND.end;
   // with UserLiquidation set, this user address can not buy jTokens until the 2nd step is complete. (for gas efficiency purposes)
 
-  if(block.timestamp >= ABOND.end) {
-    // SPECIAL CASE
-    // In case ABOND.end is in the past, liquidate immediately
-    if(liquidation.price == 0) {
-      liquidate(ABOND.end);
-    } else {
-      owed_dai += user_liquidation.amount * liquidation.price;
-      burn(user_liquidation.amount); // burns user's locked tokens reducing the jToken supply
-      jtokens_total_queued_for_withdrawal -= user_liquidation.amount;
-      jtokens_queued_for_withdrawal_at_risk -= user_liquidation.amount_at_risk;
-    }
-    return juniorFinishWithdraw();
-  }
-
   // send min_dai to user
   //////
   // sell cDAI (or provider's DAI to pay the user)
@@ -243,6 +231,15 @@ function juniorInitiateWithdraw() {
   dai.transfer(msg.sender, min_dai);
   settled_dai += min_dai;
   //////////
+
+  if(block.timestamp >= ABOND.end) {
+    // SPECIAL CASE
+    // In case ABOND.end is in the past, liquidate immediately
+    if(liquidation.price == 0) {
+      liquidate(ABOND.end);
+    }
+    return juniorFinishWithdraw();
+  }
 
   return user_liquidation;
 }
@@ -284,8 +281,9 @@ function liquidate(timestamp) {
   jtokens_total_queued_for_withdrawal -= liquidation.amount;
   jtokens_queued_for_withdrawal_at_risk -= liquidation.amount_at_risk;
 
-  // In the unlikely case of a negative (liquidation_owed_dai - liquidation.min_dai), recalculate the jToken price.
+  // In the extremely unlikely case of a negative liquidation_owed_dai, recalculate the jToken price.
   // The current jToken holders will incur the loss
+  // This should never happen, and if it does we should log it and analyze the circumstances that led to it
   if(liquidation_owed_dai < 0) {
     recalculateJTokenPrice();
   }
@@ -302,7 +300,7 @@ function juniorFinishWithdraw() {
   owed_dai_to_user = MAX(liquidation.price * user_liquidation.amount - user_liquidation.min_dai, 0);
   owed_dai -= owed_dai_to_user;
 
-  // remove lock
+  // remove lock // burn jTokenWithdrawal NFT
   user_liquidation.amount = 0;
   user_liquidation.amount_at_risk = 0;
   user_liquidation.timestamp = 0;
@@ -314,7 +312,7 @@ function juniorFinishWithdraw() {
     dai.transfer(msg.sender, owed_dai_to_user);
   }
 
-  return owed_dai_to_user;
+  return owed_dai_to_user + user_liquidation.min_dai;
 }
 ```
 
