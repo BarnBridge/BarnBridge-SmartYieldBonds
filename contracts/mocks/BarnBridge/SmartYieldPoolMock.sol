@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.6.0;
+pragma solidity ^0.7.5;
 
 // @TODO:
 import "hardhat/console.sol";
@@ -14,10 +14,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "../../compound-finance/CTokenInterfaces.sol";
 import "../../Model/Bond/IBondSlippageModel.sol";
-import "../../Model/Token/ITokenPriceModel.sol";
 
 import "../../SeniorBondToken.sol";
-import "../../JuniorPoolToken.sol";
 
 import "../../SmartYieldPool.sol";
 

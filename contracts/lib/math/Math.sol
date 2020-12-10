@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.6.0;
+pragma solidity ^0.7.5;
 
 library Math {
     function min(uint256 x, uint256 y) internal pure returns (uint256 z) {

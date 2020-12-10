@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
-    "@openzeppelin/contracts": "^3.2.0"
+    "@openzeppelin/contracts": "^3.3.0"
   },
   "devDependencies": {
     "@codechecks/client": "^0.1.10",
@@ -25,7 +25,7 @@
     "hardhat": "^2.0.0",
     "hardhat-gas-reporter": "^1.0.0",
     "hardhat-typechain": "^0.3.3",
-    "solc": "^0.6.12",
+    "solc": "^0.7.5",
     "solhint": "^3.2.2",
     "solidity-coverage": "^0.7.12",
     "ts-generator": "^0.1.1",
