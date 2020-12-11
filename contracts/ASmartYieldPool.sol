@@ -79,10 +79,21 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
         withdrawProvider(amount);
         sendUnderlying(bondToken.ownerOf(_bondId), amount);
 
-        unaccountBond(_bondId);
+        if (bonds[_bondId].liquidated == false) {
+          unaccountBond(_bondId);
+        }
 
         delete bonds[_bondId];
         bondToken.burn(_bondId);
+    }
+
+    function liquidateBonds(uint256[] memory _bondIds) external override {
+      for (uint256 f=0; f<_bondIds.length; f++) {
+        if (block.timestamp > bonds[_bondIds[f]].maturesAt) {
+          bonds[_bondIds[f]].liquidated = true;
+          unaccountBond(_bondIds[f]);
+        }
+      }
     }
 
     function buyTokens(uint256 _underlyingAmount) external override {
@@ -138,6 +149,8 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     function accountBond(uint256 _bondId) private {
         Bond storage b = bonds[_bondId];
 
+        // todo:
+
         uint256 nGain = abond.gain + b.gain;
         uint256 shift = abond.gain * b.gain * (b.issuedAt - abond.issuedAt) * (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt) / (abond.maturesAt - abond.issuedAt) * nGain * nGain;
 
@@ -149,6 +162,9 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
 
     function unaccountBond(uint256 _bondId) private {
         Bond storage b = bonds[_bondId];
+
+        // todo:
+
 
         uint256 nGain = abond.gain - b.gain;
 

@@ -8,6 +8,7 @@ interface ISmartYieldPool {
         uint256 gain;
         uint256 issuedAt;
         uint256 maturesAt;
+        bool liquidated;
     }
 
     function buyBond(uint256 _principalAmount, uint16 _forDays)
@@ -15,6 +16,8 @@ interface ISmartYieldPool {
         returns (uint256);
 
     function redeemBond(uint256 _bondId) external;
+
+    function liquidateBonds(uint256[] memory _bondIds) external;
 
     function buyTokens(uint256 _underlyingAmount) external;
 
