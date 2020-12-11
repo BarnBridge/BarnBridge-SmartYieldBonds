@@ -14,7 +14,6 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "./compound-finance/CTokenInterfaces.sol";
 import "./Model/Bond/IBondSlippageModel.sol";
-import "./Model/Token/ITokenPriceModel.sol";
 
 import "./SeniorBondToken.sol";
 import "./ISmartYieldPool.sol";

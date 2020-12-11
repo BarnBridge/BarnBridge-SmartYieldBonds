@@ -33,9 +33,9 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     SeniorBondToken public bondToken;
 
     uint256 public underlyingDepositsJuniors;
+    uint256 public underlyingWithdrawlsJuniors;
 
     constructor(string memory name, string memory symbol)
-        public
         ERC20(name, symbol)
     {}
 
@@ -97,6 +97,7 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
         uint256 unlocked = (this.abondTotal() == 0) ? (1 ether) : (this.abondPaid() * (1 ether) / this.abondTotal());
         uint256 toPay = _jTokens * unlocked / (1 ether) * this.price() / (1 ether);
         uint256 toQueue = _jTokens * this.price() / (1 ether) - toPay;
+        underlyingWithdrawlsJuniors += toQueue;
         withdrawProvider(toPay);
         sendUnderlying(msg.sender, toPay);
 
@@ -105,13 +106,13 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
 
     function price() external override view returns (uint256) {
         uint256 ts = totalSupply();
-        return (ts == 0) ? 1 : this.underlyingJuniors() * (1 ether) / totalSupply();
+        return (ts == 0) ? 1 : this.underlyingJuniors() * (1 ether) / ts;
     }
 
     function underlyingJuniors() external override view returns (uint256) {
         // TODO: fees
-        // underlyingTotal - abond.principal - debt paid
-        return this.underlyingTotal() - abond.principal - this.abondPaid();
+        // underlyingTotal - abond.principal - debt paid - queued withdrawls
+        return this.underlyingTotal() - abond.principal - this.abondPaid() - underlyingWithdrawlsJuniors;
     }
 
     function mintBond(
@@ -137,39 +138,34 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     function accountBond(uint256 _bondId) private {
         Bond storage b = bonds[_bondId];
 
-        abond.issuedAt = abond
-            .issuedAt
-            .mul(abond.gain)
-            .add(b.issuedAt.mul(b.gain))
-            .div(abond.gain.add(b.gain));
-        abond.maturesAt = abond
-            .maturesAt
-            .mul(abond.gain)
-            .add(b.maturesAt.mul(b.gain))
-            .div(abond.gain.add(b.gain));
-        abond.gain = abond.gain.add(b.gain);
-        abond.principal = abond.principal.add(b.principal);
+        uint256 nGain = abond.gain + b.gain;
+        uint256 shift = abond.gain * b.gain * (b.issuedAt - abond.issuedAt) * (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt) / (abond.maturesAt - abond.issuedAt) * nGain * nGain;
 
-        // TODO: shift time
+        abond.issuedAt -= shift;
+        abond.maturesAt -= shift;
+        abond.gain = nGain;
+        abond.principal += b.principal;
     }
 
     function unaccountBond(uint256 _bondId) private {
         Bond storage b = bonds[_bondId];
 
-        // TODO: shift time
+        uint256 nGain = abond.gain - b.gain;
 
-        abond.issuedAt = abond
-            .issuedAt
-            .mul(abond.gain)
-            .sub(b.issuedAt.mul(b.gain))
-            .div(abond.gain.sub(b.gain));
-        abond.maturesAt = abond
-            .maturesAt
-            .mul(abond.gain)
-            .sub(b.maturesAt.mul(b.gain))
-            .div(abond.gain.sub(b.gain));
-        abond.gain = abond.gain.sub(b.gain);
-        abond.principal = abond.principal.sub(b.principal);
+        if (0 == nGain) {
+            // last bond
+            abond.issuedAt = 0;
+            abond.maturesAt = 0;
+            abond.gain = 0;
+            abond.principal = 0;
+            return;
+        }
+        uint256 shift = abond.gain * b.gain * (b.issuedAt - abond.issuedAt) * (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt) / (abond.maturesAt - abond.issuedAt) * nGain * nGain;
+
+        abond.issuedAt += shift;
+        abond.maturesAt += shift;
+        abond.gain = nGain;
+        abond.principal -= b.principal;
     }
 
     function abondTotal() external override view returns (uint256) {
