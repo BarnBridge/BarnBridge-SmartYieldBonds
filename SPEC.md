@@ -101,6 +101,8 @@ Where:
 x = guaranteed_rate
 
 cur_j = current junior liquidity = total_pool_dai - senior_dai_deposits - locked_dai - (jtokens_total_queued_for_withdrawal * bbcDAI_to_DAI_ratio)
+total_pool_dai should always be total_dai_holdings - owed_dai
+total_dai_holdings is cdai.balanceOf(address(this)) * cdai_to_dai_price + comp.balanceOf(address(this)) * comp_to_dai_price
 
 locked_dai = MAX(0, ABOND.reward - (jtokens_queued_for_withdrawal_at_risk * bbcDAI_to_DAI_ratio))
 
@@ -182,7 +184,8 @@ public mapping(address => UserLiquidation) queued_user_liquidations;
 
 
 public uint256 owed_dai = 0;
-// total_pool_dai should always be dai.balanceOf(address(this)) - total_pool_dai
+// total_pool_dai should always be total_dai_holdings - owed_dai
+// total_dai_holdings is cdai.balanceOf(address(this)) * cdai_to_dai_price + comp.balanceOf(address(this)) * comp_to_dai_price
 
 public uint256 jtokens_total_queued_for_withdrawal = 0;
 public uint256 jtokens_queued_for_withdrawal_at_risk = 0;
@@ -191,8 +194,10 @@ public uint256 jtokens_queued_for_withdrawal_at_risk = 0;
 
 
 function juniorInitiateWithdraw() {
-  userJtokens = balanceOf(msg.sender);
-  userJtokensAtRisk = userJtokens * (ABOND.reward / bbcDAI_to_DAI_ratio / total_bbcDAI_supply);
+  uint256 memory userJtokens = balanceOf(msg.sender);
+
+  // basically the portion of jToken that represents the ABOND.reward x elapsed_ABOND_duration_multiplier (1 meaning full duration left, 0.5 meaning half duration left)
+  uint256 memory userJtokensAtRisk = userJtokens * (ABOND.reward / bbcDAI_to_DAI_ratio / total_bbcDAI_supply) * (ABOND.end - MIN(block.timestamp, ABOND.end) / (ABOND.end - ABOND.start);
 
   // queue user's jTokens for liquidation
   Liquidation storage liquidation = queued_liquidations[ABOND.end];
@@ -282,7 +287,41 @@ function juniorFinishWithdraw() {
 
   return owed_dai_to_user;
 }
+
+function juniorInstantWithdraw(uint256 amount) {
+  // This function instantly sends the unlocked part of junior's DAI
+  // The unlocked part is forfeit and will increase the price of jToken
+  transferFrom(msg.sender, address(this), amount);
+
+  // basically the portion of jToken that represents the ABOND.reward x elapsed_ABOND_duration_multiplier (1 meaning full duration left, 0.5 meaning half duration left)
+  // userJtokensAtRisk can only be >= 0
+  uint256 memory userJtokensAtRisk = amount * (ABOND.reward / bbcDAI_to_DAI_ratio / total_bbcDAI_supply) * (ABOND.end - MIN(block.timestamp, ABOND.end) / (ABOND.end - ABOND.start);
+
+  uint256 user_unlocked_dai = (amount - userJtokensAtRisk) * bbcDAI_to_DAI_ratio;
+
+  burn(amount);
+
+  // send min_dai to user
+  //////
+  // sell cDAI (or provider's DAI to pay the user)
+  buyDAIFromProvider(user_unlocked_dai);
+  dai.transfer(msg.sender, user_unlocked_dai);
+  //////////
+
+  //recalculate current price -- it will increase if userJtokensAtRisk > 0
+  recalculateJTokenPrice();
+
+  return user_unlocked_dai;
+}
 ```
+
+The 2-step process allows a user to first signal the intention of exiting the pool. In return they receive a non-transferrable NFT that can be redeemed after the current ABOND ends. The first tx after ABOND.end triggers the liquidation for all jTokens scheduled for liquidation. The user can come anytime after ABOND.end to withdraw their part of the liquidation.
+
+All jTokens locked after the 1st step are excluded from the junior pool when calculating new sBOND rates, but they will be subject to profit and losses of the pool until the maturity date.
+
+In the production version of Smart Yield, the user should be able to `juniorInitiateWithdraw(uint256 amount)` any amount without having to withdraw all jTokens at once. Each 2 step withdraw initiation will create a non-transferrable NFT with a maturity date for the second step. The second and final step of withdraw, can be called publicly by anyone and it will burn the NFT and send the owed DAI to NFT's owner.
+
+`juniorInstantWithdraw()` allows juniors to instantly withdraw their unlocked DAI. The locked part of each jToken is burnt in favor of the existing jToken holders, increasing the price. Effectively using this function, a junior forfeits their locked DAI. This allows instant arbitrage opportunities between our pool and secondary markets where jTokens are traded, like Uniswap, creating a floor for the jToken price.
 
 
 ## Pool overview
