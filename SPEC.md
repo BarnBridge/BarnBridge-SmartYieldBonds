@@ -315,9 +315,9 @@ function juniorInstantWithdraw(uint256 amount) {
 }
 ```
 
-The 2-step process allows a user to first signal the intention of exiting the pool. In return they receive a non-transferrable NFT that can be redeemed after the current ABOND ends. The first tx after ABOND.end triggers the liquidation for all jTokens scheduled for liquidation. The user can come any time after ABOND.end to withdraw their part of the liquidation.
+The 2-step process allows a user to first signal the intention of exiting the pool. In return they receive a non-transferrable NFT that can be redeemed after the current ABOND ends. The first tx after ABOND.end triggers the liquidation for all jTokens scheduled for liquidation. The user can come anytime after ABOND.end to withdraw their part of the liquidation.
 
-All jTokens locked after the 1st step are exlucded from the junior pool when calculating new sBOND rates, but they will be subject to profit and losses of the pool until the maturity date.
+All jTokens locked after the 1st step are excluded from the junior pool when calculating new sBOND rates, but they will be subject to profit and losses of the pool until the maturity date.
 
 In the production version of Smart Yield, the user should be able to `juniorInitiateWithdraw(uint256 amount)` any amount without having to withdraw all jTokens at once. Each 2 step withdraw initiation will create a non-transferrable NFT with a maturity date for the second step. The second and final step of withdraw, can be called publicly by anyone and it will burn the NFT and send the owed DAI to NFT's owner.
 
