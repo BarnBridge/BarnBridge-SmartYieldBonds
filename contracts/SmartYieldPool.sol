@@ -15,7 +15,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./compound-finance/CTokenInterfaces.sol";
 import "./Model/Bond/IBondSlippageModel.sol";
 
-import "./SeniorBondToken.sol";
+import "./BondToken.sol";
 import "./ISmartYieldPool.sol";
 
 contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
@@ -38,7 +38,7 @@ contract SmartYieldPool is ISmartYieldPool, ReentrancyGuard {
     IERC20 public rewardCToken;
 
     // senior BOND NFT
-    SeniorBondToken public seniorBondToken;
+    BondToken public seniorBondToken;
 
     IBondSlippageModel public seniorModel;
     ITokenPriceModel public juniorModel;

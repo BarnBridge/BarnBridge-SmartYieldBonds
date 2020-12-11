@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "./lib/math/Math.sol";
 import "./ISmartYieldPool.sol";
-import "./SeniorBondToken.sol";
+import "./BondToken.sol";
 
 abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     using Counters for Counters.Counter;
@@ -30,7 +30,7 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     Bond public abond;
 
     // senior BOND NFT
-    SeniorBondToken public bondToken;
+    BondToken public bondToken;
 
     uint256 public underlyingDepositsJuniors;
     uint256 public underlyingWithdrawlsJuniors;
@@ -74,10 +74,7 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
             "SYABS: redeemBond not matured"
         );
 
-        uint256 amount = bonds[_bondId].gain.add(bonds[_bondId].principal);
-
-        withdrawProvider(amount);
-        sendUnderlying(bondToken.ownerOf(_bondId), amount);
+        uint256 toPay = bonds[_bondId].gain + bonds[_bondId].principal;
 
         if (bonds[_bondId].liquidated == false) {
           unaccountBond(_bondId);
@@ -85,6 +82,9 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
 
         delete bonds[_bondId];
         bondToken.burn(_bondId);
+
+        withdrawProvider(toPay);
+        sendUnderlying(bondToken.ownerOf(_bondId), toPay);
     }
 
     function liquidateBonds(uint256[] memory _bondIds) external override {
@@ -138,7 +138,7 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
 
         uint256 maturesAt = _startingAt.add(uint256(1 days).mul(_forDays));
 
-        bonds[bondId] = Bond(_principal, _gain, _startingAt, maturesAt);
+        bonds[bondId] = Bond(_principal, _gain, _startingAt, maturesAt, false);
 
         accountBond(bondId);
 
