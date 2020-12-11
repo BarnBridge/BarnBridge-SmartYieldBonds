@@ -149,22 +149,17 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     function accountBond(uint256 _bondId) private {
         Bond storage b = bonds[_bondId];
 
-        // todo:
-
         uint256 nGain = abond.gain + b.gain;
         uint256 shift = abond.gain * b.gain * (b.issuedAt - abond.issuedAt) * (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt) / (abond.maturesAt - abond.issuedAt) * nGain * nGain;
 
-        abond.issuedAt -= shift;
-        abond.maturesAt -= shift;
+        abond.issuedAt = (abond.issuedAt * abond.gain + b.issuedAt * b.gain) / nGain - shift;
+        abond.maturesAt = (abond.maturesAt * abond.gain + b.maturesAt * b.gain) / nGain - shift;
         abond.gain = nGain;
         abond.principal += b.principal;
     }
 
     function unaccountBond(uint256 _bondId) private {
         Bond storage b = bonds[_bondId];
-
-        // todo:
-
 
         uint256 nGain = abond.gain - b.gain;
 
@@ -178,8 +173,8 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
         }
         uint256 shift = abond.gain * b.gain * (b.issuedAt - abond.issuedAt) * (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt) / (abond.maturesAt - abond.issuedAt) * nGain * nGain;
 
-        abond.issuedAt += shift;
-        abond.maturesAt += shift;
+        abond.issuedAt = (abond.issuedAt * abond.gain - b.issuedAt * b.gain) / nGain + shift;
+        abond.maturesAt = (abond.maturesAt * abond.gain - b.maturesAt * b.gain) / nGain + shift;
         abond.gain = nGain;
         abond.principal -= b.principal;
     }
