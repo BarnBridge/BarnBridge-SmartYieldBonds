@@ -35,11 +35,6 @@ interface ISmartYieldPool {
      */
     function price() external view returns (uint256);
 
-    /**
-     * token spot sell price
-     */
-    function priceSpot() external view returns (uint256);
-
     function abondPaid() external view returns (uint256);
 
     function abondDebt() external view returns (uint256);
@@ -54,11 +49,11 @@ interface ISmartYieldPool {
     /**
      * @notice current underlying liquidity, without accruing interest
      */
-    function underlyingLiquidity() external view returns (uint256);
+    //function underlyingLiquidity() external view returns (uint256);
 
     function underlyingJuniors() external view returns (uint256);
 
-    function claimTokenTotal() external view returns (uint256);
+//    function claimTokenTotal() external view returns (uint256);
 
     function ratePerDay() external view returns (uint256);
 

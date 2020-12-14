@@ -7,13 +7,13 @@ pragma solidity ^0.7.5;
 import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "../../lib/math/Math.sol";
-import "../../lib/math/Exponential.sol";
+import "../lib/math/Math.sol";
+import "../lib/math/Exponential.sol";
 
-import "./IBondSlippageModel.sol";
-import "../../ISmartYieldPool.sol";
+import "./IBondModel.sol";
+import "../ISmartYieldPool.sol";
 
-contract SeniorBondSlippageExpV1 is IBondSlippageModel, Exponential {
+contract BondModelExpV1 is IBondModel, Exponential {
     using SafeMath for uint256;
     using Math for uint256;
 
