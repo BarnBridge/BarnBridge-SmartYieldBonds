@@ -21,7 +21,7 @@ import "./ISmartYieldPool.sol";
 import "./Model/IBondModel.sol";
 import "./BondToken.sol";
 
-abstract contract ASmartYieldPool is ISmartYieldPool, YieldOracle, ERC20 {
+abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     using Counters for Counters.Counter;
     using SafeMath for uint256;
 
@@ -83,15 +83,15 @@ abstract contract ASmartYieldPool is ISmartYieldPool, YieldOracle, ERC20 {
         uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
 
         // only for the first time in the block && if there's underlying
-        if (timeElapsed > 0 && prevUnderlyingTotal > 0) {
-            uint256 blockYield = (this.underlyingTotal() - prevUnderlyingTotal) / (block.number - blockYieldLastNb);
-            cumulativeBlockYieldLast += uint256(FixedPoint.encode(blockYield).mul(uint256(timeElapsed)).div(prevUnderlyingTotal)._x);
+        if (timeElapsed > 0 && underlyingTotalLast > 0) {
+            FixedPoint.uq112x112 memory blockYield = FixedPoint.encode(uint112((this.underlyingTotal() - underlyingTotalLast) / (block.number - blockYieldLastNb)));
+            cumulativeBlockYieldLast += uint256(FixedPoint.div(blockYield, uint112(underlyingTotalLast))._x) * timeElapsed;
 
             blockTimestampLast = blockTimestamp;
             blockYieldLastNb = block.number;
         }
         _;
-        prevUnderlyingTotal = this.underlyingTotal();
+        underlyingTotalLast = this.underlyingTotal();
     }
 
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
@@ -99,9 +99,9 @@ abstract contract ASmartYieldPool is ISmartYieldPool, YieldOracle, ERC20 {
         uint32 blockTimestamp = uint32(block.timestamp % 2**32);
         uint256 cumulativeBlockYield = cumulativeBlockYieldLast;
         uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
-        if (timeElapsed > 0 && prevUnderlyingTotal > 0) {
-            uint256 blockYield = (this.underlyingTotal() - prevUnderlyingTotal) / (block.number - blockYieldLastNb);
-            cumulativeBlockYield += uint256(FixedPoint.encode(blockYield).mul(uint256(timeElapsed)).div(prevUnderlyingTotal)._x);
+        if (timeElapsed > 0 && underlyingTotalLast > 0) {
+            FixedPoint.uq112x112 memory blockYield = FixedPoint.encode(uint112((this.underlyingTotal() - underlyingTotalLast) / (block.number - blockYieldLastNb)));
+            cumulativeBlockYield += uint256(FixedPoint.div(blockYield, uint112(underlyingTotalLast))._x) * timeElapsed;
         }
     }
 
@@ -116,9 +116,8 @@ abstract contract ASmartYieldPool is ISmartYieldPool, YieldOracle, ERC20 {
 
     IBondModel public seniorModel;
 
-    constructor(uint256 observationsWindowSize_, uint8 observationsGranularity_, string memory _name, string memory _symbol)
+    constructor(string memory _name, string memory _symbol)
         ERC20(_name, _symbol)
-        YieldOracle(uint observationsWindowSize_, uint8 observationsGranularity_)
     {}
 
     /**

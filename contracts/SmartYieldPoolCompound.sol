@@ -8,7 +8,7 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface WithDecimals {
-  function decimals() public view returns (uint8);
+  function decimals() external view returns (uint8);
 }
 
 // todo: initialize compound
@@ -40,7 +40,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         // https://compound.finance/docs#protocol-math
         uint256 cTokenDecimals = 8;
         return
-            cToken.balanceOf(address(this)) / (10 ^ (18 - cTokenDecimals)) * cToken.exchangeRateStored() / (10 ^ underlyingDecimals());
+            cToken.balanceOf(address(this)) / (10 ^ (18 - cTokenDecimals)) * cToken.exchangeRateStored() / (10 ^ this.underlyingDecimals());
     }
 
     function underlyingDecimals() external override view returns (uint256) {

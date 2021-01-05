@@ -5,9 +5,7 @@ import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/lib/contracts/libraries/FixedPoint.sol";
 
-import "@uniswap/v2-periphery/contracts/libraries/SafeMath.sol";
-import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
-import "@uniswap/v2-periphery/contracts//libraries/UniswapV2OracleLibrary.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "../../ASmartYieldPool.sol";
 
@@ -110,14 +108,10 @@ contract YieldOracle {
         uint256 timeElapsed
     ) private pure returns (uint256 blockYieldAverage) {
         // overflow is desired.
-        return
-            FixedPoint
-                .uq112x112(
-                uint224(
-                    (priceCumulativeEnd - priceCumulativeStart) / timeElapsed
-                )
-            )
-                .decode144();
+        FixedPoint.uq112x112 memory blockYield = FixedPoint.uq112x112(
+            uint224((blockYieldCumulativeEnd - blockYieldCumulativeStart) / timeElapsed)
+        );
+        return blockYield.decode();
     }
 
     // returns the amount out corresponding to the amount in for a given token using the moving average over the time
