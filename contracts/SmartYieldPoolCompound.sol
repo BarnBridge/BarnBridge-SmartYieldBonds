@@ -2,15 +2,32 @@
 pragma solidity ^0.7.5;
 
 import "./ASmartYieldPool.sol";
-import "./compound-finance/CTokenInterfaces.sol";
+import "./external-interfaces/compound-finance/CTokenInterfaces.sol";
+import "./external-interfaces/compound-finance/Comptroller.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+interface WithDecimals {
+  function decimals() public view returns (uint8);
+}
+
+// todo: initialize compound
 contract SmartYieldPoolCompound is ASmartYieldPool {
+    Comptroller public comptroller;
+
     // underlying token (ie. DAI)
     IERC20 public uToken;
     // claim token (ie. cDAI)
     CErc20Interface public cToken;
     // deposit reward token (ie. COMP)
     IERC20 public rewardCToken;
+    // weth
+    IERC20 public wethToken;
+
+    IUniswapV2Router02 public uniswap;
+
+    uint256 public constant BLOCKS_PER_YEAR = 2102400;
+    uint256 public constant BLOCKS_PER_DAY = BLOCKS_PER_YEAR / 365;
 
     constructor(string memory name, string memory symbol)
         ASmartYieldPool(name, symbol)
@@ -20,8 +37,14 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
      * @notice current total underlying balance, without accruing interest
      */
     function underlyingTotal() external override view returns (uint256) {
+        // https://compound.finance/docs#protocol-math
+        uint256 cTokenDecimals = 8;
         return
-            cToken.balanceOf(address(this)) * cToken.exchangeRateStored() / (1 ether);
+            cToken.balanceOf(address(this)) / (10 ^ (18 - cTokenDecimals)) * cToken.exchangeRateStored() / (10 ^ underlyingDecimals());
+    }
+
+    function underlyingDecimals() external override view returns (uint256) {
+        return uint256(WithDecimals(address(uToken)).decimals());
     }
 
     // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
@@ -39,8 +62,33 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
             );
     }
 
-    function ratePerDay() external override view returns (uint256) {
-        return cToken.supplyRatePerBlock() * (BLOCKS_PER_DAY);
+    function providerRatePerDay() external override view returns (uint256) {
+        uint256 compSharePerDay = BLOCKS_PER_DAY * this.compSharePerBlock();
+        return BLOCKS_PER_DAY * cToken.supplyRatePerBlock();
+    }
+
+    function compSharePerBlock() external view returns (uint256) {
+      uint256 allCompPerBlock = comptroller.compSpeeds(address(cToken));
+      uint256 uTotalSupply = cToken.totalSupply() * cToken.exchangeRateStored() / (1 ether);
+      return this.underlyingTotal() * allCompPerBlock / uTotalSupply;
+    }
+
+    function harvest() external override {
+        // TODO: reward caller
+        comptroller.claimComp(address(this));
+        uint256 rewardAmount = rewardCToken.balanceOf(address(this));
+        if (rewardAmount > 0) {
+          rewardCToken.approve(address(uniswap), rewardAmount);
+          address[] memory path = new address[](3);
+          path[0] = address(rewardCToken);
+          path[1] = address(wethToken);
+          path[2] = address(uToken);
+          uniswap.swapExactTokensForTokens(rewardAmount, uint256(0), path, address(this), block.timestamp + 1800);
+        }
+        uint256 underAmount = uToken.balanceOf(address(this));
+        if (underAmount > 0) {
+          _depositProvider(underAmount);
+        }
     }
 
     function _takeUnderlying(address _from, uint256 _underlyingAmount)

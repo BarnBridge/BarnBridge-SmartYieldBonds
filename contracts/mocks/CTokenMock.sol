@@ -3,7 +3,7 @@ pragma solidity ^0.7.5;
 
 import "hardhat/console.sol";
 
-import "../compound-finance/CTokenInterfaces.sol";
+import "../external-interfaces/compound-finance/CTokenInterfaces.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract CTokenMock is CErc20Interface, ERC20 {
@@ -17,7 +17,7 @@ contract CTokenMock is CErc20Interface, ERC20 {
     // CErc20Interface
 
     function mint(uint256 mintAmount) external override returns (uint256) {
-        _mint(msg.sender, mintAmount.mul(10**18).div(exchangeRateStored_));
+        _mint(msg.sender, mintAmount * (1 ether) / (exchangeRateStored_));
     }
 
     function redeem(uint256 redeemTokens) external override returns (uint256) {

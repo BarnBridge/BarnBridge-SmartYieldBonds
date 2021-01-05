@@ -19,7 +19,7 @@ contract BondModelV1 is IBondModel {
     struct SlippageLocalVars {
         uint256 t;
         uint256 underlyingTotal;
-        uint256 underlyingLiquidity;
+        uint256 underlyingLoanable;
         uint256 ratePerDay2;
         uint256 bn2t;
         uint256 nume;
@@ -35,15 +35,15 @@ contract BondModelV1 is IBondModel {
         // (-b - o - b n^2 t + sqrt(4 b j n^2 t + (b + o + b n^2 t)^2))/(2 b n t)
         v.t = uint256(forDays).mul(10**18).div(365);
 
-        v.ratePerDay2 = (ISmartYieldPool(pool).ratePerDay())
-            .mul(ISmartYieldPool(pool).ratePerDay())
+        v.ratePerDay2 = (ISmartYieldPool(pool).providerRatePerDay())
+            .mul(ISmartYieldPool(pool).providerRatePerDay())
             .div(10**18);
 
         v.bn2t = principal.mul(v.t).div(10**18).mul(v.ratePerDay2).div(10**18);
-        v.underlyingLiquidity = ISmartYieldPool(pool).underlyingLiquidity();
+        v.underlyingLoanable = ISmartYieldPool(pool).underlyingLoanable();
         v.underlyingTotal = ISmartYieldPool(pool).underlyingTotal();
 
-        v.nume = v.underlyingLiquidity
+        v.nume = v.underlyingLoanable
             .mul(4)
             .mul(v.bn2t)
             .add(
@@ -56,7 +56,7 @@ contract BondModelV1 is IBondModel {
         v.nume = v.nume.sub(v.bn2t).sub(principal).sub(v.underlyingTotal);
         v.deno = principal
                 .mul(2)
-                .mul(ISmartYieldPool(pool).ratePerDay())
+                .mul(ISmartYieldPool(pool).providerRatePerDay())
                 .div(10**18)
                 .mul(v.t)
                 .div(10**18);

@@ -28,7 +28,7 @@ interface ISmartYieldPool {
 
     function withdrawTokensInitiate(uint256 _jTokens) external;
 
-    function withdrawTokensFinalize(uint256 _jTokens) external;
+    function withdrawTokensFinalize() external;
 
     /**
      * token purchase price
@@ -47,18 +47,22 @@ interface ISmartYieldPool {
     function underlyingTotal() external view returns (uint256);
 
     /**
-     * @notice current underlying liquidity, without accruing interest
+     * @notice current underlying loanable, without accruing interest
      */
-    //function underlyingLiquidity() external view returns (uint256);
+    function underlyingLoanable() external view returns (uint256);
 
     function underlyingJuniors() external view returns (uint256);
 
 //    function claimTokenTotal() external view returns (uint256);
 
-    function ratePerDay() external view returns (uint256);
+    function providerRatePerDay() external view returns (uint256);
 
     function bondGain(uint256 _principalAmount, uint16 _forDays)
         external
         view
         returns (uint256);
+
+    function harvest() external;
+
+    function currentCumulativeBlockYield() external view returns (uint256 cumulativeYield, uint256 blockNumber);
 }

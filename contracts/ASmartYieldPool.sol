@@ -13,21 +13,97 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
+import "@uniswap/lib/contracts/libraries/FixedPoint.sol";
+
+import "./lib/oracle/YieldOracle.sol";
 import "./lib/math/Math.sol";
 import "./ISmartYieldPool.sol";
 import "./Model/IBondModel.sol";
 import "./BondToken.sol";
 
-abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
+abstract contract ASmartYieldPool is ISmartYieldPool, YieldOracle, ERC20 {
     using Counters for Counters.Counter;
     using SafeMath for uint256;
 
-    uint256 public BOND_LIFE_MAX = 365 * 2; // in days
-    uint256 public constant BLOCKS_PER_YEAR = 2102400;
-    uint256 public constant BLOCKS_PER_DAY = BLOCKS_PER_YEAR / 365;
+    struct Withdrawal {
+        uint256 tokens; // in jTokens
+        uint256 tokensAtRisk; // in jTokens
+        uint256 price; // bbcDAI_to_DAI_ratio - 0 means not triggered
+    }
+    struct JuniorWithdrawal {
+        uint256 tokens; // in jTokens
+        uint256 tokensAtRisk; // in jTokens
+        uint256 timestamp;
+    }
+
     uint256 public constant DAYS_IN_YEAR = 365;
 
+    uint256 public BOND_LIFE_MAX = 365 * 2; // in days
+
+    uint256 public underlyingDepositsJuniors;
+    uint256 public underlyingWithdrawlsJuniors;
+    uint256 public tokenWithdrawlsJuniors;
+    uint256 public tokenWithdrawlsJuniorsAtRisk;
+
     Counters.Counter private bondIds;
+
+    mapping(uint256 => Withdrawal) public queuedWithdrawals; // timestamp -> Withdrawal
+    uint256[] public queuedWithdrawalTimestamps;
+    uint256 public lastQueuedWithdrawalTimestampsI; // defaults to 0
+    uint256 public tokensInWithdrawls;
+    uint256 public tokensInWithdrawlsAtRisk;
+
+    mapping(address => JuniorWithdrawal) public queuedJuniors;
+
+    uint256 public underlyingTotalLast;
+    uint256 public blockYieldLastNb;
+    uint256 public cumulativeBlockYieldLast; // cumulative per block yield
+
+    uint32 public blockTimestampLast;
+
+    modifier executeJuniorWithdrawals {
+        // this modifier will be added to all (write) functions.
+        // The first tx after a queued liquidation's timestamp will trigger the liquidation
+        // reducing the jToken supply, and setting aside owed_dai for withdrawals
+        for (uint i = lastQueuedWithdrawalTimestampsI; i < queuedWithdrawalTimestamps.length - 1; i++) {
+            if(block.timestamp >= queuedWithdrawalTimestamps[i]) {
+              _liquidateJuniors(queuedWithdrawalTimestamps[i]);
+              lastQueuedWithdrawalTimestampsI = i;
+            } else {
+              break;
+            }
+        }
+        _;
+    }
+
+    // add to all methods changeing the underlying
+    // per https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L73
+    modifier accountYield() {
+        uint32 blockTimestamp = uint32(block.timestamp % 2**32);
+        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+
+        // only for the first time in the block && if there's underlying
+        if (timeElapsed > 0 && prevUnderlyingTotal > 0) {
+            uint256 blockYield = (this.underlyingTotal() - prevUnderlyingTotal) / (block.number - blockYieldLastNb);
+            cumulativeBlockYieldLast += uint256(FixedPoint.encode(blockYield).mul(uint256(timeElapsed)).div(prevUnderlyingTotal)._x);
+
+            blockTimestampLast = blockTimestamp;
+            blockYieldLastNb = block.number;
+        }
+        _;
+        prevUnderlyingTotal = this.underlyingTotal();
+    }
+
+    // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
+    function currentCumulativeBlockYield() external view override returns (uint256 cumulativeBlockYield, uint256 blockTimestamp) {
+        uint32 blockTimestamp = uint32(block.timestamp % 2**32);
+        uint256 cumulativeBlockYield = cumulativeBlockYieldLast;
+        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+        if (timeElapsed > 0 && prevUnderlyingTotal > 0) {
+            uint256 blockYield = (this.underlyingTotal() - prevUnderlyingTotal) / (block.number - blockYieldLastNb);
+            cumulativeBlockYield += uint256(FixedPoint.encode(blockYield).mul(uint256(timeElapsed)).div(prevUnderlyingTotal)._x);
+        }
+    }
 
     // bond id => bond (Bond)
     mapping(uint256 => Bond) public bonds;
@@ -38,13 +114,11 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     // senior BOND NFT
     BondToken public bondToken;
 
-    uint256 public underlyingDepositsJuniors;
-    uint256 public underlyingWithdrawlsJuniors;
-
     IBondModel public seniorModel;
 
-    constructor(string memory name, string memory symbol)
-        ERC20(name, symbol)
+    constructor(uint256 observationsWindowSize_, uint8 observationsGranularity_, string memory _name, string memory _symbol)
+        ERC20(_name, _symbol)
+        YieldOracle(uint observationsWindowSize_, uint8 observationsGranularity_)
     {}
 
     /**
@@ -52,6 +126,7 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
      * @dev
      */
     function buyBond(uint256 _principalAmount, uint16 _forDays)
+        executeJuniorWithdrawals
         external
         override
         returns (uint256)
@@ -76,7 +151,11 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
             );
     }
 
-    function redeemBond(uint256 _bondId) external override {
+    function redeemBond(uint256 _bondId)
+        executeJuniorWithdrawals
+        external
+        override
+    {
         require(
             block.timestamp > bonds[_bondId].maturesAt,
             "SYABS: redeemBond not matured"
@@ -104,7 +183,11 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
       }
     }
 
-    function buyTokens(uint256 _underlyingAmount) external override {
+    function buyTokens(uint256 _underlyingAmount)
+        executeJuniorWithdrawals
+        external
+        override
+    {
         _takeUnderlying(msg.sender, _underlyingAmount);
         _depositProvider(_underlyingAmount);
         _mint(msg.sender, _underlyingAmount / this.price());
@@ -118,12 +201,90 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
         _withdrawJuniors(msg.sender, toPay);
     }
 
-    function withdrawTokensInitiate(uint256 _jTokens) external override {
+    function withdrawTokensInitiate(uint256 _jTokens)
+        executeJuniorWithdrawals
+        external
+        override
+    {
+        //uint256 memory userJtokens = balanceOf(msg.sender);
 
+        // basically the portion of jToken that represents the ABOND.reward x elapsed_ABOND_duration_multiplier (1 meaning full duration left, 0.5 meaning half duration left)
+        uint256 jTokensAtRisk = _jTokens * (abond.gain / this.price() / totalSupply()) * (abond.maturesAt - Math.min(block.timestamp, abond.maturesAt)) / (abond.maturesAt - abond.issuedAt);
+
+        // queue user's jTokens for liquidation
+        Withdrawal storage withdrawal = queuedWithdrawals[abond.maturesAt];
+        if(withdrawal.tokens == 0) {
+            queuedWithdrawalTimestamps.push(abond.maturesAt);
+        }
+        withdrawal.tokens += _jTokens;
+        withdrawal.tokensAtRisk += jTokensAtRisk;
+
+        // lock user jTokens (transfer to self), and register liquidation object for user
+        _takeTokens(msg.sender, _jTokens);
+        tokensInWithdrawls += _jTokens;
+        tokensInWithdrawlsAtRisk += jTokensAtRisk;
+        JuniorWithdrawal storage juniorWithdrawal = queuedJuniors[msg.sender];
+        juniorWithdrawal.tokens = _jTokens;
+        juniorWithdrawal.tokensAtRisk = jTokensAtRisk;
+        juniorWithdrawal.timestamp = abond.maturesAt;
+        // with UserLiquidation set, this user address can not buy jTokens until the 2nd step is complete. (for gas efficiency purposes)
+
+        if(block.timestamp >= abond.maturesAt) {
+            // SPECIAL CASE
+            // In case ABOND.end is in the past, liquidate immediately
+            if(withdrawal.price == 0) {
+            _liquidateJuniors(abond.maturesAt);
+            } else {
+            underlyingWithdrawlsJuniors += juniorWithdrawal.tokens * withdrawal.price;
+            _burn(address(this), juniorWithdrawal.tokens); // burns user's locked tokens reducing the jToken supply
+            tokenWithdrawlsJuniors -= juniorWithdrawal.tokens;
+            tokenWithdrawlsJuniorsAtRisk -= juniorWithdrawal.tokensAtRisk;
+            }
+            //return this.withdrawTokensFinalize();
+        }
+
+        //return juniorWithdrawal;
     }
 
-    function withdrawTokensFinalize(uint256 _jTokens) external override {
+    function withdrawTokensFinalize()
+        executeJuniorWithdrawals
+        external
+        override
+    {
+        JuniorWithdrawal storage juniorWithdrawal = queuedJuniors[msg.sender];
+        require(juniorWithdrawal.tokens > 0, "No liquidation queued for user");
+        require(juniorWithdrawal.timestamp <= block.timestamp, "Lock period is not over");
 
+        Withdrawal storage withdrawal = queuedWithdrawals[juniorWithdrawal.timestamp];
+
+        uint256 owed_dai_to_user = withdrawal.price * withdrawal.tokens;
+
+        // remove lock
+        juniorWithdrawal.tokens = 0;
+        juniorWithdrawal.tokensAtRisk = 0;
+        juniorWithdrawal.timestamp = 0;
+
+        // sell cDAI (or provider's DAI to pay the user)
+        _withdrawJuniors(msg.sender, owed_dai_to_user);
+
+        underlyingWithdrawlsJuniors -= owed_dai_to_user;
+
+        //return owed_dai_to_user;
+    }
+
+    function _liquidateJuniors(uint256 timestamp) internal {
+        Withdrawal storage withdrawal = queuedWithdrawals[timestamp];
+        require(withdrawal.tokens > 0, "no queued liquidation");
+        require(withdrawal.price == 0, "already liquidated");
+
+        //recalculate current price (takes into account P&L)
+        //recalculateJTokenPrice();
+        withdrawal.price = this.price();
+
+        underlyingWithdrawlsJuniors += withdrawal.tokens * withdrawal.price;
+        _burn(address(this), withdrawal.tokens); // burns Junior locked tokens reducing the jToken supply
+        tokenWithdrawlsJuniors -= withdrawal.tokens;
+        tokenWithdrawlsJuniorsAtRisk -= withdrawal.tokensAtRisk;
     }
 
 
@@ -136,6 +297,11 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
         // TODO: fees
         // underlyingTotal - abond.principal - debt paid - queued withdrawls
         return this.underlyingTotal() - abond.principal - this.abondPaid() - underlyingWithdrawlsJuniors;
+    }
+
+    function underlyingLoanable() external override view returns (uint256) {
+        return
+            this.underlyingTotal() - abond.principal - abond.gain;
     }
 
     function _withdrawJuniors(address _to, uint256 _underlyingAmount) internal {
@@ -208,6 +374,17 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
 
     function abondDebt() external override view returns (uint256) {
         return abond.gain - this.abondPaid();
+    }
+
+    function _takeTokens(address _from, uint256 _amount)
+      internal
+      returns (bool)
+    {
+        require(
+            _amount <= allowance(_from, address(this)),
+            "ASYP: _takeTokens allowance"
+        );
+        return transferFrom(_from, address(this), _amount);
     }
 
     function _takeUnderlying(address _from, uint256 _amount)
