@@ -108,9 +108,13 @@ contract YieldOracle {
         uint256 timeElapsed
     ) private pure returns (uint256 blockYieldAverage) {
         // overflow is desired.
-        FixedPoint.uq112x112 memory blockYield = FixedPoint.uq112x112(
-            uint224((blockYieldCumulativeEnd - blockYieldCumulativeStart) / timeElapsed)
-        );
+        FixedPoint.uq112x112 memory blockYield =
+            FixedPoint.uq112x112(
+                uint224(
+                    (blockYieldCumulativeEnd - blockYieldCumulativeStart) /
+                        timeElapsed
+                )
+            );
         return blockYield.decode();
     }
 
