@@ -2,8 +2,8 @@
 pragma solidity ^0.7.5;
 
 import "./ASmartYieldPool.sol";
-import "./external-interfaces/compound-finance/CTokenInterfaces.sol";
-import "./external-interfaces/compound-finance/Comptroller.sol";
+import "./external-interfaces/compound-finance/ICToken.sol";
+import "./external-interfaces/compound-finance/IComptroller.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -13,12 +13,12 @@ interface WithDecimals {
 
 // todo: initialize compound
 contract SmartYieldPoolCompound is ASmartYieldPool {
-    Comptroller public comptroller;
+    IComptroller public comptroller;
 
     // underlying token (ie. DAI)
     IERC20 public uToken;
     // claim token (ie. cDAI)
-    CErc20Interface public cToken;
+    ICToken public cToken;
     // deposit reward token (ie. COMP)
     IERC20 public rewardCToken;
     // weth
@@ -33,6 +33,12 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         ASmartYieldPool(name, symbol)
     {}
 
+    function setup(
+      address cToken_
+    ) external {
+      cToken = ICToken(cToken_);
+    }
+
     /**
      * @notice current total underlying balance, without accruing interest
      */
@@ -40,7 +46,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         // https://compound.finance/docs#protocol-math
         uint256 cTokenDecimals = 8;
         return
-            cToken.balanceOf(address(this)) / (10 ^ (18 - cTokenDecimals)) * cToken.exchangeRateStored() / (10 ^ this.underlyingDecimals());
+            ICTokenErc20(address(cToken)).balanceOf(address(this)) / (10 ^ (18 - cTokenDecimals)) * cToken.exchangeRateStored() / (10 ^ this.underlyingDecimals());
     }
 
     function underlyingDecimals() external override view returns (uint256) {
@@ -63,14 +69,8 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     }
 
     function providerRatePerDay() external override view returns (uint256) {
-        uint256 compSharePerDay = BLOCKS_PER_DAY * this.compSharePerBlock();
-        return BLOCKS_PER_DAY * cToken.supplyRatePerBlock();
-    }
-
-    function compSharePerBlock() external view returns (uint256) {
-      uint256 allCompPerBlock = comptroller.compSpeeds(address(cToken));
-      uint256 uTotalSupply = cToken.totalSupply() * cToken.exchangeRateStored() / (1 ether);
-      return this.underlyingTotal() * allCompPerBlock / uTotalSupply;
+        // to do: oracle
+        return 0;
     }
 
     function harvest() external override {

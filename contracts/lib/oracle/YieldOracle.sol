@@ -7,6 +7,7 @@ import "@uniswap/lib/contracts/libraries/FixedPoint.sol";
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
+import "./IYieldOraclelizable.sol";
 import "../../ASmartYieldPool.sol";
 
 // sliding window oracle that uses observations collected over a window to provide moving price averages in the past
@@ -17,7 +18,7 @@ contract YieldOracle {
     using FixedPoint for *;
     using SafeMath for uint256;
 
-    ASmartYieldPool public pool;
+    IYieldOraclelizable public pool;
 
     struct Observation {
         uint256 timestamp;

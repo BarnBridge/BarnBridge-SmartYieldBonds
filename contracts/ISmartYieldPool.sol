@@ -64,7 +64,5 @@ interface ISmartYieldPool {
 
     function harvest() external;
 
-    function currentCumulativeBlockYield() external view returns (uint256 cumulativeYield, uint256 blockNumber);
-
     function underlyingDecimals() external view returns (uint256);
 }

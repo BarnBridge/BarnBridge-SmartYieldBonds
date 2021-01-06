@@ -16,12 +16,17 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@uniswap/lib/contracts/libraries/FixedPoint.sol";
 
 import "./lib/oracle/YieldOracle.sol";
+import "./lib/oracle/IYieldOraclelizable.sol";
 import "./lib/math/Math.sol";
 import "./ISmartYieldPool.sol";
 import "./Model/IBondModel.sol";
 import "./BondToken.sol";
 
-abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
+abstract contract ASmartYieldPool is
+    ISmartYieldPool,
+    IYieldOraclelizable,
+    ERC20
+{
     using Counters for Counters.Counter;
     using SafeMath for uint256;
 
@@ -65,12 +70,16 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
         // this modifier will be added to all (write) functions.
         // The first tx after a queued liquidation's timestamp will trigger the liquidation
         // reducing the jToken supply, and setting aside owed_dai for withdrawals
-        for (uint i = lastQueuedWithdrawalTimestampsI; i < queuedWithdrawalTimestamps.length - 1; i++) {
-            if(block.timestamp >= queuedWithdrawalTimestamps[i]) {
-              _liquidateJuniors(queuedWithdrawalTimestamps[i]);
-              lastQueuedWithdrawalTimestampsI = i;
+        for (
+            uint256 i = lastQueuedWithdrawalTimestampsI;
+            i < queuedWithdrawalTimestamps.length - 1;
+            i++
+        ) {
+            if (block.timestamp >= queuedWithdrawalTimestamps[i]) {
+                _liquidateJuniors(queuedWithdrawalTimestamps[i]);
+                lastQueuedWithdrawalTimestampsI = i;
             } else {
-              break;
+                break;
             }
         }
         _;
@@ -84,8 +93,18 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
 
         // only for the first time in the block && if there's underlying
         if (timeElapsed > 0 && underlyingTotalLast > 0) {
-            FixedPoint.uq112x112 memory blockYield = FixedPoint.encode(uint112((this.underlyingTotal() - underlyingTotalLast) / (block.number - blockYieldLastNb)));
-            cumulativeBlockYieldLast += uint256(FixedPoint.div(blockYield, uint112(underlyingTotalLast))._x) * timeElapsed;
+            FixedPoint.uq112x112 memory blockYield =
+                FixedPoint.encode(
+                    uint112(
+                        (this.underlyingTotal() - underlyingTotalLast) /
+                            (block.number - blockYieldLastNb)
+                    )
+                );
+            cumulativeBlockYieldLast +=
+                uint256(
+                    FixedPoint.div(blockYield, uint112(underlyingTotalLast))._x
+                ) *
+                timeElapsed;
 
             blockTimestampLast = blockTimestamp;
             blockYieldLastNb = block.number;
@@ -95,13 +114,28 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     }
 
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
-    function currentCumulativeBlockYield() external view override returns (uint256 cumulativeBlockYield, uint256 blockTimestamp) {
+    function currentCumulativeBlockYield()
+        external
+        view
+        override
+        returns (uint256 cumulativeBlockYield, uint256 blockTimestamp)
+    {
         uint32 blockTimestamp = uint32(block.timestamp % 2**32);
         uint256 cumulativeBlockYield = cumulativeBlockYieldLast;
         uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
         if (timeElapsed > 0 && underlyingTotalLast > 0) {
-            FixedPoint.uq112x112 memory blockYield = FixedPoint.encode(uint112((this.underlyingTotal() - underlyingTotalLast) / (block.number - blockYieldLastNb)));
-            cumulativeBlockYield += uint256(FixedPoint.div(blockYield, uint112(underlyingTotalLast))._x) * timeElapsed;
+            FixedPoint.uq112x112 memory blockYield =
+                FixedPoint.encode(
+                    uint112(
+                        (this.underlyingTotal() - underlyingTotalLast) /
+                            (block.number - blockYieldLastNb)
+                    )
+                );
+            cumulativeBlockYield +=
+                uint256(
+                    FixedPoint.div(blockYield, uint112(underlyingTotalLast))._x
+                ) *
+                timeElapsed;
         }
     }
 
@@ -125,9 +159,9 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
      * @dev
      */
     function buyBond(uint256 _principalAmount, uint16 _forDays)
-        executeJuniorWithdrawals
         external
         override
+        executeJuniorWithdrawals
         returns (uint256)
     {
         require(
@@ -151,9 +185,9 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     }
 
     function redeemBond(uint256 _bondId)
-        executeJuniorWithdrawals
         external
         override
+        executeJuniorWithdrawals
     {
         require(
             block.timestamp > bonds[_bondId].maturesAt,
@@ -163,7 +197,7 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
         uint256 toPay = bonds[_bondId].gain + bonds[_bondId].principal;
 
         if (bonds[_bondId].liquidated == false) {
-          _unaccountBond(_bondId);
+            _unaccountBond(_bondId);
         }
 
         delete bonds[_bondId];
@@ -174,18 +208,18 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     }
 
     function liquidateBonds(uint256[] memory _bondIds) external override {
-      for (uint256 f=0; f<_bondIds.length; f++) {
-        if (block.timestamp > bonds[_bondIds[f]].maturesAt) {
-          bonds[_bondIds[f]].liquidated = true;
-          _unaccountBond(_bondIds[f]);
+        for (uint256 f = 0; f < _bondIds.length; f++) {
+            if (block.timestamp > bonds[_bondIds[f]].maturesAt) {
+                bonds[_bondIds[f]].liquidated = true;
+                _unaccountBond(_bondIds[f]);
+            }
         }
-      }
     }
 
     function buyTokens(uint256 _underlyingAmount)
-        executeJuniorWithdrawals
         external
         override
+        executeJuniorWithdrawals
     {
         _takeUnderlying(msg.sender, _underlyingAmount);
         _depositProvider(_underlyingAmount);
@@ -195,24 +229,33 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
 
     function sellTokens(uint256 _jTokens) external override {
         _burn(msg.sender, _jTokens);
-        uint256 unlocked = (this.abondTotal() == 0) ? (1 ether) : (this.abondPaid() * (1 ether) / this.abondTotal());
-        uint256 toPay = _jTokens * unlocked / (1 ether) * this.price() / (1 ether);
+        uint256 unlocked =
+            (this.abondTotal() == 0)
+                ? (1 ether)
+                : ((this.abondPaid() * (1 ether)) / this.abondTotal());
+        uint256 toPay =
+            (((_jTokens * unlocked) / (1 ether)) * this.price()) / (1 ether);
         _withdrawJuniors(msg.sender, toPay);
     }
 
     function withdrawTokensInitiate(uint256 _jTokens)
-        executeJuniorWithdrawals
         external
         override
+        executeJuniorWithdrawals
     {
         //uint256 memory userJtokens = balanceOf(msg.sender);
 
         // basically the portion of jToken that represents the ABOND.reward x elapsed_ABOND_duration_multiplier (1 meaning full duration left, 0.5 meaning half duration left)
-        uint256 jTokensAtRisk = _jTokens * (abond.gain / this.price() / totalSupply()) * (abond.maturesAt - Math.min(block.timestamp, abond.maturesAt)) / (abond.maturesAt - abond.issuedAt);
+        uint256 jTokensAtRisk =
+            (_jTokens *
+                (abond.gain / this.price() / totalSupply()) *
+                (abond.maturesAt -
+                    Math.min(block.timestamp, abond.maturesAt))) /
+                (abond.maturesAt - abond.issuedAt);
 
         // queue user's jTokens for liquidation
         Withdrawal storage withdrawal = queuedWithdrawals[abond.maturesAt];
-        if(withdrawal.tokens == 0) {
+        if (withdrawal.tokens == 0) {
             queuedWithdrawalTimestamps.push(abond.maturesAt);
         }
         withdrawal.tokens += _jTokens;
@@ -228,16 +271,18 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
         juniorWithdrawal.timestamp = abond.maturesAt;
         // with UserLiquidation set, this user address can not buy jTokens until the 2nd step is complete. (for gas efficiency purposes)
 
-        if(block.timestamp >= abond.maturesAt) {
+        if (block.timestamp >= abond.maturesAt) {
             // SPECIAL CASE
             // In case ABOND.end is in the past, liquidate immediately
-            if(withdrawal.price == 0) {
-            _liquidateJuniors(abond.maturesAt);
+            if (withdrawal.price == 0) {
+                _liquidateJuniors(abond.maturesAt);
             } else {
-            underlyingWithdrawlsJuniors += juniorWithdrawal.tokens * withdrawal.price;
-            _burn(address(this), juniorWithdrawal.tokens); // burns user's locked tokens reducing the jToken supply
-            tokenWithdrawlsJuniors -= juniorWithdrawal.tokens;
-            tokenWithdrawlsJuniorsAtRisk -= juniorWithdrawal.tokensAtRisk;
+                underlyingWithdrawlsJuniors +=
+                    juniorWithdrawal.tokens *
+                    withdrawal.price;
+                _burn(address(this), juniorWithdrawal.tokens); // burns user's locked tokens reducing the jToken supply
+                tokenWithdrawlsJuniors -= juniorWithdrawal.tokens;
+                tokenWithdrawlsJuniorsAtRisk -= juniorWithdrawal.tokensAtRisk;
             }
             //return this.withdrawTokensFinalize();
         }
@@ -246,15 +291,19 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
     }
 
     function withdrawTokensFinalize()
-        executeJuniorWithdrawals
         external
         override
+        executeJuniorWithdrawals
     {
         JuniorWithdrawal storage juniorWithdrawal = queuedJuniors[msg.sender];
         require(juniorWithdrawal.tokens > 0, "No liquidation queued for user");
-        require(juniorWithdrawal.timestamp <= block.timestamp, "Lock period is not over");
+        require(
+            juniorWithdrawal.timestamp <= block.timestamp,
+            "Lock period is not over"
+        );
 
-        Withdrawal storage withdrawal = queuedWithdrawals[juniorWithdrawal.timestamp];
+        Withdrawal storage withdrawal =
+            queuedWithdrawals[juniorWithdrawal.timestamp];
 
         uint256 owed_dai_to_user = withdrawal.price * withdrawal.tokens;
 
@@ -286,27 +335,31 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
         tokenWithdrawlsJuniorsAtRisk -= withdrawal.tokensAtRisk;
     }
 
-
-    function price() external override view returns (uint256) {
+    function price() external view override returns (uint256) {
         uint256 ts = totalSupply();
-        return (ts == 0) ? 1 : this.underlyingJuniors() * (1 ether) / ts;
+        return (ts == 0) ? 1 : (this.underlyingJuniors() * (1 ether)) / ts;
     }
 
-    function underlyingJuniors() external override view returns (uint256) {
+    function underlyingJuniors() external view override returns (uint256) {
         // TODO: fees
         // underlyingTotal - abond.principal - debt paid - queued withdrawls
-        return this.underlyingTotal() - abond.principal - this.abondPaid() - underlyingWithdrawlsJuniors;
+        return
+            this.underlyingTotal() -
+            abond.principal -
+            this.abondPaid() -
+            underlyingWithdrawlsJuniors;
     }
 
-    function underlyingLoanable() external override view returns (uint256) {
-        return
-            this.underlyingTotal() - abond.principal - abond.gain;
+    function underlyingLoanable() external view override returns (uint256) {
+        return this.underlyingTotal() - abond.principal - abond.gain;
     }
 
     function _withdrawJuniors(address _to, uint256 _underlyingAmount) internal {
-      underlyingDepositsJuniors -= _underlyingAmount * underlyingDepositsJuniors / this.underlyingJuniors();
-      _withdrawProvider(_underlyingAmount);
-      _sendUnderlying(_to, _underlyingAmount);
+        underlyingDepositsJuniors -=
+            (_underlyingAmount * underlyingDepositsJuniors) /
+            this.underlyingJuniors();
+        _withdrawProvider(_underlyingAmount);
+        _sendUnderlying(_to, _underlyingAmount);
     }
 
     function _mintBond(
@@ -333,10 +386,23 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
         Bond storage b = bonds[_bondId];
 
         uint256 nGain = abond.gain + b.gain;
-        uint256 shift = abond.gain * b.gain * (b.issuedAt - abond.issuedAt) * (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt) / (abond.maturesAt - abond.issuedAt) * nGain * nGain;
+        uint256 shift =
+            ((abond.gain *
+                b.gain *
+                (b.issuedAt - abond.issuedAt) *
+                (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt)) /
+                (abond.maturesAt - abond.issuedAt)) *
+                nGain *
+                nGain;
 
-        abond.issuedAt = (abond.issuedAt * abond.gain + b.issuedAt * b.gain) / nGain - shift;
-        abond.maturesAt = (abond.maturesAt * abond.gain + b.maturesAt * b.gain) / nGain - shift;
+        abond.issuedAt =
+            (abond.issuedAt * abond.gain + b.issuedAt * b.gain) /
+            nGain -
+            shift;
+        abond.maturesAt =
+            (abond.maturesAt * abond.gain + b.maturesAt * b.gain) /
+            nGain -
+            shift;
         abond.gain = nGain;
         abond.principal += b.principal;
     }
@@ -354,30 +420,43 @@ abstract contract ASmartYieldPool is ISmartYieldPool, ERC20 {
             abond.principal = 0;
             return;
         }
-        uint256 shift = abond.gain * b.gain * (b.issuedAt - abond.issuedAt) * (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt) / (abond.maturesAt - abond.issuedAt) * nGain * nGain;
+        uint256 shift =
+            ((abond.gain *
+                b.gain *
+                (b.issuedAt - abond.issuedAt) *
+                (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt)) /
+                (abond.maturesAt - abond.issuedAt)) *
+                nGain *
+                nGain;
 
-        abond.issuedAt = (abond.issuedAt * abond.gain - b.issuedAt * b.gain) / nGain + shift;
-        abond.maturesAt = (abond.maturesAt * abond.gain - b.maturesAt * b.gain) / nGain + shift;
+        abond.issuedAt =
+            (abond.issuedAt * abond.gain - b.issuedAt * b.gain) /
+            nGain +
+            shift;
+        abond.maturesAt =
+            (abond.maturesAt * abond.gain - b.maturesAt * b.gain) /
+            nGain +
+            shift;
         abond.gain = nGain;
         abond.principal -= b.principal;
     }
 
-    function abondTotal() external override view returns (uint256) {
+    function abondTotal() external view override returns (uint256) {
         return abond.gain;
     }
 
-    function abondPaid() external override view returns (uint256) {
+    function abondPaid() external view override returns (uint256) {
         uint256 d = abond.maturesAt - abond.issuedAt;
         return (abond.gain * Math.min(block.timestamp - abond.issuedAt, d)) / d;
     }
 
-    function abondDebt() external override view returns (uint256) {
+    function abondDebt() external view override returns (uint256) {
         return abond.gain - this.abondPaid();
     }
 
     function _takeTokens(address _from, uint256 _amount)
-      internal
-      returns (bool)
+        internal
+        returns (bool)
     {
         require(
             _amount <= allowance(_from, address(this)),

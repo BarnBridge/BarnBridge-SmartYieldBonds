@@ -7,9 +7,7 @@ import { BigNumber as BNj } from 'bignumber.js';
 import { deployContract } from 'ethereum-waffle';
 
 import { SmartYieldPoolMock } from '@typechain/SmartYieldPoolMock';
-import { SeniorBondToken } from '@typechain/SeniorBondToken';
-import { TokenPriceV1 } from '@typechain/TokenPriceV1';
-import { SeniorBondSlippageV1 } from '@typechain/SeniorBondSlippageV1';
+
 
 import { CTokenMock } from '@typechain/CTokenMock';
 import { Erc20Mock } from '@typechain/Erc20Mock';
