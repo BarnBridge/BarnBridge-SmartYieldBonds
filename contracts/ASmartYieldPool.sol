@@ -19,7 +19,7 @@ import "./lib/oracle/YieldOracle.sol";
 import "./lib/oracle/IYieldOraclelizable.sol";
 import "./lib/math/Math.sol";
 import "./ISmartYieldPool.sol";
-import "./Model/IBondModel.sol";
+import "./model/IBondModel.sol";
 import "./BondToken.sol";
 
 abstract contract ASmartYieldPool is
@@ -137,6 +137,7 @@ abstract contract ASmartYieldPool is
                 ) *
                 timeElapsed;
         }
+        return (cumulativeBlockYield, blockTimestamp);
     }
 
     // bond id => bond (Bond)

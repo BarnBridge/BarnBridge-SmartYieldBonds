@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "../../external-interfaces/compound-finance/ICToken.sol";
-import "../../Model/IBondModel.sol";
+import "../../model/IBondModel.sol";
 
 import "../../BondToken.sol";
 
