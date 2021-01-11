@@ -12,6 +12,20 @@ export const toBNj = (n: BN | number): BNj => {
   return new BNj(n.toString());
 };
 
-export const e18 = (n: number): BN => {
+export const toBN = (n: BNj | number): BN => {
+  return BN.from(n.toString());
+};
+
+export const e18 = (n: number | BN | BNj | string): BN => {
+  if (n instanceof BN) {
+    return n.mul(BN.from(10).pow(18));
+  }
+
+  if (n instanceof BNj) {
+    return BN.from(
+      n.times(new BNj(10).pow(18)).toFixed(0)
+    );
+  }
+
   return BN.from(n).mul(BN.from(10).pow(18));
 };

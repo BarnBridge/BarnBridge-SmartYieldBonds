@@ -66,6 +66,19 @@ abstract contract ASmartYieldPool is
 
     uint32 public blockTimestampLast;
 
+    // bond id => bond (Bond)
+    mapping(uint256 => Bond) public bonds;
+
+    // pool state / average bond
+    Bond public abond;
+
+    // senior BOND NFT
+    BondToken public bondToken;
+
+    IBondModel public seniorModel;
+
+    bool public _safeToObserve = false;
+
     modifier executeJuniorWithdrawals {
         // this modifier will be added to all (write) functions.
         // The first tx after a queued liquidation's timestamp will trigger the liquidation
@@ -108,13 +121,16 @@ abstract contract ASmartYieldPool is
 
             blockTimestampLast = blockTimestamp;
             blockYieldLastNb = block.number;
+
+            _safeToObserve = true;
+
         }
         _;
         underlyingTotalLast = this.underlyingTotal();
     }
 
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
-    function currentCumulativeBlockYield()
+    function currentCumulativeSecondlyYield()
         external
         view
         override
@@ -140,16 +156,9 @@ abstract contract ASmartYieldPool is
         return (cumulativeBlockYield, blockTimestamp);
     }
 
-    // bond id => bond (Bond)
-    mapping(uint256 => Bond) public bonds;
-
-    // pool state / average bond
-    Bond public abond;
-
-    // senior BOND NFT
-    BondToken public bondToken;
-
-    IBondModel public seniorModel;
+    function safeToObserve() external view override returns (bool) {
+      return _safeToObserve;
+    }
 
     constructor(string memory _name, string memory _symbol)
         ERC20(_name, _symbol)
