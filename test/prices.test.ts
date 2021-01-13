@@ -20,7 +20,7 @@ import SeniorBondSlippageV1Artefact from '@artifacts/contracts/Model/Bond/Senior
 import CTokenMockArtefact from '@artifacts/contracts/mocks/CTokenMock.sol/CTokenMock.json';
 import Erc20MockArtefact from '@artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
 
-import { withCompoundRate, toWei, bondSlippage, toBNj, e18, ERROR_MARGIN_ACCEPTABLE } from '@testhelp/index';
+import { withCompoundRate, toWei, bondSlippage, toBNj, e18, ERROR_MARGIN_BAD } from '@testhelp/index';
 import { bbFixtures } from './migrations';
 
 const fixture = async (wallets: Wallet[]) => {
@@ -129,7 +129,7 @@ describe('sBond & jToken Prices', async function () {
     const comparisonRate = bondSlippage(new BNj(1000), 365, toBNj(ratePerDay).div(toBNj(e18(1))), toBNj(underlyingLiquidity).div(toBNj(e18(1))), toBNj(underlyingTotal).div(toBNj(e18(1))));
     const comparisonGain = withCompoundRate(toBNj(1000), comparisonRate, 356).times(toBNj(e18(1)));
 
-    expect(bond[1]).equalWithin(comparisonGain, ERROR_MARGIN_ACCEPTABLE);
+    expect(bond[1]).equalWithin(comparisonGain, ERROR_MARGIN_BAD);
   });
 
 

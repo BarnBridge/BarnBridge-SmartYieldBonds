@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.5;
 
+import "hardhat/console.sol";
+
 // TODO:
 // 2 step withdraw
 // comp value
@@ -61,10 +63,11 @@ abstract contract ASmartYieldPool is
     mapping(address => JuniorWithdrawal) public queuedJuniors;
 
     uint256 public underlyingTotalLast;
-    uint256 public blockYieldLastNb;
-    uint256 public cumulativeBlockYieldLast; // cumulative per block yield
 
-    uint32 public blockTimestampLast;
+    // cumulates (new yield per second) * (seconds since last cumulation)
+    uint256 public cumulativeSecondlyYieldLast;
+    // timestamp of the last cumulation
+    uint32 public timestampLast;
 
     // bond id => bond (Bond)
     mapping(uint256 => Bond) public bonds;
@@ -77,6 +80,7 @@ abstract contract ASmartYieldPool is
 
     IBondModel public seniorModel;
 
+    // is currentCumulativeSecondlyYield() providing correct values?
     bool public _safeToObserve = false;
 
     modifier executeJuniorWithdrawals {
@@ -101,31 +105,22 @@ abstract contract ASmartYieldPool is
     // add to all methods changeing the underlying
     // per https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L73
     modifier accountYield() {
-        uint32 blockTimestamp = uint32(block.timestamp % 2**32);
-        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
-
+        uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
+        uint32 timeElapsed = blockTimestamp - timestampLast; // overflow is desired
         // only for the first time in the block && if there's underlying
         if (timeElapsed > 0 && underlyingTotalLast > 0) {
-            FixedPoint.uq112x112 memory blockYield =
-                FixedPoint.encode(
-                    uint112(
-                        (this.underlyingTotal() - underlyingTotalLast) /
-                            (block.number - blockYieldLastNb)
-                    )
-                );
-            cumulativeBlockYieldLast +=
-                uint256(
-                    FixedPoint.div(blockYield, uint112(underlyingTotalLast))._x
-                ) *
-                timeElapsed;
-
-            blockTimestampLast = blockTimestamp;
-            blockYieldLastNb = block.number;
-
+            // cumulativeSecondlyYieldLast overflows eventually,
+            // due to the way it is used in the oracle that's ok,
+            // as long as it doesn't overflow twice during the windowSize
+            // see OraclelizedMock.cumulativeOverflowProof() for proof
+            cumulativeSecondlyYieldLast +=
+                ((this.underlyingTotal() - underlyingTotalLast) *
+                    (10**this.underlyingDecimals())) /
+                underlyingTotalLast;
             _safeToObserve = true;
-
         }
         _;
+        timestampLast = blockTimestamp;
         underlyingTotalLast = this.underlyingTotal();
     }
 
@@ -134,30 +129,26 @@ abstract contract ASmartYieldPool is
         external
         view
         override
-        returns (uint256 cumulativeBlockYield, uint256 blockTimestamp)
+        returns (uint256 cumulativeYield, uint256 blockTs)
     {
-        uint32 blockTimestamp = uint32(block.timestamp % 2**32);
-        uint256 cumulativeBlockYield = cumulativeBlockYieldLast;
-        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+        uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
+        uint256 cumulativeSecondlyYield = cumulativeSecondlyYieldLast;
+        uint32 timeElapsed = blockTimestamp - timestampLast; // overflow is desired
         if (timeElapsed > 0 && underlyingTotalLast > 0) {
-            FixedPoint.uq112x112 memory blockYield =
-                FixedPoint.encode(
-                    uint112(
-                        (this.underlyingTotal() - underlyingTotalLast) /
-                            (block.number - blockYieldLastNb)
-                    )
-                );
-            cumulativeBlockYield +=
-                uint256(
-                    FixedPoint.div(blockYield, uint112(underlyingTotalLast))._x
-                ) *
-                timeElapsed;
+            // cumulativeSecondlyYield overflows eventually,
+            // due to the way it is used in the oracle that's ok,
+            // as long as it doesn't overflow twice during the windowSize
+            // see OraclelizedMock.cumulativeOverflowProof() for proof
+            cumulativeSecondlyYield +=
+                ((this.underlyingTotal() - underlyingTotalLast) *
+                    (10**this.underlyingDecimals())) /
+                underlyingTotalLast;
         }
-        return (cumulativeBlockYield, blockTimestamp);
+        return (cumulativeSecondlyYield, blockTimestamp);
     }
 
     function safeToObserve() external view override returns (bool) {
-      return _safeToObserve;
+        return _safeToObserve;
     }
 
     constructor(string memory _name, string memory _symbol)
@@ -474,6 +465,13 @@ abstract contract ASmartYieldPool is
         );
         return transferFrom(_from, address(this), _amount);
     }
+
+    function underlyingDecimals()
+        external
+        view
+        virtual
+        override
+        returns (uint256);
 
     function _takeUnderlying(address _from, uint256 _amount)
         internal

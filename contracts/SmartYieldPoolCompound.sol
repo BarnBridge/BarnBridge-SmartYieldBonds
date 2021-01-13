@@ -39,17 +39,21 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
       cToken = ICToken(cToken_);
     }
 
+    function currentTime() external virtual override view returns (uint256) {
+      return block.timestamp;
+    }
+
     /**
      * @notice current total underlying balance, without accruing interest
      */
-    function underlyingTotal() external override view returns (uint256) {
+    function underlyingTotal() external virtual override view returns (uint256) {
         // https://compound.finance/docs#protocol-math
         uint256 cTokenDecimals = 8;
         return
             ICTokenErc20(address(cToken)).balanceOf(address(this)) / (10 ^ (18 - cTokenDecimals)) * cToken.exchangeRateStored() / (10 ^ this.underlyingDecimals());
     }
 
-    function underlyingDecimals() external override view returns (uint256) {
+    function underlyingDecimals() external virtual override view returns (uint256) {
         return uint256(WithDecimals(address(uToken)).decimals());
     }
 

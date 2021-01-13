@@ -5,7 +5,6 @@ import "hardhat/console.sol";
 
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
-import "@uniswap/lib/contracts/libraries/FixedPoint.sol";
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -13,23 +12,22 @@ import "./IYieldOraclelizable.sol";
 import "./IYieldOracle.sol";
 import "../../ASmartYieldPool.sol";
 
-// sliding window oracle that uses observations collected over a window to provide moving price averages in the past
+// a modified version of https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/examples/ExampleSlidingWindowOracle.sol
+// sliding window oracle that uses observations collected over a window to provide moving yield averages in the past
 // `windowSize` with a precision of `windowSize / granularity`
-// note this is a singleton oracle and only needs to be deployed once per desired parameters, which
-// differs from the simple oracle which must be deployed once per pair.
 contract YieldOracle is IYieldOracle {
-    using FixedPoint for *;
     using SafeMath for uint256;
 
     IYieldOraclelizable public pool;
 
     struct Observation {
         uint256 timestamp;
-        uint256 blockYieldCumulative;
+        uint256 yieldCumulative;
     }
 
     // the desired amount of time over which the moving average should be computed, e.g. 24 hours
     uint256 public immutable windowSize;
+
     // the number of observations stored for each pair, i.e. how many price observations are stored for the window.
     // as granularity increases from 1, more frequent updates are needed, but moving averages become more precise.
     // averages are computed over intervals with sizes in the range:
@@ -37,11 +35,10 @@ contract YieldOracle is IYieldOracle {
     // e.g. if the window size is 24 hours, and the granularity is 24, the oracle will return the average price for
     //   the period:
     //   [now - [22 hours, 24 hours], now]
-    /*immutable*/
-    uint8 public granularity;
+    uint8 public immutable granularity;
+
     // this is redundant with granularity and windowSize, but stored for gas savings & informational purposes.
-    /*immutable*/
-    uint256 public periodSize;
+    uint256 public immutable periodSize;
 
     // list of yield observations
     Observation[] public yieldObservations;
@@ -64,13 +61,6 @@ contract YieldOracle is IYieldOracle {
         for (uint256 i = yieldObservations.length; i < granularity_; i++) {
             yieldObservations.push();
         }
-
-        // for (uint256 i = 0; i < granularity_; i++) {
-        //     uint256 ts =
-        //         block.timestamp -
-        //             ((windowSize_ / granularity_) * (granularity_ - i));
-        //     yieldObservations[observationIndexOf(ts)] = (Observation(ts, 0));
-        // }
     }
 
     // returns the index of the observation corresponding to the given timestamp
@@ -89,7 +79,7 @@ contract YieldOracle is IYieldOracle {
         view
         returns (Observation storage firstObservation)
     {
-        uint8 observationIndex = observationIndexOf(block.timestamp);
+        uint8 observationIndex = observationIndexOf(pool.currentTime());
         // no overflow issue. if observationIndex + 1 overflows, result is still zero.
         uint8 firstObservationIndex = (observationIndex + 1) % granularity;
         firstObservation = yieldObservations[firstObservationIndex];
@@ -98,83 +88,84 @@ contract YieldOracle is IYieldOracle {
     // update the cumulative price for the observation at the current timestamp. each observation is updated at most
     // once per epoch period.
     function update() external override {
-        // populate the array with empty observations (first call only)
-        //for (uint256 i = yieldObservations.length; i < granularity; i++) {
-        //    yieldObservations.push();
-        //}
-
         if (!pool.safeToObserve()) {
-          return;
+            // pool may be ramping up or in weird state, don't polute oracle observations
+            return;
         }
 
         // get the observation for the current period
-        uint8 observationIndex = observationIndexOf(block.timestamp);
+        uint8 observationIndex = observationIndexOf(pool.currentTime());
         Observation storage observation = yieldObservations[observationIndex];
 
         // we only want to commit updates once per period (i.e. windowSize / granularity)
-        uint256 timeElapsed = block.timestamp - observation.timestamp;
+        uint256 timeElapsed = pool.currentTime() - observation.timestamp;
         if (timeElapsed > periodSize) {
-            (uint256 blockYieldCumulative, ) =
-                pool.currentCumulativeSecondlyYield();
-            observation.timestamp = block.timestamp;
-            observation.blockYieldCumulative = blockYieldCumulative;
+            (uint256 yieldCumulative, ) = pool.currentCumulativeSecondlyYield();
+            observation.timestamp = pool.currentTime();
+            observation.yieldCumulative = yieldCumulative;
         }
     }
 
-    // given the cumulative prices of the start and end of a period, and the length of the period, compute the average
-    // price in terms of how much amount out is received for the amount in
+    // given the cumulative yields of the start and end of a period, and the length of the period (timeElapsed in seconds), compute the average
+    // yield and extrapolate it for forInterval (seconds) in terms of how much amount out is received for the amount in
     function computeAmountOut(
-        uint256 blockYieldCumulativeStart,
-        uint256 blockYieldCumulativeEnd,
-        uint256 timeElapsed
-    ) private view returns (uint256 blockYieldAverage) {
-        console.log(
-            "computeAmountOut=",
-            blockYieldCumulativeStart,
-            blockYieldCumulativeEnd,
-            timeElapsed
-        );
+        uint256 yieldCumulativeStart,
+        uint256 yieldCumulativeEnd,
+        uint256 timeElapsed,
+        uint256 forInterval
+    ) private pure returns (uint256 blockYieldAverage) {
         return
-            (blockYieldCumulativeEnd - blockYieldCumulativeStart) / timeElapsed;
+            ((yieldCumulativeEnd - yieldCumulativeStart) * forInterval) /
+            timeElapsed;
     }
 
     // returns the amount out corresponding to the amount in for a given token using the moving average over the time
     // range [now - [windowSize, windowSize - periodSize * 2], now]
     // update must have been called for the bucket corresponding to timestamp `now - windowSize`
-    function consult() external override view returns (uint256 amountOut) {
+    function consult(uint256 forInterval)
+        external
+        view
+        override
+        returns (uint256 yieldForInterval)
+    {
         Observation storage firstObservation = getFirstObservationInWindow();
-        console.log('firstObservation ->', firstObservation.timestamp, firstObservation.blockYieldCumulative);
 
-        uint256 timeElapsed = block.timestamp - firstObservation.timestamp;
-        // require(
-        //     timeElapsed <= windowSize,
-        //     "YO: MISSING_HISTORICAL_OBSERVATION"
-        // );
+        uint256 timeElapsed = pool.currentTime() - firstObservation.timestamp;
 
-        if (timeElapsed > windowSize) {
-          console.log("YO: MISSING_HISTORICAL_OBSERVATION", timeElapsed, windowSize);
-          return 0;
+        if (!(timeElapsed <= windowSize)) {
+            // originally:
+            // require(
+            //     timeElapsed <= windowSize,
+            //     "YO: MISSING_HISTORICAL_OBSERVATION"
+            // );
+            // if the oracle is falling behind, it reports 0 yield => there's no incentive to buy sBOND
+            return 0;
         }
 
-        if (timeElapsed < windowSize - periodSize * 2) {
-          console.log("YO: UNEXPECTED_TIME_ELAPSED !", timeElapsed, windowSize - periodSize * 2);
-          return 0;
+        if (!(timeElapsed >= windowSize - periodSize * 2)) {
+            // originally:
+            // should never happen.
+            // require(
+            //     timeElapsed >= windowSize - periodSize * 2,
+            //     "YO: UNEXPECTED_TIME_ELAPSED"
+            // );
+            // if the oracle is in an odd state, it reports 0 yield => there's no incentive to buy sBOND
+            return 0;
         }
 
-        // should never happen.
-        // require(
-        //     timeElapsed >= windowSize - periodSize * 2,
-        //     "YO: UNEXPECTED_TIME_ELAPSED"
-        // );
+        if (!pool.safeToObserve()) {
+            // if the pool is in a weird state, the oracle reports 0 yield => there's no incentive to buy sBOND
+            return 0;
+        }
 
-        (uint256 blockYieldCumulative, ) =
-            pool.currentCumulativeSecondlyYield();
+        (uint256 yieldCumulative, ) = pool.currentCumulativeSecondlyYield();
 
         return
             computeAmountOut(
-                firstObservation.blockYieldCumulative,
-                blockYieldCumulative,
-                timeElapsed
+                firstObservation.yieldCumulative,
+                yieldCumulative,
+                timeElapsed,
+                forInterval
             );
     }
 }

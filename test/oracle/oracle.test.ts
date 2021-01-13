@@ -4,9 +4,9 @@ import 'tsconfig-paths/register';
 import { expect } from 'chai';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
-import { deployContract,  } from 'ethereum-waffle';
+import { deployContract, } from 'ethereum-waffle';
 
-import { withCompoundRate, toWei, bondSlippage, toBNj, e18, ERROR_MARGIN_ACCEPTABLE, mineBySeconds, blockDump, toBN } from '@testhelp/index';
+import { withCompoundRate, toWei, bondSlippage, toBNj, e18, mineBySeconds, blockDump, toBN, MAX_UINT256, A_DAY, ERROR_MARGIN_BAD, ERROR_MARGIN_PREFERED, ERROR_MARGIN_OKISH, e18j } from '@testhelp/index';
 import { bbFixtures } from './../migrations';
 
 import OraclelizedMockArtifact from '../../artifacts/contracts/mocks/barnbridge/OraclelizedMock.sol/OraclelizedMock.json';
@@ -15,10 +15,32 @@ import YieldOracleArtifact from './../../artifacts/contracts/lib/oracle/YieldOra
 import { YieldOracle } from '@typechain/YieldOracle';
 import { OraclelizedMock } from '@typechain/OraclelizedMock';
 
-const defaultWindowSize = 60 * 60 * 24 * 3;
+const START_TIME = 1614556800; // 03/01/2021 @ 12:00am (UTC)
+let timePrev = BN.from(START_TIME);
+
+const DAYS_PER_YEAR = 365;
+const BLOCKS_PER_YEAR = 2_102_400;
+const BLOCKS_PER_DAY = BN.from(BLOCKS_PER_YEAR).div(DAYS_PER_YEAR);
+
+const defaultWindowSize = A_DAY * 3;
 const defaultGranularity = 12 * 3; // samples in window
 
-const fixture = (windowSize: number, granularity: number) => {
+
+const moveTime = (oraclelizedMock: OraclelizedMock) => {
+  return async (seconds: number | BN | BNj) => {
+    seconds = BN.from(seconds.toString());
+    timePrev = timePrev.add(seconds);
+    await oraclelizedMock.setCurrentTime(timePrev);
+  };
+};
+
+const yieldPerPeriod = (yieldPerDay: BN, underlying: BN, windowSize: number, granularity: number) => {
+  const period = BN.from(windowSize).div(granularity);
+  return underlying.mul(yieldPerDay).mul(period).div(A_DAY).div(e18(1)).add(1);
+};
+
+
+const fixture = (windowSize: number, granularity: number, underlyingDecimals: number) => {
   return async (wallets: Wallet[]) => {
     const [deployerSign, ownerSign] = wallets;
     const [deployerAddr, ownerAddr] = await Promise.all([
@@ -26,66 +48,91 @@ const fixture = (windowSize: number, granularity: number) => {
       ownerSign.getAddress(),
     ]);
 
-    const oraclelizedMock = (await deployContract(deployerSign, OraclelizedMockArtifact, [])) as OraclelizedMock;
+    const oraclelizedMock = (await deployContract(deployerSign, OraclelizedMockArtifact, [underlyingDecimals])) as OraclelizedMock;
     const yieldOracle = (await deployContract(deployerSign, YieldOracleArtifact, [oraclelizedMock.address, windowSize, granularity])) as YieldOracle;
     await oraclelizedMock.setOracle(yieldOracle.address);
+
+    await (moveTime(oraclelizedMock))(0);
 
     return {
       yieldOracle, oraclelizedMock,
       deployerSign: deployerSign as Signer,
       ownerSign: ownerSign as Signer,
       deployerAddr, ownerAddr,
+      moveTime: moveTime(oraclelizedMock),
     };
   };
 };
 
 describe('Yield Oracle', async function () {
   it('should deploy YieldOracle corectly', async function () {
-    const { yieldOracle, oraclelizedMock } = await bbFixtures(fixture(defaultWindowSize, defaultGranularity));
+    const { yieldOracle, oraclelizedMock } = await bbFixtures(fixture(defaultWindowSize, defaultGranularity, 18));
 
     expect(await yieldOracle.pool()).equals(oraclelizedMock.address, 'Oraclelized address');
     expect(await oraclelizedMock.oracle()).equals(yieldOracle.address, 'Yield Oracle address');
     expect(await yieldOracle.windowSize()).deep.equals(BN.from(defaultWindowSize), 'Oracle windowSize');
     expect(await yieldOracle.granularity()).equals(defaultGranularity, 'Oracle granularity');
     expect(await yieldOracle.periodSize()).deep.equals(BN.from(defaultWindowSize).div(defaultGranularity), 'Oracle periodSize');
-    expect(await yieldOracle.consult()).deep.equals(BN.from(0), 'First consult should zero');
+    expect(await yieldOracle.consult(A_DAY)).deep.equals(BN.from(0), 'First consult should zero');
   });
 
-  describe('update()', () => {
+  it('should overflow as expected', async function () {
+    const { oraclelizedMock } = await bbFixtures(fixture(defaultWindowSize, defaultGranularity, 18));
+    expect(await oraclelizedMock.cumulativeOverflowProof(0)).deep.equals(BN.from(0), 'should be 0');
+    expect(await oraclelizedMock.cumulativeOverflowProof(1)).deep.equals(BN.from(1), 'should be 1');
+    expect(await oraclelizedMock.cumulativeOverflowProof(1000000)).deep.equals(BN.from(1000000), 'should be 1000000');
+    expect(await oraclelizedMock.cumulativeOverflowProof(MAX_UINT256)).deep.equals(MAX_UINT256, 'should be MAX_UINT256');
+  });
 
-    it('sets slots to 0 on initial update', async function () {
+  describe('happy paths', () => {
 
-      const windowSize = 1 * 24 * 60 * 60;
-      const granularity = 24;
+    it('should not bork for large underlying (9t)(e18)', async function () {
+      const days = 6;
+      const windowSize = A_DAY * days;
+      const granularity = 2 * days;
+      const yield_per_day = BN.from(23456518266).mul(BLOCKS_PER_DAY);
 
+      let underlying = e18('9000000000000');
 
+      const { yieldOracle, oraclelizedMock, moveTime } = await bbFixtures(fixture(windowSize, granularity, 18));
 
+      expect(await yieldOracle.consult(A_DAY)).deep.equals(BN.from(0), 'should be 0');
 
-      let newUnderlying = new BNj(5000);
-      const yieldPerWindow = new BNj(0.05).div(granularity); // 5% / defaultWindowSize
-
-      const { yieldOracle, oraclelizedMock } = await bbFixtures(fixture(windowSize, granularity));
-      expect(await yieldOracle.consult()).deep.equals(BN.from(0), 'should be zero');
-
-      await oraclelizedMock.setUnderlyingTotal(e18(newUnderlying));
-      await mineBySeconds(1 * 60);
-
-      expect(await yieldOracle.consult()).deep.equals(BN.from(0), 'should still be zero');
-
-      for (let i = 0; i < granularity * 3; i++) {
-        newUnderlying = newUnderlying.times(yieldPerWindow.plus(1));
-        await oraclelizedMock.setUnderlyingTotal(e18(newUnderlying));
-        await mineBySeconds(windowSize / granularity);
-        console.error('consult():', (await yieldOracle.consult()).mul(windowSize).div(BN.from(10).pow(15)).toString());
+      for (let i = 0; i < granularity * 2; i++) {
+        underlying = underlying.add(yieldPerPeriod(yield_per_day, underlying, windowSize, granularity));
+        await oraclelizedMock.setUnderlyingAndCumulate(underlying);
+        if (i < granularity) {
+          expect(await yieldOracle.consult(A_DAY)).deep.equal(BN.from(0), 'should be 0 for i=' + i);
+        } else {
+          expect(await yieldOracle.consult(A_DAY)).deep.equal(yield_per_day, 'not withing error for i=' + i);
+        }
+        await moveTime(windowSize / granularity);
       }
-
-
-
-      console.error('--------------->', (await yieldOracle.consult()).toString());
-
-
     });
 
+    it('should not bork for small underlying (1)(e18)', async function () {
+      const days = 6;
+      const windowSize = A_DAY * days;
+      const granularity = 2 * days;
+      const yield_per_day = BN.from(23456518266).mul(BLOCKS_PER_DAY);
+
+      let underlying = e18(1);
+
+      const { yieldOracle, oraclelizedMock, moveTime } = await bbFixtures(fixture(windowSize, granularity, 18));
+
+      expect(await yieldOracle.consult(A_DAY)).deep.equals(BN.from(0), 'should be 0');
+
+      for (let i = 0; i < granularity * 2; i++) {
+        underlying = underlying.add(yieldPerPeriod(yield_per_day, underlying, windowSize, granularity));
+        await oraclelizedMock.setUnderlyingAndCumulate(underlying);
+        if (i < granularity) {
+          expect(await yieldOracle.consult(A_DAY)).deep.equal(BN.from(0), 'should be 0 for i=' + i);
+        } else {
+          expect(await yieldOracle.consult(A_DAY)).deep.equal(yield_per_day, 'not withing error for i=' + i);
+        }
+        await moveTime(windowSize / granularity);
+      }
+    });
   });
 
 
