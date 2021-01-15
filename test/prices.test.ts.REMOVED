@@ -7,9 +7,7 @@ import { BigNumber as BNj } from 'bignumber.js';
 import { deployContract } from 'ethereum-waffle';
 
 import { SmartYieldPoolMock } from '@typechain/SmartYieldPoolMock';
-import { SeniorBondToken } from '@typechain/SeniorBondToken';
-import { TokenPriceV1 } from '@typechain/TokenPriceV1';
-import { SeniorBondSlippageExpV1 } from '@typechain/SeniorBondSlippageExpV1';
+
 
 import { CTokenMock } from '@typechain/CTokenMock';
 import { Erc20Mock } from '@typechain/Erc20Mock';
@@ -17,12 +15,12 @@ import { Erc20Mock } from '@typechain/Erc20Mock';
 import SmartYieldPoolMockArtefact from '@artifacts/contracts/mocks/BarnBridge/SmartYieldPoolMock.sol/SmartYieldPoolMock.json';
 import SeniorBondTokenArtefact from '@artifacts/contracts/SeniorBondToken.sol/SeniorBondToken.json';
 import TokenPriceV1Artefact from '@artifacts/contracts/Model/Token/TokenPriceV1.sol/TokenPriceV1.json';
-import SeniorBondSlippageV1Artefact from '@artifacts/contracts/Model/Bond/SeniorBondSlippageExpV1.sol/SeniorBondSlippageExpV1.json';
+import SeniorBondSlippageV1Artefact from '@artifacts/contracts/Model/Bond/SeniorBondSlippageV1.sol/SeniorBondSlippageV1.json';
 
 import CTokenMockArtefact from '@artifacts/contracts/mocks/CTokenMock.sol/CTokenMock.json';
 import Erc20MockArtefact from '@artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
 
-import { withCompoundRate, bondSlippage, toBNj, e18, ERROR_MARGIN_ACCEPTABLE } from '@testhelp/index';
+import { withCompoundRate, toWei, bondSlippage, toBNj, e18, ERROR_MARGIN_BAD } from '@testhelp/index';
 import { bbFixtures } from './migrations';
 
 const fixture = async (wallets: Wallet[]) => {
@@ -36,17 +34,17 @@ const fixture = async (wallets: Wallet[]) => {
     senior2Sign.getAddress(),
   ]);
 
-  const rewardCtoken = (await deployContract(<Wallet>deployerSign, Erc20MockArtefact, ['COMP', 'COMP'])) as Erc20Mock;
-  const underliying = (await deployContract(<Wallet>deployerSign, Erc20MockArtefact, ['DAI', 'DAI'])) as Erc20Mock;
-  const ctoken = (await deployContract(<Wallet>deployerSign, CTokenMockArtefact, [underliying.address])) as CTokenMock;
+  const rewardCtoken = (await deployContract(deployerSign, Erc20MockArtefact, ['COMP', 'COMP'])) as Erc20Mock;
+  const underliying = (await deployContract(deployerSign, Erc20MockArtefact, ['DAI', 'DAI'])) as Erc20Mock;
+  const ctoken = (await deployContract(deployerSign, CTokenMockArtefact, [underliying.address])) as CTokenMock;
 
   const juniorModel = (await deployContract(deployerSign, TokenPriceV1Artefact, [])) as TokenPriceV1;
-  const seniorModel = (await deployContract(deployerSign, SeniorBondSlippageV1Artefact, [])) as SeniorBondSlippageExpV1;
+  const seniorModel = (await deployContract(deployerSign, SeniorBondSlippageV1Artefact, [])) as SeniorBondSlippageV1;
 
-  const pool = (await deployContract(<Wallet>deployerSign, SmartYieldPoolMockArtefact, [ctoken.address])) as SmartYieldPoolMock;
+  const pool = (await deployContract(deployerSign, SmartYieldPoolMockArtefact, [ctoken.address])) as SmartYieldPoolMock;
 
-  const juniorToken = (await deployContract(<Wallet>deployerSign, Erc20MockArtefact, ['jBOND', 'jBOND'])) as Erc20Mock;
-  const seniorToken = (await deployContract(<Wallet>deployerSign, SeniorBondTokenArtefact, ['sBOND', 'sBOND', pool.address])) as SeniorBondToken;
+  const juniorToken = (await deployContract(deployerSign, Erc20MockArtefact, ['jBOND', 'jBOND'])) as Erc20Mock;
+  const seniorToken = (await deployContract(deployerSign, SeniorBondTokenArtefact, ['sBOND', 'sBOND', pool.address])) as SeniorBondToken;
 
   await pool.setCToken(ctoken.address);
   await pool.setRewardCToken(rewardCtoken.address);
@@ -70,16 +68,15 @@ const fixture = async (wallets: Wallet[]) => {
   };
 };
 
-describe('2sBond & jToken Prices', function () {
-
-  it('2Junior Token Price should be 1 at begining', async function () {
+describe('sBond & jToken Prices', async function () {
+  it('Junior Token Price should be 1 at begining', async function () {
     const { pool } = await bbFixtures(fixture);
 
     expect(await pool.getsTokens(42424)).deep.equals(BN.from(42424), 'Token price should be 1');
     expect(await pool.getsUnderlying(42424)).deep.equals(BN.from(42424), 'Token price should be 1');
   });
 
-  it('2should allow juniors to buy tokens', async function () {
+  it('should allow juniors to buy tokens', async function () {
     const { ctoken, underliying, pool, juniorToken, junior1Addr, junior2Addr, junior1Sign, junior2Sign } = await bbFixtures(fixture);
 
     await ctoken.setSupplyRatePerBlock(BN.from('14135523863'));
@@ -101,7 +98,7 @@ describe('2sBond & jToken Prices', function () {
     expect(await pool.getsTokens(1)).deep.equals(BN.from(1), 'Token price should still be 1');
   });
 
-  it('2should allow seniors to buy tokens', async function () {
+  it('should allow seniors to buy tokens', async function () {
     const { ctoken, underliying, pool, juniorToken, junior1Addr, senior1Addr, junior1Sign, senior1Sign } = await bbFixtures(fixture);
 
     const supplyRatePerBlock = BN.from('14135523863');
@@ -132,7 +129,7 @@ describe('2sBond & jToken Prices', function () {
     const comparisonRate = bondSlippage(new BNj(1000), 365, toBNj(ratePerDay).div(toBNj(e18(1))), toBNj(underlyingLiquidity).div(toBNj(e18(1))), toBNj(underlyingTotal).div(toBNj(e18(1))));
     const comparisonGain = withCompoundRate(toBNj(1000), comparisonRate, 356).times(toBNj(e18(1)));
 
-    expect(bond[1]).equalWithin(comparisonGain, ERROR_MARGIN_ACCEPTABLE);
+    expect(bond[1]).equalWithin(comparisonGain, ERROR_MARGIN_BAD);
   });
 
 

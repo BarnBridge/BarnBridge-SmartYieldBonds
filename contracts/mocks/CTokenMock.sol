@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.6.0;
+pragma solidity ^0.7.5;
+
+// https://rinkeby.etherscan.io/address/0x6d7f0754ffeb405d23c51ce938289d4835be3b14#readContract
 
 import "hardhat/console.sol";
 
-import "../compound-finance/CTokenInterfaces.sol";
+import "../external-interfaces/compound-finance/ICToken.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract CTokenMock is CErc20Interface, ERC20 {
+contract CTokenMock is ICToken, ERC20 {
     uint256 public supplyRatePerBlock_ = 0;
     uint256 public exchangeRateStored_ = 0;
+
+    address public override underlying;
+    address public override comptroller;
 
     constructor(address _underlying) public ERC20("cDAI Mock", "cDAI") {
         underlying = _underlying;
@@ -17,7 +22,7 @@ contract CTokenMock is CErc20Interface, ERC20 {
     // CErc20Interface
 
     function mint(uint256 mintAmount) external override returns (uint256) {
-        _mint(msg.sender, mintAmount.mul(10**18).div(exchangeRateStored_));
+        _mint(msg.sender, mintAmount * (1 ether) / (exchangeRateStored_));
     }
 
     function redeem(uint256 redeemTokens) external override returns (uint256) {
@@ -57,4 +62,5 @@ contract CTokenMock is CErc20Interface, ERC20 {
     function mockBurn(address account, uint256 amount) public {
         _burn(account, amount);
     }
+
 }

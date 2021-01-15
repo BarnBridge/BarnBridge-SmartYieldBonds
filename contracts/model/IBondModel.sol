@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.6.0;
+pragma solidity ^0.7.5;
 
-interface IBondSlippageModel {
+interface IBondModel {
 
     function slippage(
         address pool,

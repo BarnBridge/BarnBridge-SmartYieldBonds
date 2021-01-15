@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.6.0;
+pragma solidity ^0.7.5;
 
 // @TODO: REVIEW
 // x = (cur_j - (bond*x*n*t)) / (cur_tot + bond + (bond*x*n*t)) * n
@@ -7,13 +7,13 @@ pragma solidity ^0.6.0;
 import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "../../lib/math/Math.sol";
-import "../../lib/math/Exponential.sol";
+import "../lib/math/Math.sol";
+import "../lib/math/Exponential.sol";
 
-import "./IBondSlippageModel.sol";
-import "../../ISmartYieldPool.sol";
+import "./IBondModel.sol";
+import "../ISmartYieldPool.sol";
 
-contract SeniorBondSlippageExpV1 is IBondSlippageModel, Exponential {
+contract BondModelExpV1 is IBondModel, Exponential {
     using SafeMath for uint256;
     using Math for uint256;
 
@@ -33,7 +33,7 @@ contract SeniorBondSlippageExpV1 is IBondSlippageModel, Exponential {
         Exp t;
         Exp principal;
         Exp underlyingTotal;
-        Exp underlyingLiquidity;
+        Exp underlyingLoanable;
         Exp ratePerDay2;
         Exp bn2t;
         Exp numeA;
@@ -67,12 +67,12 @@ contract SeniorBondSlippageExpV1 is IBondSlippageModel, Exponential {
         v.underlyingTotal = Exp({
             mantissa: ISmartYieldPool(pool).underlyingTotal()
         });
-        v.underlyingLiquidity = Exp({
-            mantissa: ISmartYieldPool(pool).underlyingLiquidity()
+        v.underlyingLoanable = Exp({
+            mantissa: ISmartYieldPool(pool).underlyingLoanable()
         });
         (mErr, v.ratePerDay2) = mulExp(
-            Exp({mantissa: ISmartYieldPool(pool).ratePerDay()}),
-            Exp({mantissa: ISmartYieldPool(pool).ratePerDay()})
+            Exp({mantissa: ISmartYieldPool(pool).providerRatePerDay()}),
+            Exp({mantissa: ISmartYieldPool(pool).providerRatePerDay()})
         );
 
         (mErr, v.bn2t) = mulExp3(v.principal, v.ratePerDay2, v.t);
@@ -80,7 +80,7 @@ contract SeniorBondSlippageExpV1 is IBondSlippageModel, Exponential {
         (mErr, v.numeA2) = mulExp(v.numeA, v.numeA);
         (mErr, v.numeB) = mulExp3(
             v.bn2t,
-            v.underlyingLiquidity,
+            v.underlyingLoanable,
             Exp({mantissa: 4 * (10**18)})
         );
         (mErr, v.tmp) = addExp(v.numeA2, v.numeB);
@@ -90,7 +90,7 @@ contract SeniorBondSlippageExpV1 is IBondSlippageModel, Exponential {
         (mErr, v.tmp) = mulExp3(
             Exp({mantissa: 2 * (10**18)}),
             v.principal,
-            Exp({mantissa: ISmartYieldPool(pool).ratePerDay()})
+            Exp({mantissa: ISmartYieldPool(pool).providerRatePerDay()})
         );
         (mErr, v.deno) = mulExp(v.tmp, v.t);
 
