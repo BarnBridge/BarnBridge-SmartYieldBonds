@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.5;
 
-import "hardhat/console.sol";
-
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 
@@ -113,7 +111,7 @@ contract YieldOracle is IYieldOracle {
         uint256 yieldCumulativeEnd,
         uint256 timeElapsed,
         uint256 forInterval
-    ) private pure returns (uint256 blockYieldAverage) {
+    ) private pure returns (uint256 yieldAverage) {
         return
             ((yieldCumulativeEnd - yieldCumulativeStart) * forInterval) /
             timeElapsed;

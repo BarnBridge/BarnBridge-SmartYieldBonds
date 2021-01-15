@@ -92,7 +92,7 @@ abstract contract ASmartYieldPool is
             i < queuedWithdrawalTimestamps.length - 1;
             i++
         ) {
-            if (block.timestamp >= queuedWithdrawalTimestamps[i]) {
+            if (this.currentTime() >= queuedWithdrawalTimestamps[i]) {
                 _liquidateJuniors(queuedWithdrawalTimestamps[i]);
                 lastQueuedWithdrawalTimestampsI = i;
             } else {
@@ -114,8 +114,9 @@ abstract contract ASmartYieldPool is
             // as long as it doesn't overflow twice during the windowSize
             // see OraclelizedMock.cumulativeOverflowProof() for proof
             cumulativeSecondlyYieldLast +=
-                ((this.underlyingTotal() - underlyingTotalLast) *
-                    (10**this.underlyingDecimals())) /
+                // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
+                // (this.underlyingTotal() - underlyingTotalLast) never underflows
+                ((this.underlyingTotal() - underlyingTotalLast) * 1e18) /
                 underlyingTotalLast;
             _safeToObserve = true;
         }
@@ -124,6 +125,7 @@ abstract contract ASmartYieldPool is
         underlyingTotalLast = this.underlyingTotal();
     }
 
+    // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
     function currentCumulativeSecondlyYield()
         external
@@ -140,8 +142,9 @@ abstract contract ASmartYieldPool is
             // as long as it doesn't overflow twice during the windowSize
             // see OraclelizedMock.cumulativeOverflowProof() for proof
             cumulativeSecondlyYield +=
-                ((this.underlyingTotal() - underlyingTotalLast) *
-                    (10**this.underlyingDecimals())) /
+                // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
+                // (this.underlyingTotal() - underlyingTotalLast) never underflows
+                ((this.underlyingTotal() - underlyingTotalLast) * 1e18) /
                 underlyingTotalLast;
         }
         return (cumulativeSecondlyYield, blockTimestamp);
@@ -180,7 +183,7 @@ abstract contract ASmartYieldPool is
                 msg.sender,
                 _principalAmount,
                 gain,
-                block.timestamp,
+                this.currentTime(),
                 _forDays
             );
     }
@@ -191,7 +194,7 @@ abstract contract ASmartYieldPool is
         executeJuniorWithdrawals
     {
         require(
-            block.timestamp > bonds[_bondId].maturesAt,
+            this.currentTime() > bonds[_bondId].maturesAt,
             "SYABS: redeemBond not matured"
         );
 
@@ -210,7 +213,7 @@ abstract contract ASmartYieldPool is
 
     function liquidateBonds(uint256[] memory _bondIds) external override {
         for (uint256 f = 0; f < _bondIds.length; f++) {
-            if (block.timestamp > bonds[_bondIds[f]].maturesAt) {
+            if (this.currentTime() > bonds[_bondIds[f]].maturesAt) {
                 bonds[_bondIds[f]].liquidated = true;
                 _unaccountBond(_bondIds[f]);
             }
@@ -251,7 +254,7 @@ abstract contract ASmartYieldPool is
             (_jTokens *
                 (abond.gain / this.price() / totalSupply()) *
                 (abond.maturesAt -
-                    Math.min(block.timestamp, abond.maturesAt))) /
+                    Math.min(this.currentTime(), abond.maturesAt))) /
                 (abond.maturesAt - abond.issuedAt);
 
         // queue user's jTokens for liquidation
@@ -272,7 +275,7 @@ abstract contract ASmartYieldPool is
         juniorWithdrawal.timestamp = abond.maturesAt;
         // with UserLiquidation set, this user address can not buy jTokens until the 2nd step is complete. (for gas efficiency purposes)
 
-        if (block.timestamp >= abond.maturesAt) {
+        if (this.currentTime() >= abond.maturesAt) {
             // SPECIAL CASE
             // In case ABOND.end is in the past, liquidate immediately
             if (withdrawal.price == 0) {
@@ -299,7 +302,7 @@ abstract contract ASmartYieldPool is
         JuniorWithdrawal storage juniorWithdrawal = queuedJuniors[msg.sender];
         require(juniorWithdrawal.tokens > 0, "No liquidation queued for user");
         require(
-            juniorWithdrawal.timestamp <= block.timestamp,
+            juniorWithdrawal.timestamp <= this.currentTime(),
             "Lock period is not over"
         );
 
@@ -448,7 +451,8 @@ abstract contract ASmartYieldPool is
 
     function abondPaid() external view override returns (uint256) {
         uint256 d = abond.maturesAt - abond.issuedAt;
-        return (abond.gain * Math.min(block.timestamp - abond.issuedAt, d)) / d;
+        return
+            (abond.gain * Math.min(this.currentTime() - abond.issuedAt, d)) / d;
     }
 
     function abondDebt() external view override returns (uint256) {

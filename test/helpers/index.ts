@@ -10,6 +10,11 @@ export const ERROR_MARGIN_BAD = new BNj(5).div(new BNj(10).pow(4)); // 0.05 % =>
 export const MAX_UINT256 = BN.from(2).pow(256).sub(1);
 
 export const A_DAY = 60 * 60 * 24;
+// https://compound.finance/docs#protocol-math
+export const DAYS_PER_YEAR = 365;
+// https://github.com/compound-finance/compound-protocol/blob/ca6bc76ffdc0fc4f52a2ff617200d1a16f65692a/contracts/JumpRateModel.sol#L18
+export const BLOCKS_PER_YEAR = 2_102_400;
+export const BLOCKS_PER_DAY = BLOCKS_PER_YEAR / DAYS_PER_YEAR;
 
 // see /types.d.ts
 Assertion.addMethod('equalWithin', function (expected: BN, within: BNj, message: string | undefined = undefined) {
@@ -35,9 +40,6 @@ Assertion.addMethod('equalOrLowerWithin', function (expected: BN, within: BNj, m
   const obj = new BNj((this._obj as BN).toString());
   const toCheck = new BNj(expected.toString());
   const diff = obj.minus(toCheck).abs();
-
-  console.error('OBJ=', obj.toFixed(18));
-  console.error('CHK=', toCheck.toFixed(18));
 
   new Assertion(obj.lte(toCheck)).to.equal(true, `${message !== undefined ? message + ' : ' : ''}not lower or equal`);
 
@@ -67,11 +69,10 @@ export const addBlockTimestamp = async (interval: number): Promise<void> => {
 export const mineBySeconds = async (interval: number): Promise<void> => {
   await addBlockTimestamp(interval);
   await ethers.provider.send('evm_mine', []);
-  const block = await ethers.provider.getBlock('latest');
-  console.error(`block.number=${block.number}, block.timestamp=${block.timestamp}`);
+  //dumpBlockLatest();
 };
 
-export const blockDump = async (): Promise<void> => {
+export const dumpBlockLatest = async (): Promise<void> => {
   const block = await ethers.provider.getBlock('latest');
   console.error(`[DEBUG]: block.number=${block.number}, block.timestamp=${block.timestamp}`);
 };
