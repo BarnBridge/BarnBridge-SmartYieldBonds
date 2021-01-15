@@ -4,7 +4,7 @@ pragma solidity ^0.7.5;
 import "hardhat/console.sol";
 
 import "../../SmartYieldPoolCompound.sol";
-import "../../lib/oracle/IYieldOracle.sol";
+import "../../oracle/IYieldOracle.sol";
 
 contract OraclelizedMock is SmartYieldPoolCompound {
     uint256 public _underlyingTotal;

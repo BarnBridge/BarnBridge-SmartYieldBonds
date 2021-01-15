@@ -6,11 +6,10 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { deployContract } from 'ethereum-waffle';
 
-import { e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e } from '@testhelp/index';
-import { bbFixtures } from './../migrations';
+import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e } from '@testhelp/index';
 
 import OraclelizedMockArtifact from '../../artifacts/contracts/mocks/barnbridge/OraclelizedMock.sol/OraclelizedMock.json';
-import YieldOracleArtifact from './../../artifacts/contracts/lib/oracle/YieldOracle.sol/YieldOracle.json';
+import YieldOracleArtifact from './../../artifacts/contracts/oracle/YieldOracle.sol/YieldOracle.json';
 
 import { YieldOracle } from '@typechain/YieldOracle';
 import { OraclelizedMock } from '@typechain/OraclelizedMock';

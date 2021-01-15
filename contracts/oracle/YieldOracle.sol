@@ -8,7 +8,6 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "./IYieldOraclelizable.sol";
 import "./IYieldOracle.sol";
-import "../../ASmartYieldPool.sol";
 
 // a modified version of https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/examples/ExampleSlidingWindowOracle.sol
 // sliding window oracle that uses observations collected over a window to provide moving yield averages in the past
@@ -54,7 +53,7 @@ contract YieldOracle is IYieldOracle {
         );
         windowSize = windowSize_;
         granularity = granularity_;
-        pool = ASmartYieldPool(pool_);
+        pool = IYieldOraclelizable(pool_);
 
         for (uint256 i = yieldObservations.length; i < granularity_; i++) {
             yieldObservations.push();

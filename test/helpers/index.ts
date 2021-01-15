@@ -1,7 +1,8 @@
 import { Assertion } from 'chai';
-import { BigNumber as BN } from 'ethers';
+import { BigNumber as BN, Wallet } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { ethers } from 'hardhat';
+import { createFixtureLoader, Fixture } from 'ethereum-waffle';
 
 export const ERROR_MARGIN_PREFERED = new BNj(1).div(new BNj(10).pow(10));  // 0.00000001 %
 export const ERROR_MARGIN_OKISH = new BNj(12).div(new BNj(10).pow(6)); // 0.0015 % => compounds to an error of ~0.3% in 365 rounds of compounding (a year)
@@ -15,6 +16,15 @@ export const DAYS_PER_YEAR = 365;
 // https://github.com/compound-finance/compound-protocol/blob/ca6bc76ffdc0fc4f52a2ff617200d1a16f65692a/contracts/JumpRateModel.sol#L18
 export const BLOCKS_PER_YEAR = 2_102_400;
 export const BLOCKS_PER_DAY = BLOCKS_PER_YEAR / DAYS_PER_YEAR;
+
+let loadFixture: ReturnType<typeof createFixtureLoader>;
+
+export const bbFixtures = async <T>(fixture: Fixture<T>): Promise<T> => {
+  if (!loadFixture) {
+    loadFixture = await createFixtureLoader((await ethers.getSigners()) as unknown as Wallet[], ethers.provider as unknown as any);
+  }
+  return await loadFixture<T>(fixture);
+};
 
 // see /types.d.ts
 Assertion.addMethod('equalWithin', function (expected: BN, within: BNj, message: string | undefined = undefined) {

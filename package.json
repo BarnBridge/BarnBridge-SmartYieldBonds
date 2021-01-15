@@ -38,7 +38,7 @@
   "scripts": {
     "test": "hardhat test",
     "coverage": "hardhat coverage",
-    "recompile": "hardhat clean && hardhat compile"
+    "compile": "hardhat clean && hardhat compile"
   },
   "author": "",
   "license": "ISC"

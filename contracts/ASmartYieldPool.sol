@@ -17,8 +17,8 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "@uniswap/lib/contracts/libraries/FixedPoint.sol";
 
-import "./lib/oracle/YieldOracle.sol";
-import "./lib/oracle/IYieldOraclelizable.sol";
+import "./oracle/YieldOracle.sol";
+import "./oracle/IYieldOraclelizable.sol";
 import "./lib/math/Math.sol";
 import "./ISmartYieldPool.sol";
 import "./model/IBondModel.sol";
