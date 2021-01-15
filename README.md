@@ -31,7 +31,7 @@ Solidity 0.7.5 contracts are found in `contracts/`.
 
 `contracts/BondToken.sol` ERC721 non-fungible token for senior bonds.
 
-`contratcs/oracle/` contains a plugable oracle used by the pool to measure a roling average of the actual underlying pool yield.
+`contratcs/oracle/` contains a plugable oracle used by the pool to measure a moving average of the actual underlying pool yield.
 
 `models/` contains plugable contracts for modeling the yield offered to senior bonds.
 
