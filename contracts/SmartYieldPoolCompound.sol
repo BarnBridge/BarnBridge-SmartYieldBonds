@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.5;
 
-import "./ASmartYieldPool.sol";
-import "./external-interfaces/compound-finance/ICToken.sol";
-import "./external-interfaces/compound-finance/IComptroller.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+import "./external-interfaces/compound-finance/ICToken.sol";
+import "./external-interfaces/compound-finance/IComptroller.sol";
+
+import "./ASmartYieldPool.sol";
+import "./model/IBondModel.sol";
 
 interface WithDecimals {
   function decimals() external view returns (uint8);
@@ -18,13 +21,16 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     // underlying token (ie. DAI)
     IERC20 public uToken;
     // claim token (ie. cDAI)
-    ICToken public cToken;
+    address public cToken;
     // deposit reward token (ie. COMP)
     IERC20 public rewardCToken;
     // weth
     IERC20 public wethToken;
 
     IUniswapV2Router02 public uniswap;
+
+    IBondModel public bondModel;
+
 
     uint256 public constant BLOCKS_PER_YEAR = 2102400;
     uint256 public constant BLOCKS_PER_DAY = BLOCKS_PER_YEAR / 365;
@@ -34,9 +40,16 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     {}
 
     function setup(
+      address oracle_,
+      address bondModel_,
+      address bondToken_,
       address cToken_
     ) external {
-      cToken = ICToken(cToken_);
+      this.setOracle(oracle_);
+      bondModel = IBondModel(bondModel_);
+      bondToken = BondToken(bondToken_);
+      cToken = cToken_;
+      uToken = IERC20(ICToken(cToken_).underlying());
     }
 
     function currentTime() external virtual override view returns (uint256) {
@@ -48,9 +61,10 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
      */
     function underlyingTotal() external virtual override view returns (uint256) {
         // https://compound.finance/docs#protocol-math
-        uint256 cTokenDecimals = 8;
-        return
-            ICTokenErc20(address(cToken)).balanceOf(address(this)) / (10 ^ (18 - cTokenDecimals)) * cToken.exchangeRateStored() / (10 ^ this.underlyingDecimals());
+        return ICTokenErc20(cToken).balanceOf(address(this)) * ICToken(cToken).exchangeRateStored();
+        // uint256 cTokenDecimals = 8;
+        // return
+        //     ICTokenErc20(cToken).balanceOf(address(this)) / (10 ** (18 - cTokenDecimals)) * ICToken(cToken).exchangeRateStored() / (10 ** this.underlyingDecimals());
     }
 
     function underlyingDecimals() external virtual override view returns (uint256) {
@@ -64,12 +78,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         view
         returns (uint256)
     {
-        return
-            Math.compound(
-                _principalAmount,
-                seniorModel.slippage(address(this), _principalAmount, _forDays),
-                _forDays
-            );
+        return bondModel.gain(address(this), _principalAmount, _forDays);
     }
 
     function providerRatePerDay() external override view returns (uint256) {
@@ -87,7 +96,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
           path[0] = address(rewardCToken);
           path[1] = address(wethToken);
           path[2] = address(uToken);
-          uniswap.swapExactTokensForTokens(rewardAmount, uint256(0), path, address(this), block.timestamp + 1800);
+          uniswap.swapExactTokensForTokens(rewardAmount, uint256(0), path, address(this), this.currentTime() + 1800);
         }
         uint256 underAmount = uToken.balanceOf(address(this));
         if (underAmount > 0) {
@@ -120,7 +129,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         override
     {
         uToken.approve(address(cToken), _underlyingAmount);
-        uint256 success = cToken.mint(_underlyingAmount);
+        uint256 success = ICToken(cToken).mint(_underlyingAmount);
         require(0 == success, "SYCOMP: depositProvider mint");
     }
 
@@ -128,7 +137,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         internal
         override
     {
-        uint256 success = cToken.redeemUnderlying(_underlyingAmount);
+        uint256 success = ICToken(cToken).redeemUnderlying(_underlyingAmount);
         require(0 == success, "SYCOMP: withdrawProvider redeemUnderlying");
     }
 }

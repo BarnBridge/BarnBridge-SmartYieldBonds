@@ -8,17 +8,21 @@ import { deployContract } from 'ethereum-waffle';
 
 import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e } from '@testhelp/index';
 
+import Erc20MockArtifact from '../../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
+import CTokenMockArtifact from '../../artifacts/contracts/mocks/compound-finance/CTokenMock.sol/CTokenMock.json';
 import OraclelizedMockArtifact from '../../artifacts/contracts/mocks/barnbridge/OraclelizedMock.sol/OraclelizedMock.json';
 import YieldOracleArtifact from './../../artifacts/contracts/oracle/YieldOracle.sol/YieldOracle.json';
 
 import { YieldOracle } from '@typechain/YieldOracle';
 import { OraclelizedMock } from '@typechain/OraclelizedMock';
-
-const START_TIME = 1614556800; // 03/01/2021 @ 12:00am (UTC)
-let timePrev = BN.from(START_TIME);
+import { Erc20Mock } from '@typechain/Erc20Mock';
+import { CTokenMock } from '@typechain/CTokenMock';
 
 const defaultWindowSize = A_DAY * 3;
 const defaultGranularity = 12 * 3; // samples in window
+
+const START_TIME = 1614556800; // 03/01/2021 @ 12:00am (UTC)
+let timePrev = BN.from(START_TIME);
 
 const moveTime = (oraclelizedMock: OraclelizedMock) => {
   return async (seconds: number | BN | BNj) => {
@@ -66,9 +70,11 @@ const fixture = (windowSize: number, granularity: number) => {
       ownerSign.getAddress(),
     ]);
 
+    const underlying = (await deployContract(deployerSign, Erc20MockArtifact, ['DAI MOCK', 'DAI', 18])) as Erc20Mock;
+    const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address])) as CTokenMock;
     const oraclelizedMock = (await deployContract(deployerSign, OraclelizedMockArtifact, [])) as OraclelizedMock;
     const yieldOracle = (await deployContract(deployerSign, YieldOracleArtifact, [oraclelizedMock.address, windowSize, granularity])) as YieldOracle;
-    await oraclelizedMock.setOracle(yieldOracle.address);
+    await oraclelizedMock.setup(yieldOracle.address, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', cToken.address);
 
     await (moveTime(oraclelizedMock))(0);
 

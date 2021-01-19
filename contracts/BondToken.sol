@@ -12,7 +12,7 @@ contract BondToken is Context, AccessControl, ERC721 {
         string memory name,
         string memory symbol,
         address pool
-    ) public ERC721(name, symbol) {
+    ) ERC721(name, symbol) {
         _setupRole(MINT_BURN_ROLE, pool);
     }
 

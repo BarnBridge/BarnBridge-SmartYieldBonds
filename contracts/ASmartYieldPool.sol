@@ -11,6 +11,18 @@ import "hardhat/console.sol";
 // pause guardian trading
 // tests
 
+// feature: pause deposits
+
+// configurable:
+// DAO is owner
+// owner can be changed
+// configurable by DAO BOND_LIFE_MAX, at launch =3mo
+// guardian address can pause
+// guardian can be changed by owner
+// MAX_YIELD allowed for sBONDS can be changed by guardian / dao
+// https://github.com/BarnBridge/BarnBridge-SmartYieldBonds/blob/master/SPEC.md#senior-deposit-buy-bond, x = (cur_j - (b_p*x*n*b_t)) / (cur_tot + b_p + (b_p*x*n*b_t)) * n * m,  <- bond yield formula should be pluggable
+// oracle should be pluggable
+
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -18,10 +30,10 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@uniswap/lib/contracts/libraries/FixedPoint.sol";
 
 import "./oracle/YieldOracle.sol";
+import "./oracle/IYieldOracle.sol";
 import "./oracle/IYieldOraclelizable.sol";
 import "./lib/math/Math.sol";
 import "./ISmartYieldPool.sol";
-import "./model/IBondModel.sol";
 import "./BondToken.sol";
 
 abstract contract ASmartYieldPool is
@@ -31,6 +43,8 @@ abstract contract ASmartYieldPool is
 {
     using Counters for Counters.Counter;
     using SafeMath for uint256;
+
+    IYieldOracle public oracle;
 
     struct Withdrawal {
         uint256 tokens; // in jTokens
@@ -45,7 +59,7 @@ abstract contract ASmartYieldPool is
 
     uint256 public constant DAYS_IN_YEAR = 365;
 
-    uint256 public BOND_LIFE_MAX = 365 * 2; // in days
+    uint256 public BOND_LIFE_MAX = 365; // in days
 
     uint256 public underlyingDepositsJuniors;
     uint256 public underlyingWithdrawlsJuniors;
@@ -78,20 +92,20 @@ abstract contract ASmartYieldPool is
     // senior BOND NFT
     BondToken public bondToken;
 
-    IBondModel public seniorModel;
-
     // is currentCumulativeSecondlyYield() providing correct values?
     bool public _safeToObserve = false;
 
     modifier executeJuniorWithdrawals {
+      console.log("executeJuniorWithdrawals() in");
         // this modifier will be added to all (write) functions.
         // The first tx after a queued liquidation's timestamp will trigger the liquidation
         // reducing the jToken supply, and setting aside owed_dai for withdrawals
         for (
             uint256 i = lastQueuedWithdrawalTimestampsI;
-            i < queuedWithdrawalTimestamps.length - 1;
+            i < queuedWithdrawalTimestamps.length;
             i++
         ) {
+            console.log("executeJuniorWithdrawals() liquidateJuniors>");
             if (this.currentTime() >= queuedWithdrawalTimestamps[i]) {
                 _liquidateJuniors(queuedWithdrawalTimestamps[i]);
                 lastQueuedWithdrawalTimestampsI = i;
@@ -100,11 +114,13 @@ abstract contract ASmartYieldPool is
             }
         }
         _;
+      console.log("executeJuniorWithdrawals() out");
     }
 
     // add to all methods changeing the underlying
     // per https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L73
     modifier accountYield() {
+      console.log("accountYield() in");
         uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
         uint32 timeElapsed = blockTimestamp - timestampLast; // overflow is desired
         // only for the first time in the block && if there's underlying
@@ -118,11 +134,28 @@ abstract contract ASmartYieldPool is
                 // (this.underlyingTotal() - underlyingTotalLast) never underflows
                 ((this.underlyingTotal() - underlyingTotalLast) * 1e18) /
                 underlyingTotalLast;
+
             _safeToObserve = true;
+            timestampLast = blockTimestamp;
         }
         _;
-        timestampLast = blockTimestamp;
         underlyingTotalLast = this.underlyingTotal();
+      console.log("accountYield() out");
+
+    }
+
+
+    constructor(string memory _name, string memory _symbol)
+        ERC20(_name, _symbol)
+    {
+    }
+
+    function setOracle(address _oracle) external {
+      oracle = IYieldOracle(_oracle);
+    }
+
+    function setBondModel(address _bondModel) external {
+
     }
 
     // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
@@ -154,26 +187,24 @@ abstract contract ASmartYieldPool is
         return _safeToObserve;
     }
 
-    constructor(string memory _name, string memory _symbol)
-        ERC20(_name, _symbol)
-    {}
-
     /**
      * @notice Purchase a senior bond with principalAmount underlying for forDays
      * @dev
      */
-    function buyBond(uint256 _principalAmount, uint16 _forDays)
-        external
-        override
-        executeJuniorWithdrawals
-        returns (uint256)
-    {
+    function buyBond(
+        uint256 _principalAmount,
+        uint256 _minGain,
+        uint16 _forDays
+    ) external override accountYield executeJuniorWithdrawals returns (uint256) {
         require(
             0 < _forDays && _forDays <= BOND_LIFE_MAX,
             "SYABS: buyBond forDays"
         );
 
         uint256 gain = this.bondGain(_principalAmount, _forDays);
+
+        require(gain >= _minGain, "ASYP: buyBond minGain");
+        require(gain < this.underlyingJuniors(), "ASYP: buyBond underlyingJuniors");
 
         _takeUnderlying(msg.sender, _principalAmount);
         _depositProvider(_principalAmount);
@@ -451,8 +482,8 @@ abstract contract ASmartYieldPool is
 
     function abondPaid() external view override returns (uint256) {
         uint256 d = abond.maturesAt - abond.issuedAt;
-        return
-            (abond.gain * Math.min(this.currentTime() - abond.issuedAt, d)) / d;
+        return (d > 0) ?
+            (abond.gain * Math.min(this.currentTime() - abond.issuedAt, d)) / d : 0;
     }
 
     function abondDebt() external view override returns (uint256) {

@@ -9,7 +9,6 @@ import "../../oracle/IYieldOracle.sol";
 contract OraclelizedMock is SmartYieldPoolCompound {
     uint256 public _underlyingTotal;
     uint256 public _now;
-    address public oracle;
 
     constructor()
         SmartYieldPoolCompound("BB DAI MOCK", "bbDAIMOCK")
@@ -34,10 +33,6 @@ contract OraclelizedMock is SmartYieldPoolCompound {
     function setUnderlyingTotal(uint256 underlyingTotal_, uint256 underlyingTotalLast_) external {
         _underlyingTotal = underlyingTotal_;
         underlyingTotalLast = underlyingTotalLast_;
-    }
-
-    function setOracle(address oracle_) external {
-        oracle = oracle_;
     }
 
     function setCurrentTime(uint256 now_) external {

@@ -11,7 +11,7 @@ interface ISmartYieldPool {
         bool liquidated;
     }
 
-    function buyBond(uint256 _principalAmount, uint16 _forDays)
+    function buyBond(uint256 _principalAmount, uint256 _minGain, uint16 _forDays)
         external
         returns (uint256);
 
