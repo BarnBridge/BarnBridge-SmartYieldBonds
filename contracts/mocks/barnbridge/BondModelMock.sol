@@ -19,7 +19,7 @@ contract BondModelMock is IBondModel {
         uint256 principal,
         uint16 forDays
     ) external view override returns (uint256) {
-        return Math.compound(principal, ratePerDay, forDays);
+        return Math.compound(principal, ratePerDay, forDays) - principal;
     }
 
     function compoundingTest(

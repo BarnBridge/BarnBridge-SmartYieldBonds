@@ -12,7 +12,7 @@ export const toBNj = (n: BN | number): BNj => {
   return new BNj(n.toString());
 };
 
-export const toBN = (n: BNj | number): BN => {
+export const toBN = (n: BNj | number | BN): BN => {
   return BN.from(n.toString());
 };
 

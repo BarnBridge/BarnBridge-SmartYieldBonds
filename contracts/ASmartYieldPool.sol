@@ -59,7 +59,7 @@ abstract contract ASmartYieldPool is
 
     uint256 public constant DAYS_IN_YEAR = 365;
 
-    uint256 public BOND_LIFE_MAX = 365; // in days
+    uint16 public BOND_LIFE_MAX = 90; // in days
 
     uint256 public underlyingDepositsJuniors;
     uint256 public underlyingWithdrawlsJuniors;
@@ -89,6 +89,8 @@ abstract contract ASmartYieldPool is
     // pool state / average bond
     Bond public abond;
 
+    uint256 public bondsOutstanding;
+
     // senior BOND NFT
     BondToken public bondToken;
 
@@ -96,7 +98,7 @@ abstract contract ASmartYieldPool is
     bool public _safeToObserve = false;
 
     modifier executeJuniorWithdrawals {
-      console.log("executeJuniorWithdrawals() in");
+        console.log("executeJuniorWithdrawals() in");
         // this modifier will be added to all (write) functions.
         // The first tx after a queued liquidation's timestamp will trigger the liquidation
         // reducing the jToken supply, and setting aside owed_dai for withdrawals
@@ -114,13 +116,13 @@ abstract contract ASmartYieldPool is
             }
         }
         _;
-      console.log("executeJuniorWithdrawals() out");
+        console.log("executeJuniorWithdrawals() out");
     }
 
     // add to all methods changeing the underlying
     // per https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L73
     modifier accountYield() {
-      console.log("accountYield() in");
+        console.log("accountYield() in");
         uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
         uint32 timeElapsed = blockTimestamp - timestampLast; // overflow is desired
         // only for the first time in the block && if there's underlying
@@ -140,22 +142,19 @@ abstract contract ASmartYieldPool is
         }
         _;
         underlyingTotalLast = this.underlyingTotal();
-      console.log("accountYield() out");
-
+        console.log("accountYield() out");
     }
-
 
     constructor(string memory _name, string memory _symbol)
         ERC20(_name, _symbol)
-    {
-    }
+    {}
 
     function setOracle(address _oracle) external {
-      oracle = IYieldOracle(_oracle);
+        oracle = IYieldOracle(_oracle);
     }
 
-    function setBondModel(address _bondModel) external {
-
+    function setBondMaxLife(uint16 bondMaxLife_) external {
+        BOND_LIFE_MAX = bondMaxLife_;
     }
 
     // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
@@ -195,16 +194,25 @@ abstract contract ASmartYieldPool is
         uint256 _principalAmount,
         uint256 _minGain,
         uint16 _forDays
-    ) external override accountYield executeJuniorWithdrawals returns (uint256) {
+    )
+        external
+        override
+        accountYield
+        executeJuniorWithdrawals
+        returns (uint256)
+    {
         require(
             0 < _forDays && _forDays <= BOND_LIFE_MAX,
-            "SYABS: buyBond forDays"
+            "ASYP: buyBond forDays"
         );
 
         uint256 gain = this.bondGain(_principalAmount, _forDays);
 
         require(gain >= _minGain, "ASYP: buyBond minGain");
-        require(gain < this.underlyingJuniors(), "ASYP: buyBond underlyingJuniors");
+        require(
+            gain < this.underlyingJuniors(),
+            "ASYP: buyBond underlyingJuniors"
+        );
 
         _takeUnderlying(msg.sender, _principalAmount);
         _depositProvider(_principalAmount);
@@ -222,29 +230,33 @@ abstract contract ASmartYieldPool is
     function redeemBond(uint256 _bondId)
         external
         override
+        accountYield
         executeJuniorWithdrawals
     {
         require(
             this.currentTime() > bonds[_bondId].maturesAt,
-            "SYABS: redeemBond not matured"
+            "ASYP: redeemBond not matured"
         );
 
         uint256 toPay = bonds[_bondId].gain + bonds[_bondId].principal;
 
         if (bonds[_bondId].liquidated == false) {
+            bonds[_bondId].liquidated = true;
             _unaccountBond(_bondId);
         }
 
-        delete bonds[_bondId];
-        bondToken.burn(_bondId);
-
         _withdrawProvider(toPay);
+        // bondToken.ownerOf will revert for burned tokens
         _sendUnderlying(bondToken.ownerOf(_bondId), toPay);
+        bondToken.burn(_bondId);
     }
 
     function liquidateBonds(uint256[] memory _bondIds) external override {
         for (uint256 f = 0; f < _bondIds.length; f++) {
-            if (this.currentTime() > bonds[_bondIds[f]].maturesAt) {
+            if (
+                this.currentTime() > bonds[_bondIds[f]].maturesAt &&
+                bonds[_bondIds[f]].liquidated == false
+            ) {
                 bonds[_bondIds[f]].liquidated = true;
                 _unaccountBond(_bondIds[f]);
             }
@@ -254,6 +266,7 @@ abstract contract ASmartYieldPool is
     function buyTokens(uint256 _underlyingAmount)
         external
         override
+        accountYield
         executeJuniorWithdrawals
     {
         _takeUnderlying(msg.sender, _underlyingAmount);
@@ -276,6 +289,7 @@ abstract contract ASmartYieldPool is
     function withdrawTokensInitiate(uint256 _jTokens)
         external
         override
+        accountYield
         executeJuniorWithdrawals
     {
         //uint256 memory userJtokens = balanceOf(msg.sender);
@@ -328,6 +342,7 @@ abstract contract ASmartYieldPool is
     function withdrawTokensFinalize()
         external
         override
+        accountYield
         executeJuniorWithdrawals
     {
         JuniorWithdrawal storage juniorWithdrawal = queuedJuniors[msg.sender];
@@ -420,7 +435,13 @@ abstract contract ASmartYieldPool is
     function _accountBond(uint256 _bondId) private {
         Bond storage b = bonds[_bondId];
 
+        if (0 == bondsOutstanding) {
+            // first bond
+            abond = b;
+        }
+
         uint256 nGain = abond.gain + b.gain;
+
         uint256 shift =
             ((abond.gain *
                 b.gain *
@@ -440,14 +461,18 @@ abstract contract ASmartYieldPool is
             shift;
         abond.gain = nGain;
         abond.principal += b.principal;
+
+        bondsOutstanding++;
     }
 
     function _unaccountBond(uint256 _bondId) private {
+        bondsOutstanding--;
+
         Bond storage b = bonds[_bondId];
 
         uint256 nGain = abond.gain - b.gain;
 
-        if (0 == nGain) {
+        if (0 == bondsOutstanding) {
             // last bond
             abond.issuedAt = 0;
             abond.maturesAt = 0;
@@ -482,8 +507,11 @@ abstract contract ASmartYieldPool is
 
     function abondPaid() external view override returns (uint256) {
         uint256 d = abond.maturesAt - abond.issuedAt;
-        return (d > 0) ?
-            (abond.gain * Math.min(this.currentTime() - abond.issuedAt, d)) / d : 0;
+        return
+            (d > 0)
+                ? (abond.gain *
+                    Math.min(this.currentTime() - abond.issuedAt, d)) / d
+                : 0;
     }
 
     function abondDebt() external view override returns (uint256) {
@@ -498,7 +526,10 @@ abstract contract ASmartYieldPool is
             _amount <= allowance(_from, address(this)),
             "ASYP: _takeTokens allowance"
         );
-        return transferFrom(_from, address(this), _amount);
+        require(
+            transferFrom(_from, address(this), _amount),
+            "ASYP: _takeTokens transferFrom"
+        );
     }
 
     function underlyingDecimals()
@@ -508,10 +539,7 @@ abstract contract ASmartYieldPool is
         override
         returns (uint256);
 
-    function _takeUnderlying(address _from, uint256 _amount)
-        internal
-        virtual
-        returns (bool);
+    function _takeUnderlying(address _from, uint256 _amount) internal virtual;
 
     function _sendUnderlying(address _to, uint256 _amount)
         internal
