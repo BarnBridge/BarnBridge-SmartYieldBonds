@@ -29,7 +29,7 @@ contract CTokenMock is ICToken, ERC20 {
     }
 
     function redeem(uint256 redeemTokens) external override returns (uint256) {
-        require(IERC20(underlying).transfer(address(this), redeemTokens * exchangeRateStored_ / 1e18), "CTokenMock: redeem transfer");
+        require(IERC20(underlying).transfer(address(msg.sender), redeemTokens * exchangeRateStored_ / 1e18), "CTokenMock: redeem transfer");
         _burn(msg.sender, redeemTokens);
         return 0;
     }
@@ -39,7 +39,7 @@ contract CTokenMock is ICToken, ERC20 {
         override
         returns (uint256)
     {
-        require(IERC20(underlying).transfer(address(this), redeemAmount), "CTokenMock: redeemUnderlying transfer");
+        require(IERC20(underlying).transfer(address(msg.sender), redeemAmount), "CTokenMock: redeemUnderlying transfer");
         _burn(msg.sender, redeemAmount * 1e18 / (exchangeRateStored_));
         return 0;
     }
