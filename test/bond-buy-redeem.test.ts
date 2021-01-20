@@ -100,7 +100,7 @@ const fixture = (decimals: number) => {
 };
 
 describe('buyBond() / redeemBond()', async function () {
-  it('should deploy contracts corectly', async function () {
+  it('should deploy contracts correctly', async function () {
     const decimals = 18;
     const { pool, oracle, bondModel, cToken, underlying, bondToken } = await bbFixtures(fixture(18));
 
@@ -142,13 +142,13 @@ describe('buyBond() / redeemBond()', async function () {
       await expect(pool.buyBond(e18(1), 0, 100), 'should throw if no allowance').revertedWith('SYCOMP: _takeUnderlying allowance');
     });
 
-    it('buyBond require gain < underlyingJuniors', async function () {
+    it('TODO: buyBond require gain < underlyingJuniors', async function () {
       // TODO:
-      console.log('TODO: buyBond require gain < underlyingJuniors');
+      console.error('TODO: buyBond require gain < underlyingJuniors');
       return;
     });
 
-    it('buyBond creates a corect bond token', async function () {
+    it('buyBond creates a correct bond token', async function () {
       const { pool, oracle, bondModel, cToken, underlying, bondToken, junior1, senior1, buyTokens, buyBond, moveTime } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
@@ -158,7 +158,7 @@ describe('buyBond() / redeemBond()', async function () {
 
       expect(await bondToken.balanceOf(senior1.address), 'senior should have 1 tokens').deep.equal(BN.from(1));
       expect(await bondToken.tokenOfOwnerByIndex(senior1.address, 0), 'id of first token should be 1').deep.equal(BN.from(1));
-      expect(await bondToken.ownerOf(1), 'corect owner').equal(senior1.address);
+      expect(await bondToken.ownerOf(1), 'correct owner').equal(senior1.address);
 
       const bondMeta = await pool.bonds(1);
 
@@ -171,7 +171,7 @@ describe('buyBond() / redeemBond()', async function () {
       expect(await underlying.balanceOf(cToken.address), 'underlying deposits should match').deep.equal(e18(10).add(e18(1)));
     });
 
-    it('buyBond creates several corect bond tokens', async function () {
+    it('buyBond creates several correct bond tokens', async function () {
       const { pool, oracle, bondModel, cToken, underlying, bondToken, junior1, senior1, senior2, buyTokens, buyBond, moveTime } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
@@ -201,9 +201,9 @@ describe('buyBond() / redeemBond()', async function () {
       expect(await bondToken.tokenOfOwnerByIndex(senior1.address, 1), 'senior1 id of second token should be 3').deep.equal(BN.from(3));
       expect(await bondToken.tokenOfOwnerByIndex(senior2.address, 0), 'senior1 id of first token should be 2').deep.equal(BN.from(2));
 
-      expect(await bondToken.ownerOf(1), 'corect owner 1').equal(senior1.address);
-      expect(await bondToken.ownerOf(2), 'corect owner 2').equal(senior2.address);
-      expect(await bondToken.ownerOf(3), 'corect owner 3').equal(senior1.address);
+      expect(await bondToken.ownerOf(1), 'correct owner 1').equal(senior1.address);
+      expect(await bondToken.ownerOf(2), 'correct owner 2').equal(senior2.address);
+      expect(await bondToken.ownerOf(3), 'correct owner 3').equal(senior1.address);
 
       const [bond1, bond2, bond3] = await Promise.all([pool.bonds(1), pool.bonds(2), pool.bonds(3)]);
 
@@ -248,6 +248,54 @@ describe('buyBond() / redeemBond()', async function () {
       await moveTime(1);
       await redeemBond(senior1, 1);
       await expect(redeemBond(senior1, 1), 'should revert if already redeemed').revertedWith('ERC721: owner query for nonexistent token');
+    });
+
+    it('redeemBond gives correct amounts', async function () {
+      const { pool, oracle, bondModel, cToken, underlying, bondToken, buyTokens, buyBond, redeemBond, moveTime, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
+
+      await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
+      await cToken.setExchangeRateStored(exchangeRateStored);
+
+      await buyTokens(junior1, e18(10));
+      await moveTime(A_DAY);
+
+      const gain1 = await pool.bondGain(e18(2), 30);
+      await buyBond(senior1, e18(2), 1, 30);
+      await moveTime(A_DAY);
+      expect(await underlying.balanceOf(senior1.address), 'senior1 should have 0 underlying').deep.equal(BN.from(0));
+
+      const gain2 = await pool.bondGain(e18(2.5), 25);
+      await buyBond(senior2, e18(2.5), 1, 25);
+      await moveTime(A_DAY);
+      expect(await underlying.balanceOf(senior2.address), 'senior2 should have 0 underlying').deep.equal(BN.from(0));
+
+      await moveTime(A_DAY * 30);
+      await Promise.all([
+        redeemBond(senior1, 1),
+        redeemBond(senior2, 2),
+      ]);
+
+      expect(await underlying.balanceOf(senior1.address), 'senior1 should have correct underlying').deep.equal(e18(2).add(gain1));
+      expect(await underlying.balanceOf(senior2.address), 'senior2 should have correct underlying').deep.equal(e18(2.5).add(gain2));
+    });
+
+    it('redeemBond gives amounts to owner', async function () {
+      const { pool, oracle, bondModel, cToken, underlying, bondToken, buyTokens, buyBond, redeemBond, moveTime, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
+
+      await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
+      await cToken.setExchangeRateStored(exchangeRateStored);
+
+      await buyTokens(junior1, e18(10));
+
+      const gain1 = await pool.bondGain(e18(2), 30);
+      await buyBond(senior1, e18(2), 1, 30);
+      expect(await underlying.balanceOf(senior1.address), 'senior1 should have 0 underlying').deep.equal(BN.from(0));
+
+      await moveTime(A_DAY * 30 + 1);
+      await redeemBond(senior2, 1); // anyone can call redeem but funds go to owner
+
+      expect(await underlying.balanceOf(senior1.address), 'senior1 should have correct underlying').deep.equal(e18(2).add(gain1));
+      expect(await underlying.balanceOf(senior2.address), 'senior2 should have 0 underlying').deep.equal(BN.from(0));
     });
   });
 

@@ -90,7 +90,7 @@ const fixture = (windowSize: number, granularity: number) => {
 };
 
 describe('Yield Oracle', async function () {
-  it('should deploy YieldOracle corectly', async function () {
+  it('should deploy YieldOracle correctly', async function () {
     const { yieldOracle, oraclelizedMock } = await bbFixtures(fixture(defaultWindowSize, defaultGranularity));
 
     expect(await yieldOracle.pool()).equals(oraclelizedMock.address, 'Oraclelized address');

@@ -24,7 +24,6 @@ import "hardhat/console.sol";
 // oracle should be pluggable
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "@uniswap/lib/contracts/libraries/FixedPoint.sol";
@@ -41,7 +40,6 @@ abstract contract ASmartYieldPool is
     IYieldOraclelizable,
     ERC20
 {
-    using Counters for Counters.Counter;
     using SafeMath for uint256;
 
     IYieldOracle public oracle;
@@ -66,7 +64,7 @@ abstract contract ASmartYieldPool is
     uint256 public tokenWithdrawlsJuniors;
     uint256 public tokenWithdrawlsJuniorsAtRisk;
 
-    Counters.Counter private bondIds;
+    uint256 private bondIdLatest;
 
     mapping(uint256 => Withdrawal) public queuedWithdrawals; // timestamp -> Withdrawal
     uint256[] public queuedWithdrawalTimestamps;
@@ -98,7 +96,6 @@ abstract contract ASmartYieldPool is
     bool public _safeToObserve = false;
 
     modifier executeJuniorWithdrawals {
-        console.log("executeJuniorWithdrawals() in");
         // this modifier will be added to all (write) functions.
         // The first tx after a queued liquidation's timestamp will trigger the liquidation
         // reducing the jToken supply, and setting aside owed_dai for withdrawals
@@ -107,7 +104,6 @@ abstract contract ASmartYieldPool is
             i < queuedWithdrawalTimestamps.length;
             i++
         ) {
-            console.log("executeJuniorWithdrawals() liquidateJuniors>");
             if (this.currentTime() >= queuedWithdrawalTimestamps[i]) {
                 _liquidateJuniors(queuedWithdrawalTimestamps[i]);
                 lastQueuedWithdrawalTimestampsI = i;
@@ -116,13 +112,11 @@ abstract contract ASmartYieldPool is
             }
         }
         _;
-        console.log("executeJuniorWithdrawals() out");
     }
 
     // add to all methods changeing the underlying
     // per https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L73
     modifier accountYield() {
-        console.log("accountYield() in");
         uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
         uint32 timeElapsed = blockTimestamp - timestampLast; // overflow is desired
         // only for the first time in the block && if there's underlying
@@ -142,7 +136,6 @@ abstract contract ASmartYieldPool is
         }
         _;
         underlyingTotalLast = this.underlyingTotal();
-        console.log("accountYield() out");
     }
 
     constructor(string memory _name, string memory _symbol)
@@ -194,13 +187,7 @@ abstract contract ASmartYieldPool is
         uint256 _principalAmount,
         uint256 _minGain,
         uint16 _forDays
-    )
-        external
-        override
-        accountYield
-        executeJuniorWithdrawals
-        returns (uint256)
-    {
+    ) external override accountYield executeJuniorWithdrawals {
         require(
             0 < _forDays && _forDays <= BOND_LIFE_MAX,
             "ASYP: buyBond forDays"
@@ -217,14 +204,13 @@ abstract contract ASmartYieldPool is
         _takeUnderlying(msg.sender, _principalAmount);
         _depositProvider(_principalAmount);
 
-        return
-            _mintBond(
-                msg.sender,
-                _principalAmount,
-                gain,
-                this.currentTime(),
-                _forDays
-            );
+        _mintBond(
+            msg.sender,
+            _principalAmount,
+            gain,
+            this.currentTime(),
+            _forDays
+        );
     }
 
     function redeemBond(uint256 _bondId)
@@ -418,26 +404,29 @@ abstract contract ASmartYieldPool is
         uint256 _gain,
         uint256 _startingAt,
         uint16 _forDays
-    ) private returns (uint256) {
-        bondIds.increment();
-        uint256 bondId = bondIds.current();
+    ) private {
+        require(bondIdLatest < uint256(-1), "ASYP: @ end of the univers");
+        bondIdLatest++;
+        bonds[bondIdLatest] = Bond(
+          _principal,
+          _gain,
+          _startingAt,
+          uint256(1 days).mul(_forDays).add(_startingAt),
+          false
+        );
 
-        uint256 maturesAt = _startingAt.add(uint256(1 days).mul(_forDays));
-
-        bonds[bondId] = Bond(_principal, _gain, _startingAt, maturesAt, false);
-
-        _accountBond(bondId);
-
-        bondToken.mint(_to, bondId);
-        return bondId;
+        _accountBond(bondIdLatest);
+        bondToken.mint(_to, bondIdLatest);
     }
 
     function _accountBond(uint256 _bondId) private {
-        Bond storage b = bonds[_bondId];
+        Bond memory b = bonds[_bondId];
 
         if (0 == bondsOutstanding) {
             // first bond
             abond = b;
+            bondsOutstanding++;
+            return;
         }
 
         uint256 nGain = abond.gain + b.gain;
@@ -520,7 +509,6 @@ abstract contract ASmartYieldPool is
 
     function _takeTokens(address _from, uint256 _amount)
         internal
-        returns (bool)
     {
         require(
             _amount <= allowance(_from, address(this)),
