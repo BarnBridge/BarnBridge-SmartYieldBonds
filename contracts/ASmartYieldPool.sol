@@ -49,6 +49,7 @@ abstract contract ASmartYieldPool is
         uint256 tokensAtRisk; // in jTokens
         uint256 price; // bbcDAI_to_DAI_ratio - 0 means not triggered
     }
+
     struct JuniorWithdrawal {
         uint256 tokens; // in jTokens
         uint256 tokensAtRisk; // in jTokens
@@ -201,16 +202,20 @@ abstract contract ASmartYieldPool is
             "ASYP: buyBond underlyingJuniors"
         );
 
+        uint256 issuedAt = this.currentTime();
+
+        Bond memory b =
+            Bond(
+                _principalAmount,
+                gain,
+                issuedAt,
+                uint256(1 days).mul(_forDays).add(issuedAt),
+                false
+            );
+
         _takeUnderlying(msg.sender, _principalAmount);
         _depositProvider(_principalAmount);
-
-        _mintBond(
-            msg.sender,
-            _principalAmount,
-            gain,
-            this.currentTime(),
-            _forDays
-        );
+        _mintBond(msg.sender, b);
     }
 
     function redeemBond(uint256 _bondId)
@@ -398,30 +403,15 @@ abstract contract ASmartYieldPool is
         _sendUnderlying(_to, _underlyingAmount);
     }
 
-    function _mintBond(
-        address _to,
-        uint256 _principal,
-        uint256 _gain,
-        uint256 _startingAt,
-        uint16 _forDays
-    ) private {
+    function _mintBond(address _to, Bond memory _bond) private {
         require(bondIdLatest < uint256(-1), "ASYP: @ end of the univers");
         bondIdLatest++;
-        bonds[bondIdLatest] = Bond(
-          _principal,
-          _gain,
-          _startingAt,
-          uint256(1 days).mul(_forDays).add(_startingAt),
-          false
-        );
-
-        _accountBond(bondIdLatest);
+        bonds[bondIdLatest] = _bond;
+        _accountBond(_bond);
         bondToken.mint(_to, bondIdLatest);
     }
 
-    function _accountBond(uint256 _bondId) private {
-        Bond memory b = bonds[_bondId];
-
+    function _accountBond(Bond memory b) private {
         if (0 == bondsOutstanding) {
             // first bond
             abond = b;
@@ -507,9 +497,7 @@ abstract contract ASmartYieldPool is
         return abond.gain - this.abondPaid();
     }
 
-    function _takeTokens(address _from, uint256 _amount)
-        internal
-    {
+    function _takeTokens(address _from, uint256 _amount) internal {
         require(
             _amount <= allowance(_from, address(this)),
             "ASYP: _takeTokens allowance"
@@ -519,13 +507,6 @@ abstract contract ASmartYieldPool is
             "ASYP: _takeTokens transferFrom"
         );
     }
-
-    function underlyingDecimals()
-        external
-        view
-        virtual
-        override
-        returns (uint256);
 
     function _takeUnderlying(address _from, uint256 _amount) internal virtual;
 

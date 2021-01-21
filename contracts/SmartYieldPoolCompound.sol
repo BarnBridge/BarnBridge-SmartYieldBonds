@@ -69,19 +69,6 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         return
             ICTokenErc20(cToken).balanceOf(address(this)) *
             ICToken(cToken).exchangeRateStored();
-        // uint256 cTokenDecimals = 8;
-        // return
-        //     ICTokenErc20(cToken).balanceOf(address(this)) / (10 ** (18 - cTokenDecimals)) * ICToken(cToken).exchangeRateStored() / (10 ** this.underlyingDecimals());
-    }
-
-    function underlyingDecimals()
-        external
-        view
-        virtual
-        override
-        returns (uint256)
-    {
-        return uint256(WithDecimals(address(uToken)).decimals());
     }
 
     // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal

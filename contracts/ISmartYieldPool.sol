@@ -65,6 +65,4 @@ interface ISmartYieldPool {
         returns (uint256);
 
     function harvest() external;
-
-    function underlyingDecimals() external view returns (uint256);
 }
