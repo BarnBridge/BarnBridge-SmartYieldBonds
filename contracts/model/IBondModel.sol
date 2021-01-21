@@ -3,7 +3,7 @@ pragma solidity ^0.7.5;
 
 interface IBondModel {
 
-    function slippage(
+    function gain(
         address pool,
         uint256 principal,
         uint16 forDays

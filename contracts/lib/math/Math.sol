@@ -21,14 +21,14 @@ library Math {
     }
 
     function compound(
+        // in wei
         uint256 principal,
+        // rate is * 1e18
         uint256 ratePerPeriod,
         uint16 periods
     ) internal pure returns (uint256) {
-        // from https://medium.com/coinmonks/math-in-solidity-part-4-compound-interest-512d9e13041b
-        periods -= 1;
         while (periods > 0) {
-            principal += (principal * ratePerPeriod) / 10**18;
+            principal += (principal * ratePerPeriod) / 1e18;
             periods -= 1;
         }
         return principal;

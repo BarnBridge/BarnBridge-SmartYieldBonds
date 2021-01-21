@@ -24,13 +24,14 @@ contract BondModelV1 is IBondModel {
         uint256 bn2t;
         uint256 nume;
         uint256 deno;
+        uint256 yield;
     }
 
-    function slippage(
+    function gain(
         address pool,
         uint256 principal,
         uint16 forDays
-    ) external override view returns (uint256) {
+    ) external view override returns (uint256) {
         SlippageLocalVars memory v;
         // (-b - o - b n^2 t + sqrt(4 b j n^2 t + (b + o + b n^2 t)^2))/(2 b n t)
         v.t = uint256(forDays).mul(10**18).div(365);
@@ -43,7 +44,8 @@ contract BondModelV1 is IBondModel {
         v.underlyingLoanable = ISmartYieldPool(pool).underlyingLoanable();
         v.underlyingTotal = ISmartYieldPool(pool).underlyingTotal();
 
-        v.nume = v.underlyingLoanable
+        v.nume = v
+            .underlyingLoanable
             .mul(4)
             .mul(v.bn2t)
             .add(
@@ -55,14 +57,13 @@ contract BondModelV1 is IBondModel {
 
         v.nume = v.nume.sub(v.bn2t).sub(principal).sub(v.underlyingTotal);
         v.deno = principal
-                .mul(2)
-                .mul(ISmartYieldPool(pool).providerRatePerDay())
-                .div(10**18)
-                .mul(v.t)
-                .div(10**18);
-        return
-            v.nume
-                .mul(10**18)
-                .div(v.deno);
+            .mul(2)
+            .mul(ISmartYieldPool(pool).providerRatePerDay())
+            .div(10**18)
+            .mul(v.t)
+            .div(10**18);
+        v.yield = v.nume.mul(10**18).div(v.deno);
+
+        return Math.compound(principal, v.yield, forDays).sub(principal);
     }
 }

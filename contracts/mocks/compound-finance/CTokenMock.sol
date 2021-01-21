@@ -5,27 +5,32 @@ pragma solidity ^0.7.5;
 
 import "hardhat/console.sol";
 
-import "../external-interfaces/compound-finance/ICToken.sol";
+import "../../external-interfaces/compound-finance/ICToken.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract CTokenMock is ICToken, ERC20 {
-    uint256 public supplyRatePerBlock_ = 0;
     uint256 public exchangeRateStored_ = 0;
 
     address public override underlying;
     address public override comptroller;
 
-    constructor(address _underlying) public ERC20("cDAI Mock", "cDAI") {
-        underlying = _underlying;
+    constructor(address underlying_) ERC20("cDAI Mock", "cDAI") {
+        underlying = underlying_;
+        _setupDecimals(8);
     }
 
     // CErc20Interface
 
     function mint(uint256 mintAmount) external override returns (uint256) {
-        _mint(msg.sender, mintAmount * (1 ether) / (exchangeRateStored_));
+        require(IERC20(underlying).transferFrom(msg.sender, address(this), mintAmount), "CTokenMock: mint transferFrom");
+        _mint(msg.sender, mintAmount * 1e18 / (exchangeRateStored_));
+        return 0;
     }
 
     function redeem(uint256 redeemTokens) external override returns (uint256) {
+        require(IERC20(underlying).transfer(address(msg.sender), redeemTokens * exchangeRateStored_ / 1e18), "CTokenMock: redeem transfer");
+        _burn(msg.sender, redeemTokens);
         return 0;
     }
 
@@ -34,22 +39,18 @@ contract CTokenMock is ICToken, ERC20 {
         override
         returns (uint256)
     {
+        require(IERC20(underlying).transfer(address(msg.sender), redeemAmount), "CTokenMock: redeemUnderlying transfer");
+        _burn(msg.sender, redeemAmount * 1e18 / (exchangeRateStored_));
         return 0;
     }
 
-    function supplyRatePerBlock() external override view returns (uint256) {
-        return supplyRatePerBlock_;
-    }
-
+    // https://compound.finance/docs#protocol-math
     function exchangeRateStored() public override view returns (uint256) {
         return exchangeRateStored_;
     }
 
     // helpers
 
-    function setSupplyRatePerBlock(uint256 newRate) public {
-        supplyRatePerBlock_ = newRate;
-    }
 
     function setExchangeRateStored(uint256 newRate) public {
         exchangeRateStored_ = newRate;
