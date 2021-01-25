@@ -63,6 +63,7 @@ const sumTo = (a: (BN | number)[], to: number) => {
 };
 
 const fixture = (windowSize: number, granularity: number) => {
+  const decimals = 18;
   return async (wallets: Wallet[]) => {
     const [deployerSign, ownerSign] = wallets;
     const [deployerAddr, ownerAddr] = await Promise.all([
@@ -70,11 +71,11 @@ const fixture = (windowSize: number, granularity: number) => {
       ownerSign.getAddress(),
     ]);
 
-    const underlying = (await deployContract(deployerSign, Erc20MockArtifact, ['DAI MOCK', 'DAI', 18])) as Erc20Mock;
+    const underlying = (await deployContract(deployerSign, Erc20MockArtifact, ['DAI MOCK', 'DAI', decimals])) as Erc20Mock;
     const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address])) as CTokenMock;
     const oraclelizedMock = (await deployContract(deployerSign, OraclelizedMockArtifact, [])) as OraclelizedMock;
     const yieldOracle = (await deployContract(deployerSign, YieldOracleArtifact, [oraclelizedMock.address, windowSize, granularity])) as YieldOracle;
-    await oraclelizedMock.setup(yieldOracle.address, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', cToken.address);
+    await oraclelizedMock.setup(yieldOracle.address, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', cToken.address, decimals);
 
     await (moveTime(oraclelizedMock))(0);
 

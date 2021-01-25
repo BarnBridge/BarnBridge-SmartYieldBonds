@@ -71,10 +71,6 @@ const redeemBond = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => 
 const fixture = (decimals: number) => {
   return async (wallets: Wallet[]) => {
     const [deployerSign, ownerSign, junior1, junior2, junior3, senior1, senior2, senior3] = wallets;
-    // const [deployerAddr, ownerAddr, user1Address] = await Promise.all([
-    //   deployerSign.getAddress(),
-    //   ownerSign.getAddress(),
-    // ]);
 
     const bondModel = (await deployContract(deployerSign, BondModelMockArtifact, [])) as BondModelMock;
     const underlying = (await deployContract(deployerSign, Erc20MockArtifact, ['DAI MOCK', 'DAI', decimals])) as Erc20Mock;
@@ -82,7 +78,7 @@ const fixture = (decimals: number) => {
     const pool = (await deployContract(deployerSign, SmartYieldPoolCompoundMockArtifact, ['bbDAI', 'bbDAI MOCK'])) as SmartYieldPoolCompoundMock;
     const oracle = (await deployContract(deployerSign, YieldOracleMockArtifact, [])) as YieldOracleMock;
     const bondToken = (await deployContract(deployerSign, BondTokenArtifact, ['BOND', 'BOND MOCK', pool.address])) as BondToken;
-    await pool.setup(oracle.address, bondModel.address, bondToken.address, cToken.address,);
+    await pool.setup(oracle.address, bondModel.address, bondToken.address, cToken.address, decimals);
 
     await (moveTime(pool))(0);
 
@@ -102,7 +98,7 @@ const fixture = (decimals: number) => {
 describe('buyBond() / redeemBond()', async function () {
   it('should deploy contracts correctly', async function () {
     const decimals = 18;
-    const { pool, oracle, bondModel, cToken, underlying, bondToken } = await bbFixtures(fixture(18));
+    const { pool, oracle, bondModel, cToken, underlying, bondToken } = await bbFixtures(fixture(decimals));
 
     expect(await pool.oracle()).equals(oracle.address, 'pool.oracle()');
     expect(await pool.uToken()).equals(underlying.address, 'pool.uToken()');

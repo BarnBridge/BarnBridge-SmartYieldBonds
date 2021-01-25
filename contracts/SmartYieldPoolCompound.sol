@@ -42,13 +42,15 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         address oracle_,
         address bondModel_,
         address bondToken_,
-        address cToken_
+        address cToken_,
+        uint8 underlyingDecimals_
     ) external {
         this.setOracle(oracle_);
         bondModel = IBondModel(bondModel_);
         bondToken = BondToken(bondToken_);
         cToken = cToken_;
         uToken = IERC20(ICToken(cToken_).underlying());
+        underlyingDecimals = underlyingDecimals_;
     }
 
     function currentTime() external view virtual override returns (uint256) {

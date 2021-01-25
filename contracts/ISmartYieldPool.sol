@@ -41,7 +41,7 @@ interface ISmartYieldPool {
 
     function abondDebt() external view returns (uint256);
 
-    function abondTotal() external view returns (uint256);
+    function abondGain() external view returns (uint256);
 
     /**
      * @notice current total underlying balance, without accruing interest
@@ -65,4 +65,6 @@ interface ISmartYieldPool {
         returns (uint256);
 
     function harvest() external;
+
+    function underlyingDecimals() external view returns (uint8);
 }

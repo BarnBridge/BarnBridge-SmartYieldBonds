@@ -89,3 +89,4 @@ export const dumpBlockLatest = async (): Promise<void> => {
 
 export * from './misc';
 export * from './rates';
+export * from './bonds';

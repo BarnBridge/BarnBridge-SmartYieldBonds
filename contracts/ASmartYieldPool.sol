@@ -93,6 +93,8 @@ abstract contract ASmartYieldPool is
     // senior BOND NFT
     BondToken public bondToken;
 
+    uint8 public override underlyingDecimals;
+
     // is currentCumulativeSecondlyYield() providing correct values?
     bool public _safeToObserve = false;
 
@@ -209,7 +211,7 @@ abstract contract ASmartYieldPool is
                 _principalAmount,
                 gain,
                 issuedAt,
-                uint256(1 days).mul(_forDays).add(issuedAt),
+                uint256(1 days) * uint256(_forDays) + issuedAt,
                 false
             );
 
@@ -233,12 +235,13 @@ abstract contract ASmartYieldPool is
 
         if (bonds[_bondId].liquidated == false) {
             bonds[_bondId].liquidated = true;
-            _unaccountBond(_bondId);
+            _unaccountBond(bonds[_bondId]);
         }
 
         _withdrawProvider(toPay);
         // bondToken.ownerOf will revert for burned tokens
         _sendUnderlying(bondToken.ownerOf(_bondId), toPay);
+        // bondToken.burn will revert for already burned tokens
         bondToken.burn(_bondId);
     }
 
@@ -249,7 +252,7 @@ abstract contract ASmartYieldPool is
                 bonds[_bondIds[f]].liquidated == false
             ) {
                 bonds[_bondIds[f]].liquidated = true;
-                _unaccountBond(_bondIds[f]);
+                _unaccountBond(bonds[_bondIds[f]]);
             }
         }
     }
@@ -269,9 +272,9 @@ abstract contract ASmartYieldPool is
     function sellTokens(uint256 _jTokens) external override {
         _burn(msg.sender, _jTokens);
         uint256 unlocked =
-            (this.abondTotal() == 0)
+            (this.abondGain() == 0)
                 ? (1 ether)
-                : ((this.abondPaid() * (1 ether)) / this.abondTotal());
+                : ((this.abondPaid() * (1 ether)) / this.abondGain());
         uint256 toPay =
             (((_jTokens * unlocked) / (1 ether)) * this.price()) / (1 ether);
         _withdrawJuniors(msg.sender, toPay);
@@ -415,86 +418,78 @@ abstract contract ASmartYieldPool is
         if (0 == bondsOutstanding) {
             // first bond
             abond = b;
+            abond.issuedAt = abond.issuedAt * 1e18;
+            abond.maturesAt = abond.maturesAt * 1e18;
             bondsOutstanding++;
             return;
         }
 
-        uint256 nGain = abond.gain + b.gain;
+        uint256 paid = this.abondPaid();
+        uint256 newGain = abond.gain + b.gain;
+        uint256 newDuration = ((abond.maturesAt - abond.issuedAt) * abond.gain + (b.maturesAt - b.issuedAt) * 1e18 * b.gain) / (newGain);
+        uint256 newIssuedAt = this.currentTime() * 1e18 - (paid * newDuration / newGain) - 1e18;
 
-        uint256 shift =
-            ((abond.gain *
-                b.gain *
-                (b.issuedAt - abond.issuedAt) *
-                (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt)) /
-                (abond.maturesAt - abond.issuedAt)) *
-                nGain *
-                nGain;
-
-        abond.issuedAt =
-            (abond.issuedAt * abond.gain + b.issuedAt * b.gain) /
-            nGain -
-            shift;
-        abond.maturesAt =
-            (abond.maturesAt * abond.gain + b.maturesAt * b.gain) /
-            nGain -
-            shift;
-        abond.gain = nGain;
-        abond.principal += b.principal;
+        abond = Bond(
+          abond.principal + b.principal,
+          newGain,
+          newIssuedAt,
+          newIssuedAt + (newDuration),
+          false
+        );
 
         bondsOutstanding++;
     }
 
-    function _unaccountBond(uint256 _bondId) private {
-        bondsOutstanding--;
-
-        Bond storage b = bonds[_bondId];
-
-        uint256 nGain = abond.gain - b.gain;
-
-        if (0 == bondsOutstanding) {
+    function _unaccountBond(Bond memory b) private {
+        if (1 == bondsOutstanding) {
             // last bond
-            abond.issuedAt = 0;
-            abond.maturesAt = 0;
-            abond.gain = 0;
-            abond.principal = 0;
+            abond = Bond(0, 0, 0, 0, false);
+
+            bondsOutstanding--;
             return;
         }
-        uint256 shift =
-            ((abond.gain *
-                b.gain *
-                (b.issuedAt - abond.issuedAt) *
-                (abond.maturesAt - abond.issuedAt + b.maturesAt - b.issuedAt)) /
-                (abond.maturesAt - abond.issuedAt)) *
-                nGain *
-                nGain;
 
-        abond.issuedAt =
-            (abond.issuedAt * abond.gain - b.issuedAt * b.gain) /
-            nGain +
-            shift;
-        abond.maturesAt =
-            (abond.maturesAt * abond.gain - b.maturesAt * b.gain) /
-            nGain +
-            shift;
-        abond.gain = nGain;
-        abond.principal -= b.principal;
+        uint256 paid = this.abondPaid() - b.gain;
+        uint256 newGain = abond.gain - b.gain;
+        uint256 newDuration = ((abond.maturesAt - abond.issuedAt) * abond.gain - (b.maturesAt - b.issuedAt) * 1e18 * b.gain) / (newGain);
+        uint256 newIssuedAt = this.currentTime() * 1e18 - (paid * newDuration / newGain);
+
+        console.log("_unaccountBond(id=),", newDuration, newGain, paid);
+
+        // uint256 newGain = abond.gain - b.gain;
+        // uint256 newIssuedAt = (abond.issuedAt * abond.gain - b.issuedAt * 1e18 * b.gain) / newGain;
+        // uint256 newMaturesAt = (abond.maturesAt * abond.gain - b.maturesAt * 1e18 * b.gain) / newGain;
+
+        abond = Bond(
+          abond.principal - b.principal,
+          newGain,
+          newIssuedAt,
+          newIssuedAt + newDuration,
+          false
+        );
+
+        bondsOutstanding--;
     }
 
-    function abondTotal() external view override returns (uint256) {
+    function abondGain() external view override returns (uint256) {
         return abond.gain;
     }
 
-    function abondPaid() external view override returns (uint256) {
+    function _abondPaidAt(uint256 timestamp_) internal view returns (uint256) {
         uint256 d = abond.maturesAt - abond.issuedAt;
         return
             (d > 0)
-                ? (abond.gain *
-                    Math.min(this.currentTime() - abond.issuedAt, d)) / d
+                ? (this.abondGain() *
+                    Math.min(timestamp_ * 1e18 - abond.issuedAt, d)) / d
                 : 0;
     }
 
+    function abondPaid() external view override returns (uint256) {
+        return _abondPaidAt(this.currentTime());
+    }
+
     function abondDebt() external view override returns (uint256) {
-        return abond.gain - this.abondPaid();
+        return this.abondGain() - this.abondPaid();
     }
 
     function _takeTokens(address _from, uint256 _amount) internal {
