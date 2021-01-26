@@ -320,16 +320,25 @@ describe('abond value computations', async function () {
       const debtAfter4 = await pool.abondDebt();
       const abondAfter4 = await pool.abond();
       expectDebtEqualsWithinPayRate1Sec(debtBefore4, debtAfter4, abondAfter4, 'abondDebt4 changed');
-      await moveTime(A_DAY * 53);
+      await moveTime(A_DAY * 153);
 
-      //await buyBond(senior1, e18(10), 1, 90);
-      //dumpBond('BOND 5>', await pool.bonds(5));
+      await buyBond(senior1, e18(10), 1, 90);
+      dumpBond('BOND 5>', await pool.bonds(5));
+      await dumpAbondState('ABOND after BOND5 creation', pool);
 
       const debtBefore1 = await pool.abondDebt();
       await redeemBond(senior1, 1); // 1
       const debtAfter1 = await pool.abondDebt();
       const abondAfter1 = await pool.abond();
       expectDebtEqualsWithinPayRate1Sec(debtBefore1, debtAfter1, abondAfter1, 'abondDebt1 changed');
+
+      await moveTime(A_DAY * 90 + 1);
+
+      const debtBefore5 = await pool.abondDebt();
+      await redeemBond(senior1, 5); // 1
+      const debtAfter5 = await pool.abondDebt();
+      const abondAfter5 = await pool.abond();
+      expectDebtEqualsWithinPayRate1Sec(debtBefore5, debtAfter5, abondAfter5, 'abondDebt5 changed');
 
     });
 
