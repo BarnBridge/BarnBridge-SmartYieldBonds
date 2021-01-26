@@ -6,7 +6,7 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { deployContract } from 'ethereum-waffle';
 
-import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN, dumpBond, dumpAbondState, toBNj, BondType } from '@testhelp/index';
+import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN, dumpBond, dumpAbondState, toBNj, BondType, HT } from '@testhelp/index';
 
 import BondModelMockArtifact from '../artifacts/contracts/mocks/barnbridge/BondModelMock.sol/BondModelMock.json';
 import BondTokenArtifact from '../artifacts/contracts/BondToken.sol/BondToken.json';
@@ -34,6 +34,7 @@ const moveTime = (pool: SmartYieldPoolCompoundMock) => {
   return async (seconds: number | BN | BNj) => {
     seconds = BN.from(seconds.toString());
     timePrev = timePrev.add(seconds);
+    console.log('NEW TIME IS: ', HT(timePrev));
     await pool.setCurrentTime(timePrev);
   };
 };
@@ -57,32 +58,41 @@ const buyBond = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => {
     forDays = toBN(forDays);
     minGain = toBN(minGain);
     await underlying.mintMock(user.address, amountUnderlying);
-    await underlying.connect(user).approve(pool.address, amountUnderlying);
+    const [bondIdCurrent, ] = await Promise.all([
+      pool.bondIdCurrent(),
+      underlying.connect(user).approve(pool.address, amountUnderlying),
+    ]);
+    await dumpAbondState('> ABOND before BUYBOND id=' + bondIdCurrent.add(1), pool);
     await pool.connect(user).buyBond(amountUnderlying, minGain, forDays);
+    dumpBond('- BOND bought id=' + bondIdCurrent.add(1), await pool.bonds(bondIdCurrent.add(1)));
+    await dumpAbondState('< ABOND after  BUYBOND id=' + bondIdCurrent.add(1), pool);
   };
 };
 
 const redeemBond = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => {
   return async (user: Wallet, id: number | BN) => {
     id = toBN(id);
+    await dumpAbondState('> ABOND before REDEEMBOND id=' + id.toString(), pool);
     await pool.connect(user).redeemBond(id);
+    dumpBond('- BOND redeemed id=' + id, await pool.bonds(id));
+    await dumpAbondState('< ABOND after  REDEEMBOND id=' + id.toString(), pool);
   };
 };
 
 // computes pay rate for an abond (wei/sec), diff between provided values should be <
 const expectPaidEqualsWithinPayRate1Sec = (paidBefore: BN, paidAfter: BN, abondAfter: BondType, msg: string) => {
   const dur = abondAfter.maturesAt.sub(abondAfter.issuedAt);
-  const payRate1Sec = abondAfter.gain.mul(e18(1)).div(dur);
+  const payRate1Sec = abondAfter.gain.mul(1).div(dur);
   const diff = paidBefore.sub(paidAfter);
 
-  expect(diff.gte(0), msg + ' Diff (before - after) should be >= 0.').equal(true);
-  expect(diff.lt(payRate1Sec), msg + ' Diff (before - after) should be < payrate/sec.').equal(true);
+  expect(diff.gte(0), msg + ` Diff ${paidBefore.toString()} - ${paidAfter.toString()} = ${diff.toString()} (before - after) should be >= 0.`).equal(true);
+  expect(diff.lte(payRate1Sec), msg + ` Diff ${paidBefore.toString()} - ${paidAfter.toString()} = ${diff.toString()} should be < payrate/sec (payrate=${payRate1Sec.toString()}).`).equal(true);
 };
 
 // computes pay rate for an abond (wei/sec), diff between provided values should be <
 const expectDebtEqualsWithinPayRate1Sec = (debtBefore: BN, debtAfter: BN, abondAfter: BondType, msg: string) => {
   const dur = abondAfter.maturesAt.sub(abondAfter.issuedAt);
-  const payRate1Sec = dur.eq(0) ? BN.from(0) : abondAfter.gain.mul(e18(1)).div(dur);
+  const payRate1Sec = dur.eq(0) ? BN.from(0) : abondAfter.gain.mul(1).div(dur);
   const diff = debtAfter.sub(debtBefore);
 
   console.log('diff>', diff.toString());
@@ -93,8 +103,8 @@ const expectDebtEqualsWithinPayRate1Sec = (debtBefore: BN, debtAfter: BN, abondA
   console.log('debtAfter>', debtAfter.toString());
   dumpBond('abondAfter>>', abondAfter);
 
-  expect(diff.gte(0), msg + ' Diff (after - before) should be >= 0.').equal(true);
-  expect(diff.lt(payRate1Sec), msg + ' Diff (after - before) should be < payrate/sec.').equal(true);
+  expect(diff.gte(0), msg + ` Diff ${debtAfter.toString()} - ${debtBefore.toString()} = ${diff.toString()} (after - before) should be >= 0.`).equal(true);
+  expect(diff.lte(payRate1Sec), msg + ` Diff ${debtAfter.toString()} - ${debtBefore.toString()} = ${diff.toString()} (after - before) should be < payrate/sec (payrate=${payRate1Sec.toString()}).`).equal(true);
 };
 
 
@@ -110,6 +120,7 @@ const fixture = (decimals: number) => {
     const bondToken = (await deployContract(deployerSign, BondTokenArtifact, ['BOND', 'BOND MOCK', pool.address])) as BondToken;
     await pool.setup(oracle.address, bondModel.address, bondToken.address, cToken.address, decimals);
 
+    timePrev = BN.from(START_TIME);
     await (moveTime(pool))(0);
 
     return {
@@ -279,49 +290,46 @@ describe('abond value computations', async function () {
       await buyTokens(junior1, e18(100));
 
       await buyBond(senior1, e18(100), 1, 90); // 1
-      dumpBond('BOND 1>', await pool.bonds(1));
       await moveTime(A_DAY * 1);
 
       await buyBond(senior1, e18(100), 1, 10); // 2
-      dumpBond('BOND 2>', await pool.bonds(2));
       await moveTime(A_DAY * 10 + 1);
 
-      await dumpAbondState('ABOND 2:', pool);
+      const debtBefore2 = await pool.abondDebt();
       await redeemBond(senior1, 2); // 2
+      const debtAfter2 = await pool.abondDebt();
+      const abondAfter2 = await pool.abond();
+      expectDebtEqualsWithinPayRate1Sec(debtBefore2, debtAfter2, abondAfter2, 'abondDebt2 changed');
       await moveTime(A_DAY);
 
       await buyBond(senior1, e18(100), 1, 10); // 3
       await moveTime(A_DAY * 5);
 
       await buyBond(senior1, e18(100), 1, 20); // 4
-      dumpBond('BOND 4>', await pool.bonds(4));
       await moveTime(A_DAY * 5 + 1);
 
-      await dumpAbondState('ABOND 3:', pool);
-      await redeemBond(senior1, 3); // 3
-      await moveTime(A_DAY * 15);
-
-      await dumpAbondState('ABOND 4:', pool);
-      await redeemBond(senior1, 4); // 4
-      await moveTime(A_DAY * 53);
-
-      await buyBond(senior1, e18(10), 1, 90);
-      dumpBond('BOND 5>', await pool.bonds(5));
-
-      await dumpAbondState('ABOND 1:', pool);
       const debtBefore3 = await pool.abondDebt();
-      await redeemBond(senior1, 1); // 1
+      await redeemBond(senior1, 3); // 3
       const debtAfter3 = await pool.abondDebt();
       const abondAfter3 = await pool.abond();
-      //expectDebtEqualsWithinPayRate1Sec(debtBefore3, debtAfter3, abondAfter3, 'abondDebt3 changed');
+      expectDebtEqualsWithinPayRate1Sec(debtBefore3, debtAfter3, abondAfter3, 'abondDebt3 changed');
+      await moveTime(A_DAY * 15);
 
-      moveTime(A_DAY * 90 + 1);
-      await dumpAbondState('ABOND LAST:', pool);
       const debtBefore4 = await pool.abondDebt();
-      await redeemBond(senior1, 5);
+      await redeemBond(senior1, 4); // 4
       const debtAfter4 = await pool.abondDebt();
       const abondAfter4 = await pool.abond();
       expectDebtEqualsWithinPayRate1Sec(debtBefore4, debtAfter4, abondAfter4, 'abondDebt4 changed');
+      await moveTime(A_DAY * 53);
+
+      //await buyBond(senior1, e18(10), 1, 90);
+      //dumpBond('BOND 5>', await pool.bonds(5));
+
+      const debtBefore1 = await pool.abondDebt();
+      await redeemBond(senior1, 1); // 1
+      const debtAfter1 = await pool.abondDebt();
+      const abondAfter1 = await pool.abond();
+      expectDebtEqualsWithinPayRate1Sec(debtBefore1, debtAfter1, abondAfter1, 'abondDebt1 changed');
 
     });
 

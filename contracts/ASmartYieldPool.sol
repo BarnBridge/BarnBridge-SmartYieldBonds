@@ -65,7 +65,7 @@ abstract contract ASmartYieldPool is
     uint256 public tokenWithdrawlsJuniors;
     uint256 public tokenWithdrawlsJuniorsAtRisk;
 
-    uint256 private bondIdLatest;
+    uint256 public bondIdCurrent;
 
     mapping(uint256 => Withdrawal) public queuedWithdrawals; // timestamp -> Withdrawal
     uint256[] public queuedWithdrawalTimestamps;
@@ -86,6 +86,7 @@ abstract contract ASmartYieldPool is
     mapping(uint256 => Bond) public bonds;
 
     // pool state / average bond
+    // holds rate of payment by juniors to seniors
     Bond public abond;
 
     uint256 public bondsOutstanding;
@@ -407,64 +408,59 @@ abstract contract ASmartYieldPool is
     }
 
     function _mintBond(address _to, Bond memory _bond) private {
-        require(bondIdLatest < uint256(-1), "ASYP: @ end of the univers");
-        bondIdLatest++;
-        bonds[bondIdLatest] = _bond;
+        require(bondIdCurrent < uint256(-1), "ASYP: @ end of the univers");
+        bondIdCurrent++;
+        bonds[bondIdCurrent] = _bond;
         _accountBond(_bond);
-        bondToken.mint(_to, bondIdLatest);
+        bondToken.mint(_to, bondIdCurrent);
     }
 
+    // when a new bond is added to the pool, we want:
+    // - to average abond.maturesAt (the earliest date at which juniors can fully exit), this shortens the junior exit date compared to the date of the last active bond
+    // - to keep the price for jTokens before a bond is bought ~equal with the price for jTokens after a bond is bought
     function _accountBond(Bond memory b) private {
-        if (0 == bondsOutstanding) {
-            // first bond
-            abond = b;
-            abond.issuedAt = abond.issuedAt * 1e18;
-            abond.maturesAt = abond.maturesAt * 1e18;
-            bondsOutstanding++;
-            return;
-        }
 
-        uint256 paid = this.abondPaid();
-        uint256 newGain = abond.gain + b.gain;
-        uint256 newDuration = ((abond.maturesAt - abond.issuedAt) * abond.gain + (b.maturesAt - b.issuedAt) * 1e18 * b.gain) / (newGain);
-        uint256 newIssuedAt = this.currentTime() * 1e18 - (paid * newDuration / newGain) - 1e18;
+        uint256 newDebt = this.abondDebt() + b.gain;
+        // for the very first bond or the first bond after abond maturity: this.abondDebt() = 0 => newMaturesAt = b.maturesAt
+        uint256 newMaturesAt = (abond.maturesAt * this.abondDebt() + b.maturesAt * b.gain) / newDebt;
+
+        // timestamp = timestamp - tokens * timestamp / tokens
+        uint256 newIssuedAt = newMaturesAt - (abond.gain + b.gain) * (newMaturesAt - this.currentTime()) / newDebt;
 
         abond = Bond(
           abond.principal + b.principal,
-          newGain,
+          abond.gain + b.gain,
           newIssuedAt,
-          newIssuedAt + (newDuration),
+          newMaturesAt,
           false
         );
 
         bondsOutstanding++;
     }
 
+    // when a bond is redeemed from the pool, we want:
+    // - for abond.maturesAt (the earliest date at which juniors can fully exit) to remain the same as before the redeem
+    // - to keep the price for jTokens before a bond is bought ~equal with the price for jTokens after a bond is bought
     function _unaccountBond(Bond memory b) private {
-        if (1 == bondsOutstanding) {
-            // last bond
-            abond = Bond(0, 0, 0, 0, false);
+        uint256 debt = this.abondDebt();
 
-            bondsOutstanding--;
-            return;
+        if ((this.currentTime() >= abond.maturesAt) || (0 == debt)) {
+          // abond matured
+          abond.principal -= b.principal;
+          abond.gain -= b.gain;
+          bondsOutstanding--;
+
+          return;
         }
 
-        uint256 paid = this.abondPaid() - b.gain;
-        uint256 newGain = abond.gain - b.gain;
-        uint256 newDuration = ((abond.maturesAt - abond.issuedAt) * abond.gain - (b.maturesAt - b.issuedAt) * 1e18 * b.gain) / (newGain);
-        uint256 newIssuedAt = this.currentTime() * 1e18 - (paid * newDuration / newGain);
-
-        console.log("_unaccountBond(id=),", newDuration, newGain, paid);
-
-        // uint256 newGain = abond.gain - b.gain;
-        // uint256 newIssuedAt = (abond.issuedAt * abond.gain - b.issuedAt * 1e18 * b.gain) / newGain;
-        // uint256 newMaturesAt = (abond.maturesAt * abond.gain - b.maturesAt * 1e18 * b.gain) / newGain;
+        // timestamp = timestamp - tokens * timestamp / tokens
+        uint256 newIssuedAt = abond.maturesAt - (abond.gain - b.gain) * (abond.maturesAt - this.currentTime()) / debt;
 
         abond = Bond(
           abond.principal - b.principal,
-          newGain,
+          abond.gain - b.gain,
           newIssuedAt,
-          newIssuedAt + newDuration,
+          abond.maturesAt,
           false
         );
 
@@ -480,7 +476,7 @@ abstract contract ASmartYieldPool is
         return
             (d > 0)
                 ? (this.abondGain() *
-                    Math.min(timestamp_ * 1e18 - abond.issuedAt, d)) / d
+                    Math.min(timestamp_ - abond.issuedAt, d)) / d
                 : 0;
     }
 
