@@ -426,7 +426,7 @@ abstract contract ASmartYieldPool is
         uint256 newMaturesAt = (abond.maturesAt * this.abondDebt() + b.maturesAt * 1e18 * b.gain) / newDebt;
 
         // timestamp = timestamp - tokens * d / tokens
-        uint256 newIssuedAt = newMaturesAt.sub(uint256(1) - ((abond.gain + b.gain) * (newMaturesAt - currentTime)) / newDebt, "ASYP: liquidate some bonds");
+        uint256 newIssuedAt = newMaturesAt.sub(uint256(1) + ((abond.gain + b.gain) * (newMaturesAt - currentTime)) / newDebt, "ASYP: liquidate some bonds");
 
         abond = Bond(
           abond.principal + b.principal,
