@@ -419,13 +419,14 @@ abstract contract ASmartYieldPool is
     // - to average abond.maturesAt (the earliest date at which juniors can fully exit), this shortens the junior exit date compared to the date of the last active bond
     // - to keep the price for jTokens before a bond is bought ~equal with the price for jTokens after a bond is bought
     function _accountBond(Bond memory b) private {
+        uint256 currentTime = this.currentTime() * 1e18;
 
         uint256 newDebt = this.abondDebt() + b.gain;
         // for the very first bond or the first bond after abond maturity: this.abondDebt() = 0 => newMaturesAt = b.maturesAt
-        uint256 newMaturesAt = (abond.maturesAt * this.abondDebt() + b.maturesAt * b.gain) / newDebt;
+        uint256 newMaturesAt = (abond.maturesAt * this.abondDebt() + b.maturesAt * 1e18 * b.gain) / newDebt;
 
-        // timestamp = timestamp - tokens * timestamp / tokens
-        uint256 newIssuedAt = newMaturesAt - (abond.gain + b.gain) * (newMaturesAt - this.currentTime()) / newDebt;
+        // timestamp = timestamp - tokens * d / tokens
+        uint256 newIssuedAt = newMaturesAt.sub(uint256(1) - ((abond.gain + b.gain) * (newMaturesAt - currentTime)) / newDebt, "ASYP: liquidate some bonds");
 
         abond = Bond(
           abond.principal + b.principal,
@@ -442,19 +443,25 @@ abstract contract ASmartYieldPool is
     // - for abond.maturesAt (the earliest date at which juniors can fully exit) to remain the same as before the redeem
     // - to keep the price for jTokens before a bond is bought ~equal with the price for jTokens after a bond is bought
     function _unaccountBond(Bond memory b) private {
-        uint256 debt = this.abondDebt();
+        uint256 currentTime = this.currentTime() * 1e18;
 
-        if ((this.currentTime() >= abond.maturesAt) || (0 == debt)) {
+        if ((currentTime >= abond.maturesAt)) {
           // abond matured
-          abond.principal -= b.principal;
-          abond.gain -= b.gain;
-          bondsOutstanding--;
+          // this.abondDebt() == 0
+          abond = Bond(
+            abond.principal - b.principal,
+            abond.gain - b.gain,
+            currentTime - (abond.maturesAt - abond.issuedAt),
+            currentTime,
+            false
+          );
 
+          bondsOutstanding--;
           return;
         }
 
-        // timestamp = timestamp - tokens * timestamp / tokens
-        uint256 newIssuedAt = abond.maturesAt - (abond.gain - b.gain) * (abond.maturesAt - this.currentTime()) / debt;
+        // timestamp = timestamp - tokens * d / tokens
+        uint256 newIssuedAt = abond.maturesAt.sub(uint256(1) + (abond.gain - b.gain) * (abond.maturesAt - currentTime) / this.abondDebt(), "ASYP: liquidate some bonds");
 
         abond = Bond(
           abond.principal - b.principal,
@@ -472,12 +479,14 @@ abstract contract ASmartYieldPool is
     }
 
     function _abondPaidAt(uint256 timestamp_) internal view returns (uint256) {
-        uint256 d = abond.maturesAt - abond.issuedAt;
-        return
-            (d > 0)
-                ? (this.abondGain() *
-                    Math.min(timestamp_ - abond.issuedAt, d)) / d
-                : 0;
+      timestamp_ = timestamp_ * 1e18;
+      if (timestamp_ <= abond.issuedAt || (abond.maturesAt <= abond.issuedAt)) {
+        return 0;
+      }
+
+      uint256 d = abond.maturesAt - abond.issuedAt;
+
+      return (this.abondGain() * Math.min(timestamp_ - abond.issuedAt, d)) / d;
     }
 
     function abondPaid() external view override returns (uint256) {
