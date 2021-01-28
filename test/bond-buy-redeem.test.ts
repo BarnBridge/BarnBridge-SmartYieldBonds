@@ -46,7 +46,7 @@ const buyTokens = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => {
     amountUnderlying = toBN(amountUnderlying);
     await underlying.mintMock(user.address, amountUnderlying);
     await underlying.connect(user).approve(pool.address, amountUnderlying);
-    await pool.connect(user).buyTokens(amountUnderlying);
+    await pool.connect(user).buyTokens(amountUnderlying, 0, currentTime().add(1));
   };
 };
 
@@ -57,7 +57,7 @@ const buyBond = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => {
     minGain = toBN(minGain);
     await underlying.mintMock(user.address, amountUnderlying);
     await underlying.connect(user).approve(pool.address, amountUnderlying);
-    await pool.connect(user).buyBond(amountUnderlying, minGain, forDays);
+    await pool.connect(user).buyBond(amountUnderlying, minGain, currentTime().add(1), forDays);
   };
 };
 
@@ -107,16 +107,16 @@ describe('buyBond() / redeemBond()', async function () {
     expect(await pool.bondToken()).equals(bondToken.address, 'pool.bondToken()');
   });
 
-  it('Math.compound works', async function () {
+  it('MathUtils.compound works', async function () {
     const decimals = 18;
     const supplyRatePerBlock = BN.from('40749278849'); // 8.94% // 89437198474492656
     const { pool, oracle, bondModel, cToken, underlying, bondToken } = await bbFixtures(fixture(decimals));
 
     await bondModel.compoundingTest(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), 1);
-    expect(await bondModel.compoundingTestLast(), 'Math.compound not working (1)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
+    expect(await bondModel.compoundingTestLast(), 'MathUtils.compound not working (1)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
 
     await bondModel.compoundingTest(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), 365);
-    expect(await bondModel.compoundingTestLast(), 'Math.compound not working (2)').deep.equal(BN.from('89437198474492656'));
+    expect(await bondModel.compoundingTestLast(), 'MathUtils.compound not working (2)').deep.equal(BN.from('89437198474492656'));
   });
 
   describe('buyBond()', async function () {
@@ -126,16 +126,17 @@ describe('buyBond() / redeemBond()', async function () {
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);
       await buyTokens(junior1, e18(10));
-      await expect(pool.buyBond(e18(1), 0, 0), 'should throw for 0 days bond').revertedWith('ASYP: buyBond forDays');
-      await expect(pool.buyBond(e18(1), 0, 91), 'should throw for > BOND_MAX_LIFE days bond (1)').revertedWith('ASYP: buyBond forDays');
+      await expect(pool.buyBond(e18(1), 0, currentTime().add(1), 0), 'should throw for 0 days bond').revertedWith('ASYP: buyBond forDays');
+      await expect(pool.buyBond(e18(1), 0, currentTime().sub(1), 10), 'should throw for deadline').revertedWith('ASYP: buyBond deadline');
+      await expect(pool.buyBond(e18(1), 0, currentTime().add(1), 91), 'should throw for > BOND_MAX_LIFE days bond (1)').revertedWith('ASYP: buyBond forDays');
       await pool.setBondMaxLife(100);
-      await expect(pool.buyBond(e18(1), 0, 101), 'should throw for > BOND_MAX_LIFE days bond (2)').revertedWith('ASYP: buyBond forDays');
-      await expect(pool.buyBond(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY).add(1), 1), 'should throw if gain below min').revertedWith('ASYP: buyBond minGain');
+      await expect(pool.buyBond(e18(1), 0, currentTime().add(1), 101), 'should throw for > BOND_MAX_LIFE days bond (2)').revertedWith('ASYP: buyBond forDays');
+      await expect(pool.buyBond(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY).add(1), currentTime().add(1), 1), 'should throw if gain below min').revertedWith('ASYP: buyBond minGain');
 
-      await expect(pool.buyBond(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), 1), 'should not throw (1)').not.revertedWith('ASYP: buyBond minGain');
-      await expect(pool.buyBond(e18(1), 0, 100), 'should not throw (2)').not.revertedWith('ASYP: buyBond forDays');
+      await expect(pool.buyBond(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), currentTime().add(1), 1), 'should not throw (1)').not.revertedWith('ASYP: buyBond minGain');
+      await expect(pool.buyBond(e18(1), 0, currentTime().add(1), 100), 'should not throw (2)').not.revertedWith('ASYP: buyBond forDays');
 
-      await expect(pool.buyBond(e18(1), 0, 100), 'should throw if no allowance').revertedWith('SYCOMP: _takeUnderlying allowance');
+      await expect(pool.buyBond(e18(1), 0, currentTime().add(1), 100), 'should throw if no allowance').revertedWith('SYCOMP: _takeUnderlying allowance');
     });
 
     it('TODO: buyBond require gain < underlyingJuniors', async function () {

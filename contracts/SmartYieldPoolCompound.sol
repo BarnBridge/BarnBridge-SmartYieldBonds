@@ -67,10 +67,11 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         override
         returns (uint256)
     {
+        // TODO: add fees
+
         // https://compound.finance/docs#protocol-math
         return
-            ICTokenErc20(cToken).balanceOf(address(this)) *
-            ICToken(cToken).exchangeRateStored();
+            ICTokenErc20(cToken).balanceOf(address(this)) * ICToken(cToken).exchangeRateStored(); // - feesUnderlying;
     }
 
     // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
@@ -81,11 +82,6 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         returns (uint256)
     {
         return bondModel.gain(address(this), _principalAmount, _forDays);
-    }
-
-    function providerRatePerDay() external view override returns (uint256) {
-        // to do: oracle
-        return 0;
     }
 
     function harvest() external override {

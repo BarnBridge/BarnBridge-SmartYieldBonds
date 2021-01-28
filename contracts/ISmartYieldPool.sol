@@ -14,21 +14,22 @@ interface ISmartYieldPool {
     function buyBond(
         uint256 _principalAmount,
         uint256 _minGain,
+        uint256 _deadline,
         uint16 _forDays
     ) external;
 
     function redeemBond(uint256 _bondId) external;
 
-    function liquidateBonds(uint256[] memory _bondIds) external;
+    function unaccountBonds(uint256[] memory _bondIds) external;
 
-    function buyTokens(uint256 _underlyingAmount) external;
+    function buyTokens(uint256 _underlyingAmount, uint256 _minTokens, uint256 _deadline) external;
 
     /**
      * sell all tokens instantly
      */
-    function sellTokens(uint256 _jTokens) external;
+    function sellTokens(uint256 _tokens, uint256 _minUnderlying, uint256 _deadline) external;
 
-    function withdrawTokensInitiate(uint256 _jTokens) external;
+    function withdrawTokensInitiate(uint256 _tokens) external;
 
     function withdrawTokensFinalize() external;
 

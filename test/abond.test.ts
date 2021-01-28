@@ -21,7 +21,6 @@ import { BondModelMock } from '@typechain/BondModelMock';
 import { BondToken } from '@typechain/BondToken';
 import { Erc20Mock } from '@typechain/Erc20Mock';
 import { CTokenMock } from '@typechain/CTokenMock';
-import { abort } from 'process';
 
 const START_TIME = 1614556800; // 03/01/2021 @ 12:00am (UTC)
 let timePrev = BN.from(START_TIME);
@@ -34,7 +33,6 @@ const moveTime = (pool: SmartYieldPoolCompoundMock) => {
   return async (seconds: number | BN | BNj) => {
     seconds = BN.from(seconds.toString());
     timePrev = timePrev.add(seconds);
-    console.log('NEW TIME IS: ', HT(timePrev));
     await pool.setCurrentTime(timePrev);
   };
 };
@@ -48,7 +46,7 @@ const buyTokens = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => {
     amountUnderlying = toBN(amountUnderlying);
     await underlying.mintMock(user.address, amountUnderlying);
     await underlying.connect(user).approve(pool.address, amountUnderlying);
-    await pool.connect(user).buyTokens(amountUnderlying);
+    await pool.connect(user).buyTokens(amountUnderlying, 1, currentTime().add(20));
   };
 };
 
@@ -58,24 +56,15 @@ const buyBond = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => {
     forDays = toBN(forDays);
     minGain = toBN(minGain);
     await underlying.mintMock(user.address, amountUnderlying);
-    const [bondIdCurrent, ] = await Promise.all([
-      pool.bondIdCurrent(),
-      underlying.connect(user).approve(pool.address, amountUnderlying),
-    ]);
-    await dumpAbondState(`+> ABOND (id=${bondIdCurrent.add(1)}) before BUY bond`, pool);
-    await pool.connect(user).buyBond(amountUnderlying, minGain, forDays);
-    dumpBond(`+ new BOND (id=${bondIdCurrent.add(1)})`, await pool.bonds(bondIdCurrent.add(1)));
-    await dumpAbondState(`+< ABOND (id=${bondIdCurrent.add(1)}) after BUY bond`, pool);
+    await underlying.connect(user).approve(pool.address, amountUnderlying);
+    await pool.connect(user).buyBond(amountUnderlying, minGain, currentTime().add(20), forDays);
   };
 };
 
 const redeemBond = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => {
   return async (user: Wallet, id: number | BN) => {
     id = toBN(id);
-    await dumpAbondState(`-> ABOND (id=${id}) before REDEEM bond`, pool);
     await pool.connect(user).redeemBond(id);
-    dumpBond(`- redeemed BOND (id=${id})`, await pool.bonds(id));
-    await dumpAbondState(`-< ABOND (id=${id}) after REDEEM bond`, pool);
   };
 };
 
@@ -94,14 +83,6 @@ const expectDebtEqualsWithinPayRate1Sec = (debtBefore: BN, debtAfter: BN, abondA
   const dur = abondAfter.maturesAt.sub(abondAfter.issuedAt).div(e18(1));
   const payRate1Sec = dur.eq(0) ? BN.from(0) : abondAfter.gain.div(dur);
   const diff = debtAfter.sub(debtBefore);
-
-  console.log('diff>', diff.toString());
-  console.log('payRate1Sec>', payRate1Sec.toString());
-  console.log('dur>', dur.toString());
-
-  console.log('debtBefore>', debtBefore.toString());
-  console.log('debtAfter>', debtAfter.toString());
-  dumpBond('abondAfter>>', abondAfter, undefined, true);
 
   expect(diff.gte(0), msg + ` Diff ${debtAfter.toString()} - ${debtBefore.toString()} = ${diff.toString()} (after - before) should be >= 0 (payrate=${payRate1Sec.toString()}).`).equal(true);
   expect(diff.lte(payRate1Sec), msg + ` Diff ${debtAfter.toString()} - ${debtBefore.toString()} = ${diff.toString()} (after - before) should be < payrate/sec (payrate=${payRate1Sec.toString()}).`).equal(true);
@@ -139,7 +120,6 @@ const fixture = (decimals: number) => {
 describe('abond value computations', async function () {
 
   it('should deploy contracts correctly', async function () {
-    return;
     const decimals = 18;
     const { pool, oracle, bondModel, cToken, underlying, bondToken } = await bbFixtures(fixture(decimals));
 
@@ -152,7 +132,6 @@ describe('abond value computations', async function () {
 
   describe('first and last bond', async function () {
     it('for one bond, abond is the same', async function () {
-      return;
       const { pool, oracle, bondModel, cToken, underlying, bondToken, moveTime, buyTokens, buyBond, junior1, senior1, senior2, } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
@@ -171,37 +150,10 @@ describe('abond value computations', async function () {
       const bond1 = await pool.bonds(1);
 
       await moveTime(A_DAY * 4);
-      expect(abond1, 'abond should equal first bought bond').deep.equal(bond1);
-    });
-
-    it('abondPaid works', async function () {
-      return;
-      const { pool, oracle, bondModel, cToken, underlying, bondToken, moveTime, buyTokens, buyBond, junior1, senior1, senior2, } = await bbFixtures(fixture(decimals));
-
-      await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
-      await cToken.setExchangeRateStored(exchangeRateStored);
-      await buyTokens(junior1, e18(100));
-
-      await buyBond(senior1, e18(100), 1, 30);
-      const bond1 = await pool.bonds(1);
-      expect(await pool.abondPaid(), 'abondPaid should be 0').deep.equal(BN.from(0));
-
-      await moveTime(A_DAY * 1);
-      const abondPaid = await pool.abondPaid();
-      console.log('bond gain', bond1.gain.toString(), 'paid', abondPaid.toString(), toBNj(abondPaid).div(toBNj(bond1.gain)).times(100).toFixed(10), '%');
-
-      //return;
-      //expect((await pool.abondPaid()), 'abondPaid should be 0').deep.equal(BN.from(0));
-
-      const paidBefore = await pool.abondPaid();
-      await buyBond(senior1, e18(10), 1, 30);
-      const paidAfter = await pool.abondPaid();
-
-      await dumpAbondState('STATE:', pool);
-
-      console.log('>>>>>>>>>>>', paidBefore.sub(paidAfter).toString());
-
-      expect(paidAfter.eq(paidBefore), 'paid after and before should be the same').equal(true);
+      expect(abond1.gain, 'abond gain should equal first bought bond').deep.equal(bond1.gain);
+      expect(abond1.principal, 'abond principal should  equal first bought bond').deep.equal(bond1.principal);
+      expect(abond1.issuedAt.add(1).div(e18(1)), 'abond issuedAt should equal first bought bond').deep.equal(bond1.issuedAt);
+      expect(abond1.maturesAt.add(1).div(e18(1)), 'abond maturesAt should equal first bought bond').deep.equal(bond1.maturesAt);
     });
 
     it('for new bonds, abondPaid stays the same', async function () {
@@ -243,7 +195,6 @@ describe('abond value computations', async function () {
     });
 
     it('last bond, is abond', async function () {
-      return;
       const { pool, oracle, bondModel, cToken, underlying, bondToken, moveTime, buyTokens, buyBond, redeemBond, junior1, senior1, senior2, } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
@@ -252,34 +203,16 @@ describe('abond value computations', async function () {
 
       await buyBond(senior1, e18(100), 1, 30);
       const expected = await pool.bonds(1);
-      dumpBond('bond1 ', await pool.bonds(1));
-      dumpBond('abond1', await pool.abond());
-      await dumpAbondState('state:', pool);
 
       await moveTime(A_DAY * 10);
 
       await buyBond(senior1, e18(10), 1, 10);
-      dumpBond('bond2 ', await pool.bonds(2));
-      dumpBond('abond2', await pool.abond());
-      await dumpAbondState('state:', pool);
 
       await moveTime(A_DAY * 10 + 1);
-      const debtBefore = await pool.abondDebt();
-      await dumpAbondState('state:', pool);
       await redeemBond(senior1, 2);
-      dumpBond('abond-', await pool.abond());
-      await dumpAbondState('state:', pool);
-      const debtAfter = await pool.abondDebt();
-      console.log('debt before: ', debtBefore.toString(), 'after', debtAfter.toString(), 'before - after', debtBefore.sub(debtAfter).toString(), 'offby', debtBefore.div(debtBefore.sub(debtAfter)).toString(), debtAfter.div(debtBefore.sub(debtAfter)).toString());
-
-      expect(debtBefore.eq(debtAfter), '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!').equal(true);
-
       const abond = await pool.abond();
-
-      dumpBond('first:', expected);
-      dumpBond('abond:', abond);
-
-      expect(abond, 'abond should be last bond').deep.equal(expected);
+      expect(abond.gain, 'abond gain should be last bond').deep.equal(expected.gain);
+      expect(abond.principal, 'abond principal should be last bond').deep.equal(expected.principal);
     });
 
     it('for bonds redeemed, abondDebt stays the same', async function () {
@@ -323,8 +256,6 @@ describe('abond value computations', async function () {
       await moveTime(A_DAY * 153);
 
       await buyBond(senior1, e18(10), 1, 90); // 5
-      dumpBond('BOND 5>', await pool.bonds(5));
-      await dumpAbondState('ABOND after BOND5 creation', pool);
 
       const debtBefore1 = await pool.abondDebt();
       await redeemBond(senior1, 1); // 1

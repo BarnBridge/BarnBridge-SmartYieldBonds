@@ -6,7 +6,7 @@ import "hardhat/console.sol";
 import "../../SmartYieldPoolCompound.sol";
 
 contract SmartYieldPoolCompoundMock is SmartYieldPoolCompound {
-    uint256 _currentTime = 0;
+    uint256 public _currentTime = 0;
 
     constructor(string memory name, string memory symbol)
         SmartYieldPoolCompound(name, symbol)
