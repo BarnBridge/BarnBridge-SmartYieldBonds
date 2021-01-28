@@ -3,6 +3,9 @@ import { BigNumber as BN, Wallet } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { ethers } from 'hardhat';
 import { createFixtureLoader, Fixture } from 'ethereum-waffle';
+import * as moment from 'moment';
+
+import humanizeDuration from 'humanize-duration';
 
 export const ERROR_MARGIN_PREFERED = new BNj(1).div(new BNj(10).pow(10));  // 0.00000001 %
 export const ERROR_MARGIN_OKISH = new BNj(12).div(new BNj(10).pow(6)); // 0.0015 % => compounds to an error of ~0.3% in 365 rounds of compounding (a year)
@@ -87,5 +90,16 @@ export const dumpBlockLatest = async (): Promise<void> => {
   console.error(`[DEBUG]: block.number=${block.number}, block.timestamp=${block.timestamp}`);
 };
 
+export const HD = (d: BN | number): string => {
+  d = BN.from(d).mul(1000).toNumber();
+  return humanizeDuration(d, { units: ['d', 'h', 'm', 's'] });
+};
+
+export const HT = (ts: BN | number): string => {
+  ts = BN.from(ts).toNumber();
+  return moment.unix(ts).utc().format('YYYY/MM/DD hh:mm:ss');
+}
+
 export * from './misc';
 export * from './rates';
+export * from './bonds';

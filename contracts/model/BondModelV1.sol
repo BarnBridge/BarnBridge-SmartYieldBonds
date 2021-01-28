@@ -1,69 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.5;
 
-// @TODO: REVIEW
-// x = (cur_j - (bond*x*n*t)) / (cur_tot + bond + (bond*x*n*t)) * n
+// x = (cur_j - (b_p*x*b_t)) / (cur_tot + b_p + (b_p*x*b_t)) * n
+// x = (cur_j - (bond*n*t*(cur_j/cur_tot))) / (cur_tot + bond + (bond*n*t*(cur_j/cur_tot))) * n;
+// n - oracle rate ( /day )
+// bond - new bond principal
+// t - bond duration (days)
+// cur_j - curent junior liquidity. totalUndwerlying() - abond.principal - abond.gain - (jtokens in withdrawl * jtoken price)
+// cur_tot - totalUnderlying()
 
 import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "../lib/math/Math.sol";
+import "../lib/math/MathUtils.sol";
 
 import "./IBondModel.sol";
 import "../ISmartYieldPool.sol";
 
 contract BondModelV1 is IBondModel {
     using SafeMath for uint256;
-    using Math for uint256;
-
-    struct SlippageLocalVars {
-        uint256 t;
-        uint256 underlyingTotal;
-        uint256 underlyingLoanable;
-        uint256 ratePerDay2;
-        uint256 bn2t;
-        uint256 nume;
-        uint256 deno;
-        uint256 yield;
-    }
 
     function gain(
         address pool,
         uint256 principal,
         uint16 forDays
     ) external view override returns (uint256) {
-        SlippageLocalVars memory v;
-        // (-b - o - b n^2 t + sqrt(4 b j n^2 t + (b + o + b n^2 t)^2))/(2 b n t)
-        v.t = uint256(forDays).mul(10**18).div(365);
+        uint256 loanable = ISmartYieldPool(pool).underlyingLoanable();
+        uint256 total = ISmartYieldPool(pool).underlyingTotal();
+        uint256 dailyRate = ISmartYieldPool(pool).providerRatePerDay();
 
-        v.ratePerDay2 = (ISmartYieldPool(pool).providerRatePerDay())
-            .mul(ISmartYieldPool(pool).providerRatePerDay())
-            .div(10**18);
+        //uint256 aproxGain = MathUtils.compound(principal, dailyRate * (loanable * 1e18 / (total + principal)) / 1e18, forDays).sub(principal);
+        uint256 aproxGain = MathUtils.compound2(
+          principal,
+          //dailyRate * (loanable * 1e18 / (total + principal)) / 1e18,
+          uint256(1e18).mul(dailyRate).mul(loanable) / (total + principal) / 1e18,
+          forDays
+        ).sub(principal);
 
-        v.bn2t = principal.mul(v.t).div(10**18).mul(v.ratePerDay2).div(10**18);
-        v.underlyingLoanable = ISmartYieldPool(pool).underlyingLoanable();
-        v.underlyingTotal = ISmartYieldPool(pool).underlyingTotal();
+        //uint256 rate = (loanable.sub(aproxGain, "BondModelV1: liquidity")) * 1e18 / (total + principal) * dailyRate / 1e18;
+        uint256 rate = uint256(1e18).mul(dailyRate).mul(loanable.sub(aproxGain, "BondModelV1: liquidity")) / (total + principal) / 1e18;
 
-        v.nume = v
-            .underlyingLoanable
-            .mul(4)
-            .mul(v.bn2t)
-            .add(
-            v.bn2t.add(v.underlyingTotal).add(principal).mul(
-                v.bn2t.add(v.underlyingTotal).add(principal)
-            )
-        )
-            .sqrt();
-
-        v.nume = v.nume.sub(v.bn2t).sub(principal).sub(v.underlyingTotal);
-        v.deno = principal
-            .mul(2)
-            .mul(ISmartYieldPool(pool).providerRatePerDay())
-            .div(10**18)
-            .mul(v.t)
-            .div(10**18);
-        v.yield = v.nume.mul(10**18).div(v.deno);
-
-        return Math.compound(principal, v.yield, forDays).sub(principal);
+        return MathUtils.compound2(principal, rate, forDays).sub(principal);
     }
+
 }
