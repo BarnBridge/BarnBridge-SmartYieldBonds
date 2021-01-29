@@ -23,8 +23,8 @@ import "hardhat/console.sol";
 // https://github.com/BarnBridge/BarnBridge-SmartYieldBonds/blob/master/SPEC.md#senior-deposit-buy-bond, x = (cur_j - (b_p*x*n*b_t)) / (cur_tot + b_p + (b_p*x*n*b_t)) * n * m,  <- bond yield formula should be pluggable
 // oracle should be pluggable
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import "./oracle/IYieldOracle.sol";
 import "./oracle/IYieldOraclelizable.sol";
@@ -53,6 +53,12 @@ abstract contract ASmartYieldPool is
         uint256 timestamp;
     }
 
+    // fees
+
+
+    uint256 public underlyingFees;
+    // /fees
+
     uint256 public constant DAYS_IN_YEAR = 365;
 
     uint16 public BOND_LIFE_MAX = 90; // in days
@@ -74,10 +80,14 @@ abstract contract ASmartYieldPool is
 
     uint256 public underlyingTotalLast;
 
+    // CUMULATIVE
     // cumulates (new yield per second) * (seconds since last cumulation)
     uint256 public cumulativeSecondlyYieldLast;
+    // cummulates balanceOf underlying
+    uint256 public cumulativeUnderlyingTotalLast;
     // timestamp of the last cumulation
     uint32 public timestampLast;
+    // /CUMULATIVE
 
     // bond id => bond (Bond)
     mapping(uint256 => Bond) public bonds;
@@ -132,6 +142,8 @@ abstract contract ASmartYieldPool is
                 ((this.underlyingTotal() - underlyingTotalLast) * 1e18) /
                 underlyingTotalLast;
 
+            cumulativeUnderlyingTotalLast += this.underlyingTotal() * timeElapsed;
+
             _safeToObserve = true;
             timestampLast = blockTimestamp;
         }
@@ -153,14 +165,14 @@ abstract contract ASmartYieldPool is
 
     // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
-    function currentCumulativeSecondlyYield()
-        external
-        view
-        override
-        returns (uint256 cumulativeYield, uint256 blockTs)
+    function currentCumulatives()
+        external view override
+    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingTotal, uint256 blockTs)
     {
         uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
-        uint256 cumulativeSecondlyYield = cumulativeSecondlyYieldLast;
+        cumulativeSecondlyYield = cumulativeSecondlyYieldLast;
+        cumulativeUnderlyingTotal = cumulativeUnderlyingTotalLast;
+
         uint32 timeElapsed = blockTimestamp - timestampLast; // overflow is desired
         if (timeElapsed > 0 && underlyingTotalLast > 0) {
             // cumulativeSecondlyYield overflows eventually,
@@ -172,8 +184,10 @@ abstract contract ASmartYieldPool is
                 // (this.underlyingTotal() - underlyingTotalLast) never underflows
                 ((this.underlyingTotal() - underlyingTotalLast) * 1e18) /
                 underlyingTotalLast;
+
+            cumulativeUnderlyingTotal += this.underlyingTotal() * timeElapsed;
         }
-        return (cumulativeSecondlyYield, blockTimestamp);
+        return (cumulativeSecondlyYield, cumulativeUnderlyingTotal, uint256(blockTimestamp));
     }
 
     function providerRatePerDay() external view virtual override returns (uint256) {
