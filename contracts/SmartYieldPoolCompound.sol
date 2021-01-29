@@ -15,20 +15,6 @@ import "./model/IBondModel.sol";
 contract SmartYieldPoolCompound is ASmartYieldPool {
     using SafeMath for uint256;
 
-    IComptroller public comptroller;
-
-    // underlying token (ie. DAI)
-    IERC20 public uToken;
-    // claim token (ie. cDAI)
-    address public cToken;
-    // deposit reward token (ie. COMP)
-    IERC20 public rewardCToken;
-    // weth
-    IERC20 public wethToken;
-
-    IUniswapV2Router02 public uniswap;
-
-    IBondModel public bondModel;
 
     // reward for calling harvest 3%
     uint256 public HARVEST_REWARD = 3 * 1e16; // 3%
@@ -46,6 +32,25 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     // when we last harvested
     uint256 public harvestedLast;
     // --- /COMP reward checkpoint
+
+    // underlying token (ie. DAI)
+    IERC20 public uToken;
+
+    // claim token (ie. cDAI)
+    address public cToken;
+
+    // compound.finance Comptroller
+    IComptroller public comptroller;
+
+    // deposit reward token (ie. COMP)
+    IERC20 public rewardCToken;
+
+    // weth
+    IERC20 public wethToken;
+
+    IUniswapV2Router02 public uniswap;
+
+    IBondModel public bondModel;
 
     constructor(string memory name, string memory symbol)
         ASmartYieldPool(name, symbol)
