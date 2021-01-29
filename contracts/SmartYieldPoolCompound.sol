@@ -15,9 +15,6 @@ import "./model/IBondModel.sol";
 contract SmartYieldPoolCompound is ASmartYieldPool {
     using SafeMath for uint256;
 
-    uint256 public constant BLOCKS_PER_YEAR = 2102400;
-    uint256 public constant BLOCKS_PER_DAY = BLOCKS_PER_YEAR / 365;
-
     IComptroller public comptroller;
 
     // underlying token (ie. DAI)
@@ -36,19 +33,19 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     // reward for calling harvest 3%
     uint256 public HARVEST_REWARD = 3 * 1e16; // 3%
 
-    // cToken.balanceOf(this) measuring only deposits by users (excludes cToken transfers to this)
-    uint256 public cTokenBalance = 0;
+    // cToken.balanceOf(this) measuring only deposits by users (excludes cToken transfers to pool)
+    uint256 public cTokenBalance;
 
-    // COMP reward
+    // --- COMP reward checkpoint
     // saved comptroller.compSupplyState(cToken) value @ the moment the pool harvested
     uint256 public compSupplierIndexLast;
 
-    // when we last harvested
-    uint256 public harvestedLast;
-
     // cumulative balanceOf @ last harvest
     uint256 public cumulativeUnderlyingTotalHarvestedLast;
-    // /COMP reward
+
+    // when we last harvested
+    uint256 public harvestedLast;
+    // --- /COMP reward checkpoint
 
     constructor(string memory name, string memory symbol)
         ASmartYieldPool(name, symbol)
@@ -99,7 +96,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         return bondModel.gain(address(this), _principalAmount, _forDays);
     }
 
-    // called by anyone to convert pools COMP to underlying. caller gets HARVEST_REWARD of the harvest
+    // called by anyone to convert pool's COMP -> underlying and then deposit it. caller gets HARVEST_REWARD of the harvest
     function harvest()
       external override
     {
@@ -147,13 +144,13 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         uint256 extra = 0;
 
         if (underlyingBefore > 0) {
-          // someone sent us a present as underlying, add it to the fees
+          // someone sent us a present as underlying -> add it to the fees
           extra += underlyingBefore;
           underlyingGot -= extra;
         }
 
         if (rewardGot > rewardExpected) {
-          // moar presents as COMP reward
+          // moar present as COMP reward -> add it to the fees
           // throw event
           uint256 rExtra = MathUtils.fractionOf(underlyingGot, (rewardGot - rewardExpected) * 1e18 / rewardExpected);
           extra += rExtra;
@@ -163,14 +160,16 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         // any presents go to fees
         underlyingFees += extra;
 
-        // pay this man
         uint256 toCaller = MathUtils.fractionOf(underlyingGot, HARVEST_REWARD);
-        uToken.transfer(msg.sender, toCaller);
 
         // deposit pool reward to compound - harvest reward + any goodies we received
         _depositProvider(underlyingGot - toCaller + extra);
+
+        // pay this man
+        uToken.transfer(msg.sender, uToken.balanceOf(address(this)));
     }
 
+    // take _underlyingAmount from _from
     function _takeUnderlying(address _from, uint256 _underlyingAmount)
       internal override
     {
@@ -184,6 +183,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         );
     }
 
+    // transfer away _underlyingAmount to _to
     function _sendUnderlying(address _to, uint256 _underlyingAmount)
       internal override
       returns (bool)
@@ -191,6 +191,8 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         return uToken.transfer(_to, _underlyingAmount);
     }
 
+    // deposit _underlyingAmount with the liquidity provider adds resulting cTokens to cTokenBalance
+    // on the very first call enters the compound.finance market and saves the checkpoint needed for compRewardExpected
     function _depositProvider(uint256 _underlyingAmount)
       internal override
     {
@@ -206,6 +208,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         cTokenBalance += ICTokenErc20(cToken).balanceOf(address(this)) - cTokensBefore;
     }
 
+    // withdraw _underlyingAmount from the liquidity provider, substract the lost cTokens from cTokenBalance
     function _withdrawProvider(uint256 _underlyingAmount)
       internal override
     {
@@ -226,7 +229,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         require(err[0] == 0, "SYCOMP: _enterMarket");
     }
 
-    // COMP reward
+    // --- COMP reward
 
     // creates checkpoint items needed to compute compRewardExpected()
     // needs to be called right after each claimComp(), and just before the first ever deposit
@@ -272,6 +275,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         uint256 supplierTokens = waUnderlyingTotal / ICToken(cToken).exchangeRateStored();
         return (supplierTokens).mul(deltaIndex).div(1e36); // a * b / doubleScale => uint
     }
-    // /COMP reward
+
+    // --- /COMP reward
 
 }
