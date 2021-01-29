@@ -15,7 +15,6 @@ import "./model/IBondModel.sol";
 contract SmartYieldPoolCompound is ASmartYieldPool {
     using SafeMath for uint256;
 
-
     // reward for calling harvest 3%
     uint256 public HARVEST_REWARD = 3 * 1e16; // 3%
 

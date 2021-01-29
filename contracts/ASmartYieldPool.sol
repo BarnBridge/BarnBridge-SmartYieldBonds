@@ -39,8 +39,6 @@ abstract contract ASmartYieldPool is
 {
     using SafeMath for uint256;
 
-    IYieldOracle public oracle;
-
     struct Withdrawal {
         uint256 tokens; // in jTokens
         uint256 tokensAtRisk; // in jTokens
@@ -53,13 +51,20 @@ abstract contract ASmartYieldPool is
         uint256 timestamp;
     }
 
-    // fees
+    IYieldOracle public oracle;
 
+    // --- fees
 
+    // fee for buying jTokens
+    uint256 public FEE_TOKEN_BUY = 3 * 1e16; // 3%
+
+    // fee for redeeming a sBond
+    uint256 public FEE_BOND_REDEEM = 3 * 1e16;
+
+    // fees colected in underlying
     uint256 public underlyingFees;
-    // /fees
 
-    uint256 public constant DAYS_IN_YEAR = 365;
+    // --- /fees
 
     uint16 public BOND_LIFE_MAX = 90; // in days
 
@@ -252,18 +257,26 @@ abstract contract ASmartYieldPool is
             "ASYP: redeemBond not matured"
         );
 
-        uint256 toPay = bonds[_bondId].gain + bonds[_bondId].principal;
+        // bondToken.ownerOf will revert for burned tokens
+        address payTo = bondToken.ownerOf(_bondId);
+        uint256 payAmnt = bonds[_bondId].gain + bonds[_bondId].principal;
+        uint256 fee = MathUtils.fractionOf(payAmnt, FEE_BOND_REDEEM);
+        payAmnt -= fee;
+
+        // ---
 
         if (bonds[_bondId].liquidated == false) {
             bonds[_bondId].liquidated = true;
             _unaccountBond(bonds[_bondId]);
         }
 
-        _withdrawProvider(toPay);
-        // bondToken.ownerOf will revert for burned tokens
-        _sendUnderlying(bondToken.ownerOf(_bondId), toPay);
         // bondToken.burn will revert for already burned tokens
         bondToken.burn(_bondId);
+
+        _withdrawProvider(payAmnt);
+        _sendUnderlying(payTo, payAmnt);
+
+        underlyingFees += fee;
     }
 
     // removes matured bonds from being accounted in abond
@@ -293,7 +306,8 @@ abstract contract ASmartYieldPool is
           "ASYP: buyTokens deadline"
         );
 
-        uint256 getsTokens = _underlyingAmount * 1e18 / this.price();
+        uint256 fee = MathUtils.fractionOf(_underlyingAmount, FEE_TOKEN_BUY);
+        uint256 getsTokens = (_underlyingAmount - fee) * 1e18 / this.price();
 
         require(
           getsTokens >= _minTokens,
@@ -303,7 +317,9 @@ abstract contract ASmartYieldPool is
         _takeUnderlying(msg.sender, _underlyingAmount);
         _depositProvider(_underlyingAmount);
         _mint(msg.sender, getsTokens);
-        underlyingDepositsJuniors += _underlyingAmount;
+
+        underlyingDepositsJuniors += (_underlyingAmount - fee);
+        underlyingFees += fee;
     }
 
     // sell _tokens for at least _minUnderlying, before _deadline and forfeit potential future gains
