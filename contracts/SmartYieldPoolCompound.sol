@@ -12,11 +12,6 @@ import "./external-interfaces/compound-finance/IComptroller.sol";
 import "./ASmartYieldPool.sol";
 import "./model/IBondModel.sol";
 
-interface WithDecimals {
-    function decimals() external view returns (uint8);
-}
-
-// todo: initialize compound
 contract SmartYieldPoolCompound is ASmartYieldPool {
     using SafeMath for uint256;
 
@@ -55,8 +50,6 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     uint256 public cumulativeUnderlyingTotalHarvestedLast;
     // /COMP reward
 
-    bool public ready = false;
-
     constructor(string memory name, string memory symbol)
         ASmartYieldPool(name, symbol)
     {}
@@ -75,17 +68,6 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         uToken = IERC20(ICToken(cToken_).underlying());
         underlyingDecimals = underlyingDecimals_;
         comptroller = IComptroller(ICToken(cToken_).comptroller());
-
-        if (!ready) {
-          address[] memory markets = new address[](1);
-          markets[0] = cToken;
-          uint256[] memory err = comptroller.enterMarkets(markets);
-          require(err[0] == 0, "SYCOMP: setup enterMarkets");
-
-          // TODO: check that comptroller.enterMarkets updates this value correctly
-          _claimComp();
-          ready = true;
-        }
     }
 
     function currentTime() external view virtual override returns (uint256) {
@@ -210,8 +192,9 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     }
 
     function _depositProvider(uint256 _underlyingAmount) internal override {
-        if (cTokenBalance == 0 && compSupplierIndexLast == 0) {
-          // first comp deposit after pool deploy
+        if (0 == cTokenBalance && 0 == compSupplierIndexLast) {
+          // this will be called once only for the first comp deposit after pool deploy
+          _enterMarket();
           _updateCompState();
         }
         uint256 cTokensBefore = ICTokenErc20(cToken).balanceOf(address(this));
@@ -226,6 +209,15 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         uint256 err = ICToken(cToken).redeemUnderlying(_underlyingAmount);
         require(0 == err, "SYCOMP: _withdrawProvider redeemUnderlying");
         cTokenBalance -= cTokensBefore - ICTokenErc20(cToken).balanceOf(address(this));
+    }
+
+    // call comptroller.enterMarkets()
+    // needs to be called only once BUT before any interactions with provider
+    function _enterMarket() internal {
+        address[] memory markets = new address[](1);
+        markets[0] = cToken;
+        uint256[] memory err = comptroller.enterMarkets(markets);
+        require(err[0] == 0, "SYCOMP: _enterMarket");
     }
 
     // COMP reward
