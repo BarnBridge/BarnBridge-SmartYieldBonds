@@ -60,7 +60,9 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         address bondToken_,
         address cToken_,
         uint8 underlyingDecimals_
-    ) external {
+    )
+      external
+    {
         this.setOracle(oracle_);
         bondModel = IBondModel(bondModel_);
         bondToken = BondToken(bondToken_);
@@ -70,7 +72,10 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         comptroller = IComptroller(ICToken(cToken_).comptroller());
     }
 
-    function currentTime() external view virtual override returns (uint256) {
+    function currentTime()
+      external view virtual override
+      returns (uint256)
+    {
         return block.timestamp;
     }
 
@@ -78,11 +83,8 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
      * @notice current total underlying balance, without accruing interest
      */
     function underlyingTotal()
-        external
-        view
-        virtual
-        override
-        returns (uint256)
+      external view virtual override
+      returns (uint256)
     {
         // https://compound.finance/docs#protocol-math
         return
@@ -91,17 +93,16 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
 
     // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
     function bondGain(uint256 _principalAmount, uint16 _forDays)
-        public
-        view
-        override
-        returns (uint256)
+      public view override
+      returns (uint256)
     {
         return bondModel.gain(address(this), _principalAmount, _forDays);
     }
 
     // called by anyone to convert pools COMP to underlying. caller gets HARVEST_REWARD of the harvest
     function harvest()
-      external override {
+      external override
+    {
         require(
           harvestedLast < this.currentTime(),
           "SYPComp: harvest later"
@@ -135,6 +136,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
                 this.currentTime() + 1800
             );
         }
+
         uint256 underlyingGot = uToken.balanceOf(address(this));
 
         if (underlyingGot == 0) {
@@ -170,8 +172,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     }
 
     function _takeUnderlying(address _from, uint256 _underlyingAmount)
-        internal
-        override
+      internal override
     {
         require(
             _underlyingAmount <= uToken.allowance(_from, address(this)),
@@ -184,14 +185,15 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     }
 
     function _sendUnderlying(address _to, uint256 _underlyingAmount)
-        internal
-        override
-        returns (bool)
+      internal override
+      returns (bool)
     {
         return uToken.transfer(_to, _underlyingAmount);
     }
 
-    function _depositProvider(uint256 _underlyingAmount) internal override {
+    function _depositProvider(uint256 _underlyingAmount)
+      internal override
+    {
         if (0 == cTokenBalance && 0 == compSupplierIndexLast) {
           // this will be called once only for the first comp deposit after pool deploy
           _enterMarket();
@@ -204,7 +206,9 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         cTokenBalance += ICTokenErc20(cToken).balanceOf(address(this)) - cTokensBefore;
     }
 
-    function _withdrawProvider(uint256 _underlyingAmount) internal override {
+    function _withdrawProvider(uint256 _underlyingAmount)
+      internal override
+    {
         uint256 cTokensBefore = ICTokenErc20(cToken).balanceOf(address(this));
         uint256 err = ICToken(cToken).redeemUnderlying(_underlyingAmount);
         require(0 == err, "SYCOMP: _withdrawProvider redeemUnderlying");
@@ -212,8 +216,10 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     }
 
     // call comptroller.enterMarkets()
-    // needs to be called only once BUT before any interactions with provider
-    function _enterMarket() internal {
+    // needs to be called only once BUT before any interactions with the provider
+    function _enterMarket()
+      internal
+    {
         address[] memory markets = new address[](1);
         markets[0] = cToken;
         uint256[] memory err = comptroller.enterMarkets(markets);
@@ -221,15 +227,22 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     }
 
     // COMP reward
-    function _updateCompState() internal {
+
+    // creates checkpoint items needed to compute compRewardExpected()
+    // needs to be called right after each claimComp(), and just before the first ever deposit
+    function _updateCompState()
+      internal
+    {
         (uint224 supplyStateIndex, ) = comptroller.compSupplyState(cToken);
         compSupplierIndexLast = uint256(supplyStateIndex);
         (, cumulativeUnderlyingTotalHarvestedLast, ) = this.currentCumulatives();
         harvestedLast = this.currentTime();
     }
 
-    // call comptroller.claimComp()
-    function _claimComp() internal {
+    // calls comptroller.claimComp() and saves checkpoint for subsequent compRewardExpected() calls
+    function _claimComp()
+      internal
+    {
         address[] memory holders = new address[](1);
         holders[0] = address(this);
         address[] memory markets = new address[](1);
@@ -239,19 +252,24 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         _updateCompState();
     }
 
-    // computes how much COMP tokens compound.finance will give us
+    // computes how much COMP tokens compound.finance will give us at comptroller.claimComp()
     // note: have to do it because comptroller.claimComp() is callable by anyone
     // source: https://github.com/compound-finance/compound-protocol/blob/master/contracts/Comptroller.sol#L1145
-    function compRewardExpected() public view returns (uint256) {
+    function compRewardExpected()
+      public view
+      returns (uint256)
+    {
         (uint224 supplyStateIndex, ) = comptroller.compSupplyState(cToken);
         uint256 supplyIndex = uint256(supplyStateIndex);
         uint256 supplierIndex = compSupplierIndexLast;
 
         uint256 deltaIndex = (supplyIndex).sub(supplierIndex); // a - b
         (, uint256 cumulativeUnderlyingTotalNow, ) = this.currentCumulatives();
-        uint256 timeElapsed = this.currentTime() - harvestedLast;
+        uint256 timeElapsed = this.currentTime() - harvestedLast; // harvest() has require
+
+        uint256 waUnderlyingTotal = ((cumulativeUnderlyingTotalNow - cumulativeUnderlyingTotalHarvestedLast) * 1e18 / timeElapsed);
         // uint256 supplierTokens = ICTokenErc20(cToken).balanceOf(address(this))
-        uint256 supplierTokens = ((cumulativeUnderlyingTotalNow - cumulativeUnderlyingTotalHarvestedLast) * 1e18 / timeElapsed) / ICToken(cToken).exchangeRateStored();
+        uint256 supplierTokens = waUnderlyingTotal / ICToken(cToken).exchangeRateStored();
         return (supplierTokens).mul(deltaIndex).div(1e36); // a * b / doubleScale => uint
     }
     // /COMP reward
