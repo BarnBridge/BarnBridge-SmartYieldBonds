@@ -59,8 +59,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         address oracle_,
         address bondModel_,
         address bondToken_,
-        address cToken_,
-        uint8 underlyingDecimals_
+        address cToken_
     )
       external
     {
@@ -69,7 +68,6 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         bondToken = BondToken(bondToken_);
         cToken = cToken_;
         uToken = IERC20(ICToken(cToken_).underlying());
-        underlyingDecimals = underlyingDecimals_;
         comptroller = IComptroller(ICToken(cToken_).comptroller());
     }
 
@@ -77,6 +75,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
       external view virtual override
       returns (uint256)
     {
+        // mockable
         return block.timestamp;
     }
 

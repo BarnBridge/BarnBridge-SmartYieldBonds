@@ -11,12 +11,7 @@ interface ISmartYieldPool {
         bool liquidated;
     }
 
-    function buyBond(
-        uint256 _principalAmount,
-        uint256 _minGain,
-        uint256 _deadline,
-        uint16 _forDays
-    ) external;
+    function buyBond(uint256 _principalAmount, uint256 _minGain, uint256 _deadline, uint16 _forDays) external;
 
     function redeemBond(uint256 _bondId) external;
 
@@ -56,8 +51,6 @@ interface ISmartYieldPool {
 
     function underlyingJuniors() external view returns (uint256);
 
-    //    function claimTokenTotal() external view returns (uint256);
-
     function providerRatePerDay() external view returns (uint256);
 
     function bondGain(uint256 _principalAmount, uint16 _forDays)
@@ -66,6 +59,4 @@ interface ISmartYieldPool {
         returns (uint256);
 
     function harvest() external;
-
-    function underlyingDecimals() external view returns (uint8);
 }

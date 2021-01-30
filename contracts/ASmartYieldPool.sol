@@ -106,8 +106,6 @@ abstract contract ASmartYieldPool is
     // senior BOND NFT
     BondToken public bondToken;
 
-    uint8 public override underlyingDecimals;
-
     // is currentCumulativeSecondlyYield() providing correct values?
     bool public _safeToObserve = false;
 
