@@ -9,7 +9,7 @@ import { deployContract } from 'ethereum-waffle';
 import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN, HT, toBNj } from '@testhelp/index';
 
 import BondModelV1Artifact from '../artifacts/contracts/model/BondModelV1.sol/BondModelV1.json';
-import BondTokenArtifact from '../artifacts/contracts/BondToken.sol/BondToken.json';
+import SeniorBondArtifact from '../artifacts/contracts/SeniorBond.sol/SeniorBond.json';
 import Erc20MockArtifact from '../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
 import CTokenMockArtifact from '../artifacts/contracts/mocks/compound-finance/CTokenMock.sol/CTokenMock.json';
 import SYPCompForModelMockArtifact from '../artifacts/contracts/mocks/barnbridge/SYPCompForModelMock.sol/SYPCompForModelMock.json';
@@ -20,7 +20,7 @@ import JuniorTokenArtifact from '../artifacts/contracts/JuniorToken.sol/JuniorTo
 import { YieldOracleMock } from '@typechain/YieldOracleMock';
 import { SypCompForModelMock } from '@typechain/SYPCompForModelMock';
 import { BondModelV1 } from '@typechain/BondModelV1';
-import { BondToken } from '@typechain/BondToken';
+import { SeniorBond } from '@typechain/SeniorBond';
 import { Erc20Mock } from '@typechain/Erc20Mock';
 import { CTokenMock } from '@typechain/CTokenMock';
 import { SmartYieldPoolCompoundMock } from '@typechain/SmartYieldPoolCompoundMock';
@@ -56,20 +56,20 @@ const fixture = (decimals: number) => {
     const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptroller.address])) as CTokenMock;
     const pool = (await deployContract(deployerSign, SYPCompForModelMockArtifact, [])) as SypCompForModelMock;
     const oracle = (await deployContract(deployerSign, YieldOracleMockArtifact, [])) as YieldOracleMock;
-    const bondToken = (await deployContract(deployerSign, BondTokenArtifact, ['BOND', 'BOND MOCK', pool.address])) as BondToken;
+    const seniorBond = (await deployContract(deployerSign, SeniorBondArtifact, ['BOND', 'BOND MOCK', pool.address])) as SeniorBond;
     const juniorToken = (await deployContract(deployerSign, JuniorTokenArtifact, ['jTOKEN MOCK', 'bbDAI', pool.address])) as JuniorToken;
 
     await Promise.all([
       comptroller.setHolder(pool.address),
       comptroller.setMarket(cToken.address),
-      pool.setup(oracle.address, bondModel.address, bondToken.address, juniorToken.address, cToken.address),
+      pool.setup(oracle.address, bondModel.address, seniorBond.address, juniorToken.address, cToken.address),
     ]);
 
     timePrev = BN.from(START_TIME);
     await (moveTime(pool))(0);
 
     return {
-      oracle, pool, cToken, bondModel, bondToken, underlying,
+      oracle, pool, cToken, bondModel, seniorBond, underlying,
       deployerSign: deployerSign as Signer,
       ownerSign: ownerSign as Signer,
       junior1, junior2, junior3, senior1, senior2, senior3,
@@ -82,18 +82,18 @@ describe('BondModel bond rate computations', async function () {
 
   it('should deploy contracts correctly', async function () {
     const decimals = 18;
-    const { pool, oracle, bondModel, cToken, underlying, bondToken } = await bbFixtures(fixture(decimals));
+    const { pool, oracle, bondModel, cToken, underlying, seniorBond } = await bbFixtures(fixture(decimals));
 
     expect(await pool.oracle()).equals(oracle.address, 'pool.oracle()');
     expect(await pool.uToken()).equals(underlying.address, 'pool.uToken()');
     expect(await pool.cToken()).equals(cToken.address, 'pool.cToken()');
     expect(await pool.bondModel()).equals(bondModel.address, 'pool.bondModel()');
-    expect(await pool.bondToken()).equals(bondToken.address, 'pool.bondToken()');
+    expect(await pool.seniorBond()).equals(seniorBond.address, 'pool.seniorBond()');
   });
 
   describe('bondModel.gain()', async function () {
     it('expected values', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, bondToken, moveTime, junior1, senior1, senior2, } = await bbFixtures(fixture(decimals));
+      const { pool, oracle, bondModel, cToken, underlying, moveTime, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
 
       let underlyingLoanable = e18(1000);
       expect(underlyingLoanable.gte(0), 'no liquidity (1)');

@@ -55,7 +55,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     function setup(
         address oracle_,
         address bondModel_,
-        address bondToken_,
+        address seniorBond_,
         address juniorToken_,
         address cToken_
     )
@@ -63,7 +63,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     {
         oracle = IYieldOracle(oracle_);
         bondModel = IBondModel(bondModel_);
-        bondToken = IBondToken(bondToken_);
+        seniorBond = ISeniorBond(seniorBond_);
         juniorToken = IJuniorToken(juniorToken_);
         cToken = cToken_;
         uToken = IERC20(ICToken(cToken_).underlying());

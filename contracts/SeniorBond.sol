@@ -3,9 +3,9 @@ pragma solidity ^0.7.5;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
-import "./IBondToken.sol";
+import "./ISeniorBond.sol";
 
-contract BondToken is IBondToken, ERC721 {
+contract SeniorBond is ISeniorBond, ERC721 {
     address public override pool;
 
     constructor(

@@ -9,7 +9,7 @@ import { deployContract } from 'ethereum-waffle';
 import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN, dumpBond, dumpAbondState, toBNj, BondType, HT } from '@testhelp/index';
 
 import BondModelMockArtifact from '../artifacts/contracts/mocks/barnbridge/BondModelMock.sol/BondModelMock.json';
-import BondTokenArtifact from '../artifacts/contracts/BondToken.sol/BondToken.json';
+import SeniorBondArtifact from '../artifacts/contracts/SeniorBond.sol/SeniorBond.json';
 import Erc20MockArtifact from '../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
 import CTokenMockArtifact from '../artifacts/contracts/mocks/compound-finance/CTokenMock.sol/CTokenMock.json';
 import ComptrollerMockArtifact from '../artifacts/contracts/mocks/compound-finance/ComptrollerMock.sol/ComptrollerMock.json';
@@ -20,7 +20,7 @@ import JuniorTokenArtifact from './../artifacts/contracts/JuniorToken.sol/Junior
 import { YieldOracleMock } from '@typechain/YieldOracleMock';
 import { SmartYieldPoolCompoundMock } from '@typechain/SmartYieldPoolCompoundMock';
 import { BondModelMock } from '@typechain/BondModelMock';
-import { BondToken } from '@typechain/BondToken';
+import { SeniorBond } from '@typechain/SeniorBond';
 import { Erc20Mock } from '@typechain/Erc20Mock';
 import { CTokenMock } from '@typechain/CTokenMock';
 import { JuniorToken } from '@typechain/JuniorToken';
@@ -103,20 +103,20 @@ const fixture = (decimals: number) => {
     const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptroller.address])) as CTokenMock;
     const pool = (await deployContract(deployerSign, SmartYieldPoolCompoundMockArtifact, [])) as SmartYieldPoolCompoundMock;
     const oracle = (await deployContract(deployerSign, YieldOracleMockArtifact, [])) as YieldOracleMock;
-    const bondToken = (await deployContract(deployerSign, BondTokenArtifact, ['BOND', 'BOND MOCK', pool.address])) as BondToken;
+    const seniorBond = (await deployContract(deployerSign, SeniorBondArtifact, ['BOND', 'BOND MOCK', pool.address])) as SeniorBond;
     const juniorToken = (await deployContract(deployerSign, JuniorTokenArtifact, ['jTOKEN MOCK', 'bbDAI', pool.address])) as JuniorToken;
 
     await Promise.all([
       comptroller.setHolder(pool.address),
       comptroller.setMarket(cToken.address),
-      pool.setup(oracle.address, bondModel.address, bondToken.address, juniorToken.address, cToken.address),
+      pool.setup(oracle.address, bondModel.address, seniorBond.address, juniorToken.address, cToken.address),
     ]);
 
     timePrev = BN.from(START_TIME);
     await (moveTime(pool))(0);
 
     return {
-      oracle, pool, cToken, bondModel, bondToken, underlying,
+      oracle, pool, cToken, bondModel, seniorBond, underlying,
       deployerSign: deployerSign as Signer,
       ownerSign: ownerSign as Signer,
       junior1, junior2, junior3, senior1, senior2, senior3,
@@ -132,18 +132,18 @@ describe('abond value computations', async function () {
 
   it('should deploy contracts correctly', async function () {
     const decimals = 18;
-    const { pool, oracle, bondModel, cToken, underlying, bondToken } = await bbFixtures(fixture(decimals));
+    const { pool, oracle, bondModel, cToken, underlying, seniorBond } = await bbFixtures(fixture(decimals));
 
     expect(await pool.oracle()).equals(oracle.address, 'pool.oracle()');
     expect(await pool.uToken()).equals(underlying.address, 'pool.uToken()');
     expect(await pool.cToken()).equals(cToken.address, 'pool.cToken()');
     expect(await pool.bondModel()).equals(bondModel.address, 'pool.bondModel()');
-    expect(await pool.bondToken()).equals(bondToken.address, 'pool.bondToken()');
+    expect(await pool.seniorBond()).equals(seniorBond.address, 'pool.seniorBond()');
   });
 
   describe('first and last bond', async function () {
     it('for one bond, abond is the same', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, bondToken, moveTime, buyTokens, buyBond, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
+      const { pool, oracle, bondModel, cToken, underlying, seniorBond, moveTime, buyTokens, buyBond, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);
@@ -168,7 +168,7 @@ describe('abond value computations', async function () {
     });
 
     it('for new bonds, abondPaid stays the same', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, bondToken, moveTime, buyTokens, buyBond, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
+      const { pool, oracle, bondModel, cToken, underlying, moveTime, buyTokens, buyBond, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);
@@ -206,7 +206,7 @@ describe('abond value computations', async function () {
     });
 
     it('last bond, is abond', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, bondToken, moveTime, buyTokens, buyBond, redeemBond, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
+      const { pool, oracle, bondModel, cToken, underlying, moveTime, buyTokens, buyBond, redeemBond, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);
@@ -227,7 +227,7 @@ describe('abond value computations', async function () {
     });
 
     it('for bonds redeemed, abondDebt stays the same', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, bondToken, moveTime, buyTokens, buyBond, redeemBond, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
+      const { pool, oracle, bondModel, cToken, underlying, moveTime, buyTokens, buyBond, redeemBond, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);

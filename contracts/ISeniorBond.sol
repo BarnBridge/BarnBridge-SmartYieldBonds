@@ -3,7 +3,7 @@ pragma solidity ^0.7.5;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-interface IBondToken is IERC721 {
+interface ISeniorBond is IERC721 {
     function pool() external view returns (address);
 
     function mint(address to, uint256 tokenId) external;

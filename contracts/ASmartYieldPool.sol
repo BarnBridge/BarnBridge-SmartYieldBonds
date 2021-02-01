@@ -32,7 +32,7 @@ import "./model/IBondModel.sol";
 import "./oracle/IYieldOracle.sol";
 import "./oracle/IYieldOraclelizable.sol";
 import "./ISmartYieldPool.sol";
-import "./IBondToken.sol";
+import "./ISeniorBond.sol";
 import "./IJuniorToken.sol";
 
 abstract contract ASmartYieldPool is
@@ -59,12 +59,11 @@ abstract contract ASmartYieldPool is
 
     uint16 public BOND_LIFE_MAX = 90; // in days
 
-    uint256 public underlyingDepositsJuniors;
     uint256 public underlyingWithdrawlsJuniors;
     uint256 public tokenWithdrawlsJuniors;
     uint256 public tokenWithdrawlsJuniorsAtRisk;
 
-    uint256 public bondIdCurrent;
+    uint256 public seniorBondId;
 
     mapping(uint256 => Withdrawal) public queuedWithdrawals; // timestamp -> Withdrawal
     uint256[] public queuedWithdrawalTimestamps;
@@ -95,7 +94,7 @@ abstract contract ASmartYieldPool is
     uint256 public bondsOutstanding;
 
     // senior BOND NFT
-    IBondToken public bondToken;
+    ISeniorBond public seniorBond;
 
     IJuniorToken public juniorToken;
 
@@ -249,7 +248,7 @@ abstract contract ASmartYieldPool is
         );
 
         // bondToken.ownerOf will revert for burned tokens
-        address payTo = bondToken.ownerOf(_bondId);
+        address payTo = seniorBond.ownerOf(_bondId);
         uint256 payAmnt = bonds[_bondId].gain + bonds[_bondId].principal;
         uint256 fee = MathUtils.fractionOf(bonds[_bondId].gain, FEE_BOND_REDEEM);
         payAmnt -= fee;
@@ -262,7 +261,7 @@ abstract contract ASmartYieldPool is
         }
 
         // bondToken.burn will revert for already burned tokens
-        bondToken.burn(_bondId);
+        seniorBond.burn(_bondId);
 
         _withdrawProvider(payAmnt);
         _sendUnderlying(payTo, payAmnt);
@@ -309,7 +308,6 @@ abstract contract ASmartYieldPool is
         _depositProvider(_underlyingAmount);
         juniorToken.mint(msg.sender, getsTokens);
 
-        underlyingDepositsJuniors += (_underlyingAmount - fee);
         underlyingFees += fee;
     }
 
@@ -327,12 +325,8 @@ abstract contract ASmartYieldPool is
           "ASYP: sellTokens deadline"
         );
 
-        uint256 unlocked =
-            (this.abondGain() == 0)
-                ? (1e18)
-                : ((this.abondPaid() * (1e18)) / this.abondGain());
-        uint256 toPay =
-            (((_tokens * unlocked) / (1e18)) * this.price()) / (1e18);
+        uint256 unlockedRatio = (this.abondGain() == 0) ? 1e18 : (this.abondPaid() * 1e18) / this.abondGain();
+        uint256 toPay = ((_tokens * unlockedRatio / 1e18) * this.price()) / 1e18;
 
         require(
           toPay >= _minUnderlying,
@@ -352,12 +346,7 @@ abstract contract ASmartYieldPool is
         //uint256 memory userJtokens = balanceOf(msg.sender);
 
         // basically the portion of jToken that represents the ABOND.reward x elapsed_ABOND_duration_multiplier (1 meaning full duration left, 0.5 meaning half duration left)
-        uint256 jTokensAtRisk =
-            (_tokens *
-                (abond.gain / this.price() / juniorToken.totalSupply()) *
-                (abond.maturesAt -
-                    MathUtils.min(this.currentTime(), abond.maturesAt))) /
-                (abond.maturesAt - abond.issuedAt);
+        uint256 jTokensAtRisk = (_tokens * 1e18 * this.abondDebt()) / (juniorToken.totalSupply() * this.price());
 
         // queue user's jTokens for liquidation
         Withdrawal storage withdrawal = queuedWithdrawals[abond.maturesAt];
@@ -371,6 +360,11 @@ abstract contract ASmartYieldPool is
         _takeTokens(msg.sender, _tokens);
         tokensInWithdrawls += _tokens;
         tokensInWithdrawlsAtRisk += jTokensAtRisk;
+
+        // TODO: ????????
+
+        // id = hash(sender + maturesAt) = 5
+        // 5
         JuniorWithdrawal storage juniorWithdrawal = queuedJuniors[msg.sender];
         juniorWithdrawal.tokens = _tokens;
         juniorWithdrawal.tokensAtRisk = jTokensAtRisk;
@@ -383,9 +377,7 @@ abstract contract ASmartYieldPool is
             if (withdrawal.price == 0) {
                 _liquidateJuniors(abond.maturesAt);
             } else {
-                underlyingWithdrawlsJuniors +=
-                    juniorWithdrawal.tokens *
-                    withdrawal.price;
+                underlyingWithdrawlsJuniors += juniorWithdrawal.tokens * withdrawal.price;
                 juniorToken.burn(address(this), juniorWithdrawal.tokens); // burns user's locked tokens reducing the jToken supply
                 tokenWithdrawlsJuniors -= juniorWithdrawal.tokens;
                 tokenWithdrawlsJuniorsAtRisk -= juniorWithdrawal.tokensAtRisk;
@@ -404,13 +396,13 @@ abstract contract ASmartYieldPool is
         require(juniorWithdrawal.tokens > 0, "No liquidation queued for user");
         require(
             juniorWithdrawal.timestamp <= this.currentTime(),
-            "Lock period is not over"
+            "ASYP: withdrawTokensFinalize still locked"
         );
 
         Withdrawal storage withdrawal =
             queuedWithdrawals[juniorWithdrawal.timestamp];
 
-        uint256 owed_dai_to_user = withdrawal.price * withdrawal.tokens;
+        uint256 underlyingToPay = withdrawal.price * juniorWithdrawal.tokens;
 
         // remove lock
         juniorWithdrawal.tokens = 0;
@@ -418,9 +410,9 @@ abstract contract ASmartYieldPool is
         juniorWithdrawal.timestamp = 0;
 
         // sell cDAI (or provider's DAI to pay the user)
-        _withdrawJuniors(msg.sender, owed_dai_to_user);
+        _withdrawJuniors(msg.sender, underlyingToPay);
 
-        underlyingWithdrawlsJuniors -= owed_dai_to_user;
+        underlyingWithdrawlsJuniors -= underlyingToPay;
 
         //return owed_dai_to_user;
     }
@@ -466,19 +458,16 @@ abstract contract ASmartYieldPool is
     }
 
     function _withdrawJuniors(address _to, uint256 _underlyingAmount) internal {
-        underlyingDepositsJuniors -=
-            (_underlyingAmount * underlyingDepositsJuniors) /
-            this.underlyingJuniors();
         _withdrawProvider(_underlyingAmount);
         _sendUnderlying(_to, _underlyingAmount);
     }
 
     function _mintBond(address _to, Bond memory _bond) private {
-        require(bondIdCurrent < uint256(-1), "ASYP: @ end of the univers");
-        bondIdCurrent++;
-        bonds[bondIdCurrent] = _bond;
+        require(seniorBondId < uint256(-1), "ASYP: @ end of the univers");
+        seniorBondId++;
+        bonds[seniorBondId] = _bond;
         _accountBond(_bond);
-        bondToken.mint(_to, bondIdCurrent);
+        seniorBond.mint(_to, seniorBondId);
     }
 
     // when a new bond is added to the pool, we want:
