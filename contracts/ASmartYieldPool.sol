@@ -251,7 +251,7 @@ abstract contract ASmartYieldPool is
         // bondToken.ownerOf will revert for burned tokens
         address payTo = bondToken.ownerOf(_bondId);
         uint256 payAmnt = bonds[_bondId].gain + bonds[_bondId].principal;
-        uint256 fee = MathUtils.fractionOf(payAmnt, FEE_BOND_REDEEM);
+        uint256 fee = MathUtils.fractionOf(bonds[_bondId].gain, FEE_BOND_REDEEM);
         payAmnt -= fee;
 
         // ---
