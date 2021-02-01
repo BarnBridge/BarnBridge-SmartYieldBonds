@@ -4,13 +4,12 @@ pragma solidity ^0.7.5;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "./external-interfaces/uniswap/IUniswapV2Router.sol";
 
 import "./external-interfaces/compound-finance/ICToken.sol";
 import "./external-interfaces/compound-finance/IComptroller.sol";
 
 import "./ASmartYieldPool.sol";
-import "./model/IBondModel.sol";
 
 contract SmartYieldPoolCompound is ASmartYieldPool {
     using SafeMath for uint256;
@@ -47,25 +46,25 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     // weth
     IERC20 public wethToken;
 
-    IUniswapV2Router02 public uniswap;
+    IUniswapV2Router public uniswap;
 
-    IBondModel public bondModel;
-
-    constructor(string memory name, string memory symbol)
-        ASmartYieldPool(name, symbol)
-    {}
+    constructor()
+        ASmartYieldPool()
+    { }
 
     function setup(
         address oracle_,
         address bondModel_,
         address bondToken_,
+        address juniorToken_,
         address cToken_
     )
       external
     {
-        this.setOracle(oracle_);
+        oracle = IYieldOracle(oracle_);
         bondModel = IBondModel(bondModel_);
-        bondToken = BondToken(bondToken_);
+        bondToken = IBondToken(bondToken_);
+        juniorToken = IJuniorToken(juniorToken_);
         cToken = cToken_;
         uToken = IERC20(ICToken(cToken_).underlying());
         comptroller = IComptroller(ICToken(cToken_).comptroller());
@@ -91,12 +90,8 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
             cTokenBalance * ICToken(cToken).exchangeRateStored() / 1e18 - underlyingFees;
     }
 
-    // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
-    function bondGain(uint256 _principalAmount, uint16 _forDays)
-      public view override
-      returns (uint256)
-    {
-        return bondModel.gain(address(this), _principalAmount, _forDays);
+    function providerRatePerDay() external view virtual override returns (uint256) {
+        return IYieldOracle(oracle).consult(1 days);
     }
 
     // called by anyone to convert pool's COMP -> underlying and then deposit it. caller gets HARVEST_REWARD of the harvest

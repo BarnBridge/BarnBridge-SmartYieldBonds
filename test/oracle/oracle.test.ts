@@ -10,13 +10,17 @@ import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFE
 
 import Erc20MockArtifact from '../../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
 import CTokenMockArtifact from '../../artifacts/contracts/mocks/compound-finance/CTokenMock.sol/CTokenMock.json';
+import ComptrollerMockArtifact from '../../artifacts/contracts/mocks/compound-finance/ComptrollerMock.sol/ComptrollerMock.json';
 import OraclelizedMockArtifact from '../../artifacts/contracts/mocks/barnbridge/OraclelizedMock.sol/OraclelizedMock.json';
 import YieldOracleArtifact from './../../artifacts/contracts/oracle/YieldOracle.sol/YieldOracle.json';
+import JuniorTokenArtifact from './../../artifacts/contracts/JuniorToken.sol/JuniorToken.json';
 
 import { YieldOracle } from '@typechain/YieldOracle';
 import { OraclelizedMock } from '@typechain/OraclelizedMock';
 import { Erc20Mock } from '@typechain/Erc20Mock';
+import { JuniorToken } from '@typechain/JuniorToken';
 import { CTokenMock } from '@typechain/CTokenMock';
+import { ComptrollerMock } from '@typechain/ComptrollerMock';
 
 const defaultWindowSize = A_DAY * 3;
 const defaultGranularity = 12 * 3; // samples in window
@@ -71,11 +75,23 @@ const fixture = (windowSize: number, granularity: number) => {
       ownerSign.getAddress(),
     ]);
 
-    const underlying = (await deployContract(deployerSign, Erc20MockArtifact, ['DAI MOCK', 'DAI', decimals])) as Erc20Mock;
-    const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address])) as CTokenMock;
-    const oraclelizedMock = (await deployContract(deployerSign, OraclelizedMockArtifact, [])) as OraclelizedMock;
-    const yieldOracle = (await deployContract(deployerSign, YieldOracleArtifact, [oraclelizedMock.address, windowSize, granularity])) as YieldOracle;
-    await oraclelizedMock.setup(yieldOracle.address, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', cToken.address, decimals);
+    const [underlying, comptrollerMock, oraclelizedMock] = await Promise.all([
+      (deployContract(deployerSign, Erc20MockArtifact, ['DAI MOCK', 'DAI', decimals])) as Promise<Erc20Mock>,
+      (deployContract(deployerSign, ComptrollerMockArtifact, [])) as Promise<ComptrollerMock>,
+      (deployContract(deployerSign, OraclelizedMockArtifact, [])) as Promise<OraclelizedMock>,
+    ]);
+
+    const [cToken, yieldOracle, jToken] = await Promise.all([
+      (deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptrollerMock.address])) as Promise<CTokenMock>,
+      (deployContract(deployerSign, YieldOracleArtifact, [oraclelizedMock.address, windowSize, granularity])) as Promise<YieldOracle>,
+      (deployContract(deployerSign, JuniorTokenArtifact, ['jTOKEN MOCK', 'bbDAI', oraclelizedMock.address])) as Promise<JuniorToken>,
+    ]);
+
+    await Promise.all([
+      comptrollerMock.setHolder(oraclelizedMock.address),
+      comptrollerMock.setMarket(cToken.address),
+      oraclelizedMock.setup(yieldOracle.address, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', jToken.address, cToken.address),
+    ]);
 
     await (moveTime(oraclelizedMock))(0);
 

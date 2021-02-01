@@ -7,8 +7,7 @@ contract Erc20Mock is ERC20 {
     address public mintCaller = address(0);
 
     constructor(string memory name, string memory symbol, uint256 decimals_)
-        public
-        ERC20(name, symbol)
+      ERC20(name, symbol)
     {
       _setupDecimals(uint8(decimals_));
     }

@@ -14,6 +14,8 @@ import Erc20MockArtifact from '../artifacts/contracts/mocks/Erc20Mock.sol/Erc20M
 import CTokenMockArtifact from '../artifacts/contracts/mocks/compound-finance/CTokenMock.sol/CTokenMock.json';
 import SmartYieldPoolCompoundMockArtifact from '../artifacts/contracts/mocks/barnbridge/SmartYieldPoolCompoundMock.sol/SmartYieldPoolCompoundMock.json';
 import YieldOracleMockArtifact from '../artifacts/contracts/mocks/barnbridge/YieldOracleMock.sol/YieldOracleMock.json';
+import ComptrollerMockArtifact from '../artifacts/contracts/mocks/compound-finance/ComptrollerMock.sol/ComptrollerMock.json';
+import JuniorTokenArtifact from '../artifacts/contracts/JuniorToken.sol/JuniorToken.json';
 
 import { YieldOracleMock } from '@typechain/YieldOracleMock';
 import { SmartYieldPoolCompoundMock } from '@typechain/SmartYieldPoolCompoundMock';
@@ -21,6 +23,8 @@ import { BondModelMock } from '@typechain/BondModelMock';
 import { BondToken } from '@typechain/BondToken';
 import { Erc20Mock } from '@typechain/Erc20Mock';
 import { CTokenMock } from '@typechain/CTokenMock';
+import { ComptrollerMock } from '@typechain/ComptrollerMock';
+import { JuniorToken} from '@typechain/JuniorToken';
 
 const START_TIME = 1614556800; // 03/01/2021 @ 12:00am (UTC)
 let timePrev = BN.from(START_TIME);
@@ -74,11 +78,18 @@ const fixture = (decimals: number) => {
 
     const bondModel = (await deployContract(deployerSign, BondModelMockArtifact, [])) as BondModelMock;
     const underlying = (await deployContract(deployerSign, Erc20MockArtifact, ['DAI MOCK', 'DAI', decimals])) as Erc20Mock;
-    const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address])) as CTokenMock;
-    const pool = (await deployContract(deployerSign, SmartYieldPoolCompoundMockArtifact, ['bbDAI', 'bbDAI MOCK'])) as SmartYieldPoolCompoundMock;
+    const comptroller = (await deployContract(deployerSign, ComptrollerMockArtifact, [])) as ComptrollerMock;
+    const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptroller.address])) as CTokenMock;
+    const pool = (await deployContract(deployerSign, SmartYieldPoolCompoundMockArtifact, [])) as SmartYieldPoolCompoundMock;
     const oracle = (await deployContract(deployerSign, YieldOracleMockArtifact, [])) as YieldOracleMock;
     const bondToken = (await deployContract(deployerSign, BondTokenArtifact, ['BOND', 'BOND MOCK', pool.address])) as BondToken;
-    await pool.setup(oracle.address, bondModel.address, bondToken.address, cToken.address, decimals);
+    const juniorToken = (await deployContract(deployerSign, JuniorTokenArtifact, ['jTOKEN MOCK', 'bbDAI', pool.address])) as JuniorToken;
+
+    await Promise.all([
+      comptroller.setHolder(pool.address),
+      comptroller.setMarket(cToken.address),
+      pool.setup(oracle.address, bondModel.address, bondToken.address, juniorToken.address, cToken.address),
+    ]);
 
     await (moveTime(pool))(0);
 
