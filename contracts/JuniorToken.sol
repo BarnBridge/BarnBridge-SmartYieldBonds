@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.5;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-import "./IBondToken.sol";
+import "./IJuniorToken.sol";
 
-contract BondToken is IBondToken, ERC721 {
+contract JuniorToken is IJuniorToken, ERC20 {
     address public override pool;
 
     constructor(
         string memory name,
         string memory symbol,
         address pool_
-    ) ERC721(name, symbol) {
+    ) ERC20 (name, symbol) {
         pool = pool_;
     }
 
-    function mint(address to, uint256 tokenId) public override {
+    function mint(address to, uint256 amount) public override {
         require(msg.sender == pool, "BTK: mint not pool");
-        _mint(to, tokenId);
+        _mint(to, amount);
     }
 
-    function burn(uint256 tokenId) public override {
+    function burn(address to, uint256 amount) public override {
         require(msg.sender == pool, "BTK: burn not pool");
-        _burn(tokenId);
+        _burn(to, amount);
     }
 }

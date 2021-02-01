@@ -14,8 +14,8 @@ contract SYPCompForModelMock is SmartYieldPoolCompound {
 
     uint256 public _lastCheckGas = 0;
 
-    constructor(string memory name, string memory symbol)
-        SmartYieldPoolCompound(name, symbol)
+    constructor()
+        SmartYieldPoolCompound()
     {}
 
     function currentTime() external view override returns (uint256) {

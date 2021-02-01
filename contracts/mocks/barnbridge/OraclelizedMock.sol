@@ -11,7 +11,7 @@ contract OraclelizedMock is SmartYieldPoolCompound {
     uint256 public _now;
 
     constructor()
-        SmartYieldPoolCompound("BB DAI MOCK", "bbDAIMOCK")
+        SmartYieldPoolCompound()
     { }
 
     function cumulate() external accountYield {}

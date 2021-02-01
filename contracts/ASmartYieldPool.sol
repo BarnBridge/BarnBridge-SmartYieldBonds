@@ -23,37 +23,39 @@ import "hardhat/console.sol";
 // https://github.com/BarnBridge/BarnBridge-SmartYieldBonds/blob/master/SPEC.md#senior-deposit-buy-bond, x = (cur_j - (b_p*x*n*b_t)) / (cur_tot + b_p + (b_p*x*n*b_t)) * n * m,  <- bond yield formula should be pluggable
 // oracle should be pluggable
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import "./lib/math/MathUtils.sol";
+
+import "./model/IBondModel.sol";
 import "./oracle/IYieldOracle.sol";
 import "./oracle/IYieldOraclelizable.sol";
-import "./lib/math/MathUtils.sol";
 import "./ISmartYieldPool.sol";
-import "./BondToken.sol";
+import "./IBondToken.sol";
+import "./IJuniorToken.sol";
 
 abstract contract ASmartYieldPool is
     ISmartYieldPool,
-    IYieldOraclelizable,
-    ERC20
+    IYieldOraclelizable
+    //ERC20
 {
     using SafeMath for uint256;
 
     IYieldOracle public oracle;
 
-    struct Withdrawal {
-        uint256 tokens; // in jTokens
-        uint256 tokensAtRisk; // in jTokens
-        uint256 price; // bbcDAI_to_DAI_ratio - 0 means not triggered
-    }
+    // --- fees
 
-    struct JuniorWithdrawal {
-        uint256 tokens; // in jTokens
-        uint256 tokensAtRisk; // in jTokens
-        uint256 timestamp;
-    }
+    // fee for buying jTokens
+    uint256 public FEE_TOKEN_BUY = 3 * 1e16; // 3%
 
-    uint256 public constant DAYS_IN_YEAR = 365;
+    // fee for redeeming a sBond
+    uint256 public FEE_BOND_REDEEM = 3 * 1e16;
+
+    // fees colected in underlying
+    uint256 public underlyingFees;
+
+    // --- /fees
 
     uint16 public BOND_LIFE_MAX = 90; // in days
 
@@ -74,10 +76,14 @@ abstract contract ASmartYieldPool is
 
     uint256 public underlyingTotalLast;
 
+    // CUMULATIVE
     // cumulates (new yield per second) * (seconds since last cumulation)
     uint256 public cumulativeSecondlyYieldLast;
+    // cummulates balanceOf underlying
+    uint256 public cumulativeUnderlyingTotalLast;
     // timestamp of the last cumulation
     uint32 public timestampLast;
+    // /CUMULATIVE
 
     // bond id => bond (Bond)
     mapping(uint256 => Bond) public bonds;
@@ -89,9 +95,11 @@ abstract contract ASmartYieldPool is
     uint256 public bondsOutstanding;
 
     // senior BOND NFT
-    BondToken public bondToken;
+    IBondToken public bondToken;
 
-    uint8 public override underlyingDecimals;
+    IJuniorToken public juniorToken;
+
+    IBondModel public bondModel;
 
     // is currentCumulativeSecondlyYield() providing correct values?
     bool public _safeToObserve = false;
@@ -132,6 +140,8 @@ abstract contract ASmartYieldPool is
                 ((this.underlyingTotal() - underlyingTotalLast) * 1e18) /
                 underlyingTotalLast;
 
+            cumulativeUnderlyingTotalLast += this.underlyingTotal() * timeElapsed;
+
             _safeToObserve = true;
             timestampLast = blockTimestamp;
         }
@@ -139,13 +149,7 @@ abstract contract ASmartYieldPool is
         underlyingTotalLast = this.underlyingTotal();
     }
 
-    constructor(string memory _name, string memory _symbol)
-        ERC20(_name, _symbol)
-    {}
-
-    function setOracle(address _oracle) external {
-        oracle = IYieldOracle(_oracle);
-    }
+    constructor() {}
 
     function setBondMaxLife(uint16 bondMaxLife_) external {
         BOND_LIFE_MAX = bondMaxLife_;
@@ -153,14 +157,14 @@ abstract contract ASmartYieldPool is
 
     // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
-    function currentCumulativeSecondlyYield()
-        external
-        view
-        override
-        returns (uint256 cumulativeYield, uint256 blockTs)
+    function currentCumulatives()
+        external view override
+    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingTotal, uint256 blockTs)
     {
         uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
-        uint256 cumulativeSecondlyYield = cumulativeSecondlyYieldLast;
+        cumulativeSecondlyYield = cumulativeSecondlyYieldLast;
+        cumulativeUnderlyingTotal = cumulativeUnderlyingTotalLast;
+
         uint32 timeElapsed = blockTimestamp - timestampLast; // overflow is desired
         if (timeElapsed > 0 && underlyingTotalLast > 0) {
             // cumulativeSecondlyYield overflows eventually,
@@ -172,12 +176,18 @@ abstract contract ASmartYieldPool is
                 // (this.underlyingTotal() - underlyingTotalLast) never underflows
                 ((this.underlyingTotal() - underlyingTotalLast) * 1e18) /
                 underlyingTotalLast;
+
+            cumulativeUnderlyingTotal += this.underlyingTotal() * timeElapsed;
         }
-        return (cumulativeSecondlyYield, blockTimestamp);
+        return (cumulativeSecondlyYield, cumulativeUnderlyingTotal, uint256(blockTimestamp));
     }
 
-    function providerRatePerDay() external view virtual override returns (uint256) {
-        return IYieldOracle(oracle).consult(1 days);
+    // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
+    function bondGain(uint256 _principalAmount, uint16 _forDays)
+      public view override
+      returns (uint256)
+    {
+        return bondModel.gain(address(this), _principalAmount, _forDays);
     }
 
     function safeToObserve() external view override returns (bool) {
@@ -238,18 +248,26 @@ abstract contract ASmartYieldPool is
             "ASYP: redeemBond not matured"
         );
 
-        uint256 toPay = bonds[_bondId].gain + bonds[_bondId].principal;
+        // bondToken.ownerOf will revert for burned tokens
+        address payTo = bondToken.ownerOf(_bondId);
+        uint256 payAmnt = bonds[_bondId].gain + bonds[_bondId].principal;
+        uint256 fee = MathUtils.fractionOf(bonds[_bondId].gain, FEE_BOND_REDEEM);
+        payAmnt -= fee;
+
+        // ---
 
         if (bonds[_bondId].liquidated == false) {
             bonds[_bondId].liquidated = true;
             _unaccountBond(bonds[_bondId]);
         }
 
-        _withdrawProvider(toPay);
-        // bondToken.ownerOf will revert for burned tokens
-        _sendUnderlying(bondToken.ownerOf(_bondId), toPay);
         // bondToken.burn will revert for already burned tokens
         bondToken.burn(_bondId);
+
+        _withdrawProvider(payAmnt);
+        _sendUnderlying(payTo, payAmnt);
+
+        underlyingFees += fee;
     }
 
     // removes matured bonds from being accounted in abond
@@ -279,7 +297,8 @@ abstract contract ASmartYieldPool is
           "ASYP: buyTokens deadline"
         );
 
-        uint256 getsTokens = _underlyingAmount * 1e18 / this.price();
+        uint256 fee = MathUtils.fractionOf(_underlyingAmount, FEE_TOKEN_BUY);
+        uint256 getsTokens = (_underlyingAmount - fee) * 1e18 / this.price();
 
         require(
           getsTokens >= _minTokens,
@@ -288,8 +307,10 @@ abstract contract ASmartYieldPool is
 
         _takeUnderlying(msg.sender, _underlyingAmount);
         _depositProvider(_underlyingAmount);
-        _mint(msg.sender, getsTokens);
-        underlyingDepositsJuniors += _underlyingAmount;
+        juniorToken.mint(msg.sender, getsTokens);
+
+        underlyingDepositsJuniors += (_underlyingAmount - fee);
+        underlyingFees += fee;
     }
 
     // sell _tokens for at least _minUnderlying, before _deadline and forfeit potential future gains
@@ -318,7 +339,7 @@ abstract contract ASmartYieldPool is
           "ASYP: buyTokens minTokens"
         );
 
-        _burn(msg.sender, _tokens);
+        juniorToken.burn(msg.sender, _tokens);
         _withdrawJuniors(msg.sender, toPay);
     }
 
@@ -333,7 +354,7 @@ abstract contract ASmartYieldPool is
         // basically the portion of jToken that represents the ABOND.reward x elapsed_ABOND_duration_multiplier (1 meaning full duration left, 0.5 meaning half duration left)
         uint256 jTokensAtRisk =
             (_tokens *
-                (abond.gain / this.price() / totalSupply()) *
+                (abond.gain / this.price() / juniorToken.totalSupply()) *
                 (abond.maturesAt -
                     MathUtils.min(this.currentTime(), abond.maturesAt))) /
                 (abond.maturesAt - abond.issuedAt);
@@ -365,7 +386,7 @@ abstract contract ASmartYieldPool is
                 underlyingWithdrawlsJuniors +=
                     juniorWithdrawal.tokens *
                     withdrawal.price;
-                _burn(address(this), juniorWithdrawal.tokens); // burns user's locked tokens reducing the jToken supply
+                juniorToken.burn(address(this), juniorWithdrawal.tokens); // burns user's locked tokens reducing the jToken supply
                 tokenWithdrawlsJuniors -= juniorWithdrawal.tokens;
                 tokenWithdrawlsJuniorsAtRisk -= juniorWithdrawal.tokensAtRisk;
             }
@@ -414,7 +435,7 @@ abstract contract ASmartYieldPool is
         withdrawal.price = this.price();
 
         underlyingWithdrawlsJuniors += withdrawal.tokens * withdrawal.price;
-        _burn(address(this), withdrawal.tokens); // burns Junior locked tokens reducing the jToken supply
+        juniorToken.burn(address(this), withdrawal.tokens); // burns Junior locked tokens reducing the jToken supply
         tokenWithdrawlsJuniors -= withdrawal.tokens;
         tokenWithdrawlsJuniorsAtRisk -= withdrawal.tokensAtRisk;
     }
@@ -423,7 +444,7 @@ abstract contract ASmartYieldPool is
     function price()
       external view override
     returns (uint256) {
-        uint256 ts = totalSupply();
+        uint256 ts = juniorToken.totalSupply();
         return (ts == 0) ? 1 : (this.underlyingJuniors() * 1e18) / ts;
     }
 
@@ -544,11 +565,11 @@ abstract contract ASmartYieldPool is
 
     function _takeTokens(address _from, uint256 _amount) internal {
         require(
-            _amount <= allowance(_from, address(this)),
+            _amount <= juniorToken.allowance(_from, address(this)),
             "ASYP: _takeTokens allowance"
         );
         require(
-            transferFrom(_from, address(this), _amount),
+            juniorToken.transferFrom(_from, address(this), _amount),
             "ASYP: _takeTokens transferFrom"
         );
     }

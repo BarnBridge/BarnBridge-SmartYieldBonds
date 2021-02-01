@@ -14,6 +14,8 @@ import Erc20MockArtifact from '../artifacts/contracts/mocks/Erc20Mock.sol/Erc20M
 import CTokenMockArtifact from '../artifacts/contracts/mocks/compound-finance/CTokenMock.sol/CTokenMock.json';
 import SYPCompForModelMockArtifact from '../artifacts/contracts/mocks/barnbridge/SYPCompForModelMock.sol/SYPCompForModelMock.json';
 import YieldOracleMockArtifact from '../artifacts/contracts/mocks/barnbridge/YieldOracleMock.sol/YieldOracleMock.json';
+import ComptrollerMockArtifact from '../artifacts/contracts/mocks/compound-finance/ComptrollerMock.sol/ComptrollerMock.json';
+import JuniorTokenArtifact from '../artifacts/contracts/JuniorToken.sol/JuniorToken.json';
 
 import { YieldOracleMock } from '@typechain/YieldOracleMock';
 import { SypCompForModelMock } from '@typechain/SYPCompForModelMock';
@@ -22,6 +24,8 @@ import { BondToken } from '@typechain/BondToken';
 import { Erc20Mock } from '@typechain/Erc20Mock';
 import { CTokenMock } from '@typechain/CTokenMock';
 import { SmartYieldPoolCompoundMock } from '@typechain/SmartYieldPoolCompoundMock';
+import { ComptrollerMock } from '@typechain/ComptrollerMock';
+import { JuniorToken} from '@typechain/JuniorToken';
 
 const START_TIME = 1614556800; // 03/01/2021 @ 12:00am (UTC)
 let timePrev = BN.from(START_TIME);
@@ -48,11 +52,18 @@ const fixture = (decimals: number) => {
 
     const bondModel = (await deployContract(deployerSign, BondModelV1Artifact, [])) as BondModelV1;
     const underlying = (await deployContract(deployerSign, Erc20MockArtifact, ['DAI MOCK', 'DAI', decimals])) as Erc20Mock;
-    const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address])) as CTokenMock;
-    const pool = (await deployContract(deployerSign, SYPCompForModelMockArtifact, ['bbDAI', 'bbDAI MOCK'])) as SypCompForModelMock;
+    const comptroller = (await deployContract(deployerSign, ComptrollerMockArtifact, [])) as ComptrollerMock;
+    const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptroller.address])) as CTokenMock;
+    const pool = (await deployContract(deployerSign, SYPCompForModelMockArtifact, [])) as SypCompForModelMock;
     const oracle = (await deployContract(deployerSign, YieldOracleMockArtifact, [])) as YieldOracleMock;
     const bondToken = (await deployContract(deployerSign, BondTokenArtifact, ['BOND', 'BOND MOCK', pool.address])) as BondToken;
-    await pool.setup(oracle.address, bondModel.address, bondToken.address, cToken.address, decimals);
+    const juniorToken = (await deployContract(deployerSign, JuniorTokenArtifact, ['jTOKEN MOCK', 'bbDAI', pool.address])) as JuniorToken;
+
+    await Promise.all([
+      comptroller.setHolder(pool.address),
+      comptroller.setMarket(cToken.address),
+      pool.setup(oracle.address, bondModel.address, bondToken.address, juniorToken.address, cToken.address),
+    ]);
 
     timePrev = BN.from(START_TIME);
     await (moveTime(pool))(0);
@@ -80,8 +91,8 @@ describe('BondModel bond rate computations', async function () {
     expect(await pool.bondToken()).equals(bondToken.address, 'pool.bondToken()');
   });
 
-  describe('first and last bond', async function () {
-    it('for one bond, abond is the same', async function () {
+  describe('bondModel.gain()', async function () {
+    it('expected values', async function () {
       const { pool, oracle, bondModel, cToken, underlying, bondToken, moveTime, junior1, senior1, senior2, } = await bbFixtures(fixture(decimals));
 
       let underlyingLoanable = e18(1000);

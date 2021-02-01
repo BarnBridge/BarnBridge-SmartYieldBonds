@@ -15,8 +15,9 @@ contract CTokenMock is ICToken, ERC20 {
     address public override underlying;
     address public override comptroller;
 
-    constructor(address underlying_) ERC20("cDAI Mock", "cDAI") {
+    constructor(address underlying_, address comptroller_) ERC20("cDAI Mock", "cDAI") {
         underlying = underlying_;
+        comptroller = comptroller_;
         _setupDecimals(8);
     }
 

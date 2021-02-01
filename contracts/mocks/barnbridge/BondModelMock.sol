@@ -14,7 +14,7 @@ contract BondModelMock is IBondModel {
     uint256 public compoundingTestLast = 0;
 
     function gain(
-        address pool,
+        address,
         uint256 principal,
         uint16 forDays
     ) external view override returns (uint256) {

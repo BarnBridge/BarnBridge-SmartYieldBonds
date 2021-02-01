@@ -8,8 +8,8 @@ import "../../SmartYieldPoolCompound.sol";
 contract SmartYieldPoolCompoundMock is SmartYieldPoolCompound {
     uint256 public _currentTime = 0;
 
-    constructor(string memory name, string memory symbol)
-        SmartYieldPoolCompound(name, symbol)
+    constructor()
+        SmartYieldPoolCompound()
     {}
 
     function currentTime() external view virtual override returns (uint256) {

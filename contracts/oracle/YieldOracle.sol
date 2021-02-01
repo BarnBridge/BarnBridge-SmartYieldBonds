@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.5;
 
-import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
-import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
-
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "./IYieldOraclelizable.sol";
@@ -97,7 +94,7 @@ contract YieldOracle is IYieldOracle {
         // we only want to commit updates once per period (i.e. windowSize / granularity)
         uint256 timeElapsed = pool.currentTime() - observation.timestamp;
         if (timeElapsed > periodSize) {
-            (uint256 yieldCumulative, ) = pool.currentCumulativeSecondlyYield();
+            (uint256 yieldCumulative, , ) = pool.currentCumulatives();
             observation.timestamp = pool.currentTime();
             observation.yieldCumulative = yieldCumulative;
         }
@@ -155,7 +152,7 @@ contract YieldOracle is IYieldOracle {
             return 0;
         }
 
-        (uint256 yieldCumulative, ) = pool.currentCumulativeSecondlyYield();
+        (uint256 yieldCumulative, , ) = pool.currentCumulatives();
 
         return
             computeAmountOut(
