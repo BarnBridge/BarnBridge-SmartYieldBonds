@@ -17,12 +17,12 @@ contract JuniorToken is IJuniorToken, ERC20 {
     }
 
     function mint(address to, uint256 amount) public override {
-        require(msg.sender == pool, "BTK: mint not pool");
+        require(msg.sender == pool, "JT: mint not pool");
         _mint(to, amount);
     }
 
     function burn(address to, uint256 amount) public override {
-        require(msg.sender == pool, "BTK: burn not pool");
+        require(msg.sender == pool, "JT: burn not pool");
         _burn(to, amount);
     }
 }

@@ -120,6 +120,7 @@ contract YieldOracle is IYieldOracle {
         external
         view
         override
+        virtual
         returns (uint256 yieldForInterval)
     {
         Observation storage firstObservation = getFirstObservationInWindow();

@@ -18,35 +18,33 @@ contract SYPCompForModelMock is SmartYieldPoolCompound {
         SmartYieldPoolCompound()
     {}
 
-    function currentTime() external view override returns (uint256) {
+    function currentTime() public view override returns (uint256) {
         return _currentTime;
     }
 
-    function underlyingLoanable() external view override returns (uint256) {
+    function underlyingLoanable() public view override returns (uint256) {
       return _underlyingLoanable;
     }
 
-    function underlyingTotal() external view override returns (uint256) {
+    function underlyingTotal() public view override returns (uint256) {
       return _underlyingTotal;
     }
 
-    function providerRatePerDay() external view override returns (uint256) {
+    function providerRatePerDay() public view override returns (uint256) {
       return _providerRatePerDay;
     }
 
-    function checkGas(uint256 principal, uint16 forDays) external {
-      _lastCheckGas = bondModel.gain(address(this), principal, forDays);
+    function checkGas(uint256 principal, uint16 forDays) public {
+      _lastCheckGas = IBondModel(ControllerCompound(controller).bondModel()).gain(address(this), principal, forDays);
     }
 
-    function setCurrentTime(uint256 currentTime_) external {
+    function setCurrentTime(uint256 currentTime_) public {
       _currentTime = currentTime_;
     }
 
-    function setMockValues(uint256 underlyingLoanable_, uint256 underlyingTotal_, uint256 providerRatePerDay_) external {
+    function setMockValues(uint256 underlyingLoanable_, uint256 underlyingTotal_, uint256 providerRatePerDay_) public {
       _underlyingLoanable = underlyingLoanable_;
       _underlyingTotal = underlyingTotal_;
       _providerRatePerDay = providerRatePerDay_;
     }
-
-
 }

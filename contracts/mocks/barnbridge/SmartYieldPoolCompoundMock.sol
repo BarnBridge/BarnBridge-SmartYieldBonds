@@ -12,11 +12,11 @@ contract SmartYieldPoolCompoundMock is SmartYieldPoolCompound {
         SmartYieldPoolCompound()
     {}
 
-    function currentTime() external view virtual override returns (uint256) {
+    function currentTime() public view virtual override returns (uint256) {
         return _currentTime;
     }
 
-    function setCurrentTime(uint256 ts) external {
+    function setCurrentTime(uint256 ts) public {
         _currentTime = ts;
     }
 }

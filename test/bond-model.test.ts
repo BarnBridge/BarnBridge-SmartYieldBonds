@@ -10,22 +10,26 @@ import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFE
 
 import BondModelV1Artifact from '../artifacts/contracts/model/BondModelV1.sol/BondModelV1.json';
 import SeniorBondArtifact from '../artifacts/contracts/SeniorBond.sol/SeniorBond.json';
+import JuniorBondArtifact from '../artifacts/contracts/JuniorBond.sol/JuniorBond.json';
 import Erc20MockArtifact from '../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
 import CTokenMockArtifact from '../artifacts/contracts/mocks/compound-finance/CTokenMock.sol/CTokenMock.json';
 import SYPCompForModelMockArtifact from '../artifacts/contracts/mocks/barnbridge/SYPCompForModelMock.sol/SYPCompForModelMock.json';
 import YieldOracleMockArtifact from '../artifacts/contracts/mocks/barnbridge/YieldOracleMock.sol/YieldOracleMock.json';
 import ComptrollerMockArtifact from '../artifacts/contracts/mocks/compound-finance/ComptrollerMock.sol/ComptrollerMock.json';
 import JuniorTokenArtifact from '../artifacts/contracts/JuniorToken.sol/JuniorToken.json';
+import ControllerCompoundArtifact from './../artifacts/contracts/ControllerCompound.sol/ControllerCompound.json';
 
 import { YieldOracleMock } from '@typechain/YieldOracleMock';
 import { SypCompForModelMock } from '@typechain/SYPCompForModelMock';
 import { BondModelV1 } from '@typechain/BondModelV1';
 import { SeniorBond } from '@typechain/SeniorBond';
+import { JuniorBond } from '@typechain/JuniorBond';
 import { Erc20Mock } from '@typechain/Erc20Mock';
 import { CTokenMock } from '@typechain/CTokenMock';
 import { SmartYieldPoolCompoundMock } from '@typechain/SmartYieldPoolCompoundMock';
 import { ComptrollerMock } from '@typechain/ComptrollerMock';
 import { JuniorToken} from '@typechain/JuniorToken';
+import { ControllerCompound } from '@typechain/ControllerCompound';
 
 const START_TIME = 1614556800; // 03/01/2021 @ 12:00am (UTC)
 let timePrev = BN.from(START_TIME);
@@ -55,21 +59,25 @@ const fixture = (decimals: number) => {
     const comptroller = (await deployContract(deployerSign, ComptrollerMockArtifact, [])) as ComptrollerMock;
     const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptroller.address])) as CTokenMock;
     const pool = (await deployContract(deployerSign, SYPCompForModelMockArtifact, [])) as SypCompForModelMock;
-    const oracle = (await deployContract(deployerSign, YieldOracleMockArtifact, [])) as YieldOracleMock;
+    const oracle = (await deployContract(deployerSign, YieldOracleMockArtifact, [pool.address])) as YieldOracleMock;
     const seniorBond = (await deployContract(deployerSign, SeniorBondArtifact, ['BOND', 'BOND MOCK', pool.address])) as SeniorBond;
+    const juniorBond = (await deployContract(deployerSign, JuniorBondArtifact, ['jBOND', 'jBOND MOCK', pool.address])) as JuniorBond;
     const juniorToken = (await deployContract(deployerSign, JuniorTokenArtifact, ['jTOKEN MOCK', 'bbDAI', pool.address])) as JuniorToken;
+    const controller = (await deployContract(deployerSign, ControllerCompoundArtifact, [])) as ControllerCompound;
 
     await Promise.all([
+      controller.setOracle(oracle.address),
+      controller.setBondModel(bondModel.address),
       comptroller.setHolder(pool.address),
       comptroller.setMarket(cToken.address),
-      pool.setup(oracle.address, bondModel.address, seniorBond.address, juniorToken.address, cToken.address),
+      pool.setup(controller.address, seniorBond.address, juniorBond.address, juniorToken.address, cToken.address),
     ]);
 
     timePrev = BN.from(START_TIME);
     await (moveTime(pool))(0);
 
     return {
-      oracle, pool, cToken, bondModel, seniorBond, underlying,
+      oracle, pool, cToken, bondModel, seniorBond, underlying, controller,
       deployerSign: deployerSign as Signer,
       ownerSign: ownerSign as Signer,
       junior1, junior2, junior3, senior1, senior2, senior3,
@@ -82,13 +90,14 @@ describe('BondModel bond rate computations', async function () {
 
   it('should deploy contracts correctly', async function () {
     const decimals = 18;
-    const { pool, oracle, bondModel, cToken, underlying, seniorBond } = await bbFixtures(fixture(decimals));
+    const { pool, oracle, bondModel, cToken, underlying, seniorBond, controller } = await bbFixtures(fixture(decimals));
 
-    expect(await pool.oracle()).equals(oracle.address, 'pool.oracle()');
+    expect(await pool.controller()).equals(controller.address, 'pool.controller()');
     expect(await pool.uToken()).equals(underlying.address, 'pool.uToken()');
     expect(await pool.cToken()).equals(cToken.address, 'pool.cToken()');
-    expect(await pool.bondModel()).equals(bondModel.address, 'pool.bondModel()');
     expect(await pool.seniorBond()).equals(seniorBond.address, 'pool.seniorBond()');
+    expect(await controller.oracle()).equals(oracle.address, 'controller.oracle()');
+    expect(await controller.bondModel()).equals(bondModel.address, 'controller.bondModel()');
   });
 
   describe('bondModel.gain()', async function () {
