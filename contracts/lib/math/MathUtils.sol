@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.7.5;
+pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -9,6 +9,10 @@ library MathUtils {
 
     function min(uint256 x, uint256 y) internal pure returns (uint256 z) {
         z = x < y ? x : y;
+    }
+
+    function max(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        z = x > y ? x : y;
     }
 
     // babylonian method (https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method)

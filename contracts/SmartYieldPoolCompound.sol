@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.7.5;
+pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -9,13 +9,11 @@ import "./external-interfaces/uniswap/IUniswapV2Router.sol";
 import "./external-interfaces/compound-finance/ICToken.sol";
 import "./external-interfaces/compound-finance/IComptroller.sol";
 
+import "./ControllerCompound.sol";
 import "./ASmartYieldPool.sol";
 
 contract SmartYieldPoolCompound is ASmartYieldPool {
     using SafeMath for uint256;
-
-    // reward for calling harvest 3%
-    uint256 public HARVEST_REWARD = 3 * 1e16; // 3%
 
     // cToken.balanceOf(this) measuring only deposits by users (excludes cToken transfers to pool)
     uint256 public cTokenBalance;
@@ -32,42 +30,44 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     // --- /COMP reward checkpoint
 
     // underlying token (ie. DAI)
-    IERC20 public uToken;
+    address public uToken; // IERC20
 
     // claim token (ie. cDAI)
     address public cToken;
 
     // compound.finance Comptroller
-    IComptroller public comptroller;
+    address public comptroller; // IComptroller
 
     // deposit reward token (ie. COMP)
-    IERC20 public rewardCToken;
+    address public rewardCToken; // IERC20
 
     // weth
-    IERC20 public wethToken;
+    address public wethToken; //IERC20
 
-    IUniswapV2Router public uniswap;
+    address public uniswap; //IUniswapV2Router
 
     constructor()
         ASmartYieldPool()
+        Governed()
     { }
 
     function setup(
-        address oracle_,
-        address bondModel_,
-        address bondToken_,
+        address controller_,
+        address seniorBond_,
+        address juniorBond_,
         address juniorToken_,
         address cToken_
     )
       external
+      onlyDao
     {
-        oracle = IYieldOracle(oracle_);
-        bondModel = IBondModel(bondModel_);
-        bondToken = IBondToken(bondToken_);
-        juniorToken = IJuniorToken(juniorToken_);
+        controller = controller_;
+        seniorBond = seniorBond_;
+        juniorBond = juniorBond_;
+        juniorToken = juniorToken_;
         cToken = cToken_;
-        uToken = IERC20(ICToken(cToken_).underlying());
-        comptroller = IComptroller(ICToken(cToken_).comptroller());
+        uToken = ICToken(cToken_).underlying();
+        comptroller = ICToken(cToken_).comptroller();
     }
 
     function currentTime()
@@ -87,11 +87,11 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     {
         // https://compound.finance/docs#protocol-math
         return
-            cTokenBalance * ICToken(cToken).exchangeRateStored() / 1e18 - underlyingFees;
+            cTokenBalance * ICToken(cToken).exchangeRateStored() / 1e18 - st.underlyingFees - st.underlyingLiquidatedJuniors;
     }
 
     function providerRatePerDay() external view virtual override returns (uint256) {
-        return IYieldOracle(oracle).consult(1 days);
+        return IYieldOracle(ControllerCompound(controller).oracle()).consult(1 days);
     }
 
     // called by anyone to convert pool's COMP -> underlying and then deposit it. caller gets HARVEST_REWARD of the harvest
@@ -104,7 +104,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         );
 
         // this is 0 unless someone transfers underlying to the contract
-        uint256 underlyingBefore = uToken.balanceOf(address(this));
+        uint256 underlyingBefore = IERC20(uToken).balanceOf(address(this));
 
         // COMP gets on the pool when:
         // 1) pool calls comptroller.claimComp()
@@ -113,17 +113,24 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         // we want to yield closest to 1+2 but not 3
         uint256 rewardExpected = compRewardExpected(); // COMP
 
-        _claimComp();
+        address[] memory holders = new address[](1);
+        holders[0] = address(this);
+        address[] memory markets = new address[](1);
+        markets[0] = cToken;
 
-        uint256 rewardGot = rewardCToken.balanceOf(address(this)); // COMP
+        IComptroller(comptroller).claimComp(holders, markets, false, true);
+
+        _updateCompState();
+
+        uint256 rewardGot = IERC20(rewardCToken).balanceOf(address(this)); // COMP
 
         if (rewardGot > 0) {
-            rewardCToken.approve(address(uniswap), rewardGot); //
+            IERC20(rewardCToken).approve(address(uniswap), rewardGot); //
             address[] memory path = new address[](3);
             path[0] = address(rewardCToken);
             path[1] = address(wethToken);
             path[2] = address(uToken);
-            uniswap.swapExactTokensForTokens(
+            IUniswapV2Router(uniswap).swapExactTokensForTokens(
                 rewardGot,
                 uint256(0),
                 path,
@@ -132,7 +139,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
             );
         }
 
-        uint256 underlyingGot = uToken.balanceOf(address(this));
+        uint256 underlyingGot = IERC20(uToken).balanceOf(address(this));
 
         if (underlyingGot == 0) {
           // got no goodies :(
@@ -156,15 +163,15 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         }
 
         // any presents go to fees
-        underlyingFees += extra;
+        st.underlyingFees += extra;
 
-        uint256 toCaller = MathUtils.fractionOf(underlyingGot, HARVEST_REWARD);
+        uint256 toCaller = MathUtils.fractionOf(underlyingGot, ControllerCompound(controller).HARVEST_REWARD());
 
         // deposit pool reward to compound - harvest reward + any goodies we received
         _depositProvider(underlyingGot - toCaller + extra);
 
         // pay this man
-        uToken.transfer(msg.sender, uToken.balanceOf(address(this)));
+        IERC20(uToken).transfer(msg.sender, IERC20(uToken).balanceOf(address(this)));
     }
 
     // take _underlyingAmount from _from
@@ -172,11 +179,11 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
       internal override
     {
         require(
-            _underlyingAmount <= uToken.allowance(_from, address(this)),
+            _underlyingAmount <= IERC20(uToken).allowance(_from, address(this)),
             "SYCOMP: _takeUnderlying allowance"
         );
         require(
-            uToken.transferFrom(_from, address(this), _underlyingAmount),
+            IERC20(uToken).transferFrom(_from, address(this), _underlyingAmount),
             "SYCOMP: _takeUnderlying transferFrom"
         );
     }
@@ -186,7 +193,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
       internal override
       returns (bool)
     {
-        return uToken.transfer(_to, _underlyingAmount);
+        return IERC20(uToken).transfer(_to, _underlyingAmount);
     }
 
     // deposit _underlyingAmount with the liquidity provider adds resulting cTokens to cTokenBalance
@@ -200,7 +207,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
           _updateCompState();
         }
         uint256 cTokensBefore = ICTokenErc20(cToken).balanceOf(address(this));
-        uToken.approve(address(cToken), _underlyingAmount);
+        IERC20(uToken).approve(address(cToken), _underlyingAmount);
         uint256 err = ICToken(cToken).mint(_underlyingAmount);
         require(0 == err, "SYCOMP: _depositProvider mint");
         cTokenBalance += ICTokenErc20(cToken).balanceOf(address(this)) - cTokensBefore;
@@ -223,7 +230,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     {
         address[] memory markets = new address[](1);
         markets[0] = cToken;
-        uint256[] memory err = comptroller.enterMarkets(markets);
+        uint256[] memory err = IComptroller(comptroller).enterMarkets(markets);
         require(err[0] == 0, "SYCOMP: _enterMarket");
     }
 
@@ -234,23 +241,10 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
     function _updateCompState()
       internal
     {
-        (uint224 supplyStateIndex, ) = comptroller.compSupplyState(cToken);
+        (uint224 supplyStateIndex, ) = IComptroller(comptroller).compSupplyState(cToken);
         compSupplierIndexLast = uint256(supplyStateIndex);
         (, cumulativeUnderlyingTotalHarvestedLast, ) = this.currentCumulatives();
         harvestedLast = this.currentTime();
-    }
-
-    // calls comptroller.claimComp() and saves checkpoint for subsequent compRewardExpected() calls
-    function _claimComp()
-      internal
-    {
-        address[] memory holders = new address[](1);
-        holders[0] = address(this);
-        address[] memory markets = new address[](1);
-        markets[0] = cToken;
-
-        comptroller.claimComp(holders, markets, false, true);
-        _updateCompState();
     }
 
     // computes how much COMP tokens compound.finance will give us at comptroller.claimComp()
@@ -260,7 +254,7 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
       public view
       returns (uint256)
     {
-        (uint224 supplyStateIndex, ) = comptroller.compSupplyState(cToken);
+        (uint224 supplyStateIndex, ) = IComptroller(comptroller).compSupplyState(cToken);
         uint256 supplyIndex = uint256(supplyStateIndex);
         uint256 supplierIndex = compSupplierIndexLast;
 
@@ -273,7 +267,24 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         uint256 supplierTokens = waUnderlyingTotal / ICToken(cToken).exchangeRateStored();
         return (supplierTokens).mul(deltaIndex).div(1e36); // a * b / doubleScale => uint
     }
-
     // --- /COMP reward
+
+    function transferFees()
+      public
+      override
+    {
+      // cleanup any cTokens dust or cTokens that may have been dumped on the pool
+      if (ICTokenErc20(cToken).balanceOf(address(this)) > cTokenBalance) {
+        st.underlyingFees += ICToken(cToken).exchangeRateStored() * (ICTokenErc20(cToken).balanceOf(address(this)) - cTokenBalance) / 1e18;
+      }
+      uint256 ctokensToPay = st.underlyingFees * 1e18 / ICToken(cToken).exchangeRateStored();
+      uint256 err = ICToken(cToken).redeem(
+          MathUtils.min(ctokensToPay, ICTokenErc20(cToken).balanceOf(address(this)))
+      );
+      require(0 == err, "SYCOMP: transferFees redeem");
+      st.underlyingFees = 0;
+      cTokenBalance = ICTokenErc20(cToken).balanceOf(address(this));
+      IERC20(uToken).transfer(IController(controller).feesOwner(), IERC20(uToken).balanceOf(address(this)));
+    }
 
 }

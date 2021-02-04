@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.7.5;
+pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -120,6 +120,7 @@ contract YieldOracle is IYieldOracle {
         external
         view
         override
+        virtual
         returns (uint256 yieldForInterval)
     {
         Observation storage firstObservation = getFirstObservationInWindow();

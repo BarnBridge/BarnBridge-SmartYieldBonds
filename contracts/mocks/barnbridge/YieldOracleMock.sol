@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.7.5;
+pragma solidity ^0.7.6;
 
 import "hardhat/console.sol";
 
-import "../../oracle/IYieldOracle.sol";
+import "../../oracle/YieldOracle.sol";
 
-contract YieldOracleMock is IYieldOracle {
-    uint256 public updateCalledTimes = 0;
-    uint256 yieldPerDay = 0;
+contract YieldOracleMock is YieldOracle {
+    uint256 public yieldPerDay = 0;
 
-    function update() external override {
-        updateCalledTimes++;
-    }
+    constructor(address pool_) YieldOracle(pool_, (3 days), 6) {}
 
     function consult(uint256 forInterval)
         external

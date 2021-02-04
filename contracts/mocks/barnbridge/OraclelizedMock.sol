@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.7.5;
+pragma solidity ^0.7.6;
 
 import "hardhat/console.sol";
 
@@ -14,46 +14,50 @@ contract OraclelizedMock is SmartYieldPoolCompound {
         SmartYieldPoolCompound()
     { }
 
-    function cumulate() external accountYield {}
+    function cumulate() public accountYield {}
 
-    function underlyingTotal() external view override returns (uint256) {
+    function underlyingTotal() public view override returns (uint256) {
         return _underlyingTotal;
     }
 
-    function setUnderlyingAndCumulate(uint256 underlyingTotal_) external {
+    function setUnderlyingAndCumulate(uint256 underlyingTotal_) public {
         this.setUnderlyingTotal(underlyingTotal_);
         this.cumulate();
-        IYieldOracle(oracle).update();
+        IYieldOracle(ControllerCompound(controller).oracle()).update();
     }
 
-    function setUnderlyingTotal(uint256 underlyingTotal_) external {
+    function setUnderlyingTotal(uint256 underlyingTotal_) public {
         _underlyingTotal = underlyingTotal_;
     }
 
-    function setUnderlyingTotal(uint256 underlyingTotal_, uint256 underlyingTotalLast_) external {
+    function setUnderlyingTotal(uint256 underlyingTotal_, uint256 underlyingTotalLast_) public {
         _underlyingTotal = underlyingTotal_;
-        underlyingTotalLast = underlyingTotalLast_;
+        st.underlyingTotalLast = underlyingTotalLast_;
     }
 
-    function setCurrentTime(uint256 now_) external {
+    function setCurrentTime(uint256 now_) public {
         _now = now_;
     }
 
-    function currentTime() external view override returns (uint256) {
+    function currentTime() public view override returns (uint256) {
         return _now;
     }
 
-    function setCumulativeSecondlyYieldLast(uint256 cumulativeSecondlyYieldLast_, uint256 timestampLast_) external {
-        cumulativeSecondlyYieldLast = cumulativeSecondlyYieldLast_;
-        timestampLast = uint32(timestampLast_ % 2**32);
+    function cumulativeSecondlyYieldLast() public view returns(uint256) {
+      return st.cumulativeSecondlyYieldLast;
     }
 
-    function setSafeToObserve(bool safeToObserve_) external {
+    function setCumulativeSecondlyYieldLast(uint256 cumulativeSecondlyYieldLast_, uint256 timestampLast_) public {
+        st.cumulativeSecondlyYieldLast = cumulativeSecondlyYieldLast_;
+        st.timestampLast = uint32(timestampLast_ % 2**32);
+    }
+
+    function setSafeToObserve(bool safeToObserve_) public {
       _safeToObserve = safeToObserve_;
     }
 
     function cumulativeOverflowProof(uint256 diff)
-        external
+        public
         pure
         returns (uint256)
     {

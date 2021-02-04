@@ -14,6 +14,7 @@ import ComptrollerMockArtifact from '../../artifacts/contracts/mocks/compound-fi
 import OraclelizedMockArtifact from '../../artifacts/contracts/mocks/barnbridge/OraclelizedMock.sol/OraclelizedMock.json';
 import YieldOracleArtifact from './../../artifacts/contracts/oracle/YieldOracle.sol/YieldOracle.json';
 import JuniorTokenArtifact from './../../artifacts/contracts/JuniorToken.sol/JuniorToken.json';
+import ControllerCompoundArtifact from './../../artifacts/contracts/ControllerCompound.sol/ControllerCompound.json';
 
 import { YieldOracle } from '@typechain/YieldOracle';
 import { OraclelizedMock } from '@typechain/OraclelizedMock';
@@ -21,6 +22,7 @@ import { Erc20Mock } from '@typechain/Erc20Mock';
 import { JuniorToken } from '@typechain/JuniorToken';
 import { CTokenMock } from '@typechain/CTokenMock';
 import { ComptrollerMock } from '@typechain/ComptrollerMock';
+import { ControllerCompound } from '@typechain/ControllerCompound';
 
 const defaultWindowSize = A_DAY * 3;
 const defaultGranularity = 12 * 3; // samples in window
@@ -81,7 +83,8 @@ const fixture = (windowSize: number, granularity: number) => {
       (deployContract(deployerSign, OraclelizedMockArtifact, [])) as Promise<OraclelizedMock>,
     ]);
 
-    const [cToken, yieldOracle, jToken] = await Promise.all([
+    const [controller, cToken, yieldOracle, jToken] = await Promise.all([
+      (deployContract(deployerSign, ControllerCompoundArtifact, [])) as Promise<ControllerCompound>,
       (deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptrollerMock.address])) as Promise<CTokenMock>,
       (deployContract(deployerSign, YieldOracleArtifact, [oraclelizedMock.address, windowSize, granularity])) as Promise<YieldOracle>,
       (deployContract(deployerSign, JuniorTokenArtifact, ['jTOKEN MOCK', 'bbDAI', oraclelizedMock.address])) as Promise<JuniorToken>,
@@ -90,13 +93,14 @@ const fixture = (windowSize: number, granularity: number) => {
     await Promise.all([
       comptrollerMock.setHolder(oraclelizedMock.address),
       comptrollerMock.setMarket(cToken.address),
-      oraclelizedMock.setup(yieldOracle.address, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', jToken.address, cToken.address),
+      controller.setOracle(yieldOracle.address),
+      oraclelizedMock.setup(controller.address, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', jToken.address, cToken.address),
     ]);
 
     await (moveTime(oraclelizedMock))(0);
 
     return {
-      yieldOracle, oraclelizedMock,
+      yieldOracle, oraclelizedMock, controller,
       deployerSign: deployerSign as Signer,
       ownerSign: ownerSign as Signer,
       deployerAddr, ownerAddr,
@@ -108,10 +112,11 @@ const fixture = (windowSize: number, granularity: number) => {
 
 describe('Yield Oracle', async function () {
   it('should deploy YieldOracle correctly', async function () {
-    const { yieldOracle, oraclelizedMock } = await bbFixtures(fixture(defaultWindowSize, defaultGranularity));
+    const { yieldOracle, oraclelizedMock, controller } = await bbFixtures(fixture(defaultWindowSize, defaultGranularity));
 
     expect(await yieldOracle.pool()).equals(oraclelizedMock.address, 'Oraclelized address');
-    expect(await oraclelizedMock.oracle()).equals(yieldOracle.address, 'Yield Oracle address');
+    expect(await controller.oracle()).equals(yieldOracle.address, 'Yield Oracle address');
+    expect(await oraclelizedMock.controller()).equals(controller.address, 'Controller address');
     expect(await yieldOracle.windowSize()).deep.equals(BN.from(defaultWindowSize), 'Oracle windowSize');
     expect(await yieldOracle.granularity()).equals(defaultGranularity, 'Oracle granularity');
     expect(await yieldOracle.periodSize()).deep.equals(BN.from(defaultWindowSize).div(defaultGranularity), 'Oracle periodSize');
