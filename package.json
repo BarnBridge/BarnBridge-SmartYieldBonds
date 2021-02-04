@@ -26,7 +26,7 @@
     "ethers": "^5.0.19",
     "hardhat": "^2.0.1",
     "hardhat-contract-sizer": "^2.0.2",
-    "hardhat-gas-reporter": "^1.0.0",
+    "hardhat-gas-reporter": "^1.0.3",
     "hardhat-typechain": "^0.3.3",
     "humanize-duration": "^3.25.1",
     "moment": "^2.29.1",
