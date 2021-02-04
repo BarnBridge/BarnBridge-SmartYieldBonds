@@ -43,7 +43,7 @@
     "test": "hardhat test",
     "coverage": "hardhat coverage",
     "compile": "hardhat clean && hardhat compile",
-    "compile-and-test": "hardhat clean && hardhat compile && hardhat test",
+    "compile-and-test": "hardhat compile && hardhat test",
     "size-contracts": "hardhat clean && hardhat compile && hardhat size-contracts"
   },
   "author": "",
