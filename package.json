@@ -30,7 +30,7 @@
     "hardhat-typechain": "^0.3.3",
     "humanize-duration": "^3.25.1",
     "moment": "^2.29.1",
-    "solc": "^0.7.5",
+    "solc": "^0.7.6",
     "solhint": "^3.2.2",
     "solidity-coverage": "^0.7.12",
     "ts-generator": "^0.1.1",

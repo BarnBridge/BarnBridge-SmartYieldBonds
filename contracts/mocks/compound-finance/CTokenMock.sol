@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.7.5;
+pragma solidity ^0.7.6;
 
 // https://rinkeby.etherscan.io/address/0x6d7f0754ffeb405d23c51ce938289d4835be3b14#readContract
 
@@ -7,17 +7,18 @@ import "hardhat/console.sol";
 
 import "../../external-interfaces/compound-finance/ICToken.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract CTokenMock is ICToken, ERC20 {
     uint256 public exchangeRateStored_ = 0;
 
     address public override underlying;
     address public override comptroller;
+    address public clock;
 
-    constructor(address underlying_, address comptroller_) ERC20("cDAI Mock", "cDAI") {
+    constructor(address underlying_, address comptroller_, address clock_) ERC20("cDAI Mock", "cDAI") {
         underlying = underlying_;
         comptroller = comptroller_;
+        clock = clock_;
         _setupDecimals(8);
     }
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.7.5;
+pragma solidity ^0.7.6;
 
 // x = (cur_j - (b_p*x*b_t)) / (cur_tot + b_p + (b_p*x*b_t)) * n
 // x = (cur_j - (bond*n*t*(cur_j/cur_tot))) / (cur_tot + bond + (bond*n*t*(cur_j/cur_tot))) * n;
