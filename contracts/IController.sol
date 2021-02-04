@@ -9,6 +9,8 @@ contract IController is Governed {
 
     address public bondModel; // IBondModel
 
+    address public feesOwner; // fees are sent here
+
     // fee for buying jTokens
     uint256 public FEE_BUY_JUNIOR_TOKEN = 3 * 1e16; // 3%
 
@@ -67,4 +69,10 @@ contract IController is Governed {
       bondModel = newVal_;
     }
 
+    function setFeesOwner(address newVal_)
+      external
+      onlyDaoOrGuardian
+    {
+      feesOwner = newVal_;
+    }
 }

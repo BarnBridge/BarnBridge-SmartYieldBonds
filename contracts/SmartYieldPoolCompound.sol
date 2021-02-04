@@ -267,7 +267,24 @@ contract SmartYieldPoolCompound is ASmartYieldPool {
         uint256 supplierTokens = waUnderlyingTotal / ICToken(cToken).exchangeRateStored();
         return (supplierTokens).mul(deltaIndex).div(1e36); // a * b / doubleScale => uint
     }
-
     // --- /COMP reward
+
+    function transferFees()
+      public
+      override
+    {
+      // cleanup any cTokens dust or cTokens that may have been dumped on the pool
+      if (ICTokenErc20(cToken).balanceOf(address(this)) > cTokenBalance) {
+        st.underlyingFees += ICToken(cToken).exchangeRateStored() * (ICTokenErc20(cToken).balanceOf(address(this)) - cTokenBalance) / 1e18;
+      }
+      uint256 ctokensToPay = st.underlyingFees * 1e18 / ICToken(cToken).exchangeRateStored();
+      uint256 err = ICToken(cToken).redeem(
+          MathUtils.min(ctokensToPay, ICTokenErc20(cToken).balanceOf(address(this)))
+      );
+      require(0 == err, "SYCOMP: transferFees redeem");
+      st.underlyingFees = 0;
+      cTokenBalance = ICTokenErc20(cToken).balanceOf(address(this));
+      IERC20(uToken).transfer(IController(controller).feesOwner(), IERC20(uToken).balanceOf(address(this)));
+    }
 
 }

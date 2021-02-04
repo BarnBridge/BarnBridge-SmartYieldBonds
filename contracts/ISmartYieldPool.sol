@@ -135,4 +135,6 @@ interface ISmartYieldPool {
         returns (uint256);
 
     function harvest() external;
+
+    function transferFees() external;
 }
