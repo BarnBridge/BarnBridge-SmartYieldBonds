@@ -20,7 +20,7 @@ import JuniorTokenArtifact from '../artifacts/contracts/JuniorToken.sol/JuniorTo
 import ControllerCompoundArtifact from './../artifacts/contracts/ControllerCompound.sol/ControllerCompound.json';
 
 import { YieldOracleMock } from '@typechain/YieldOracleMock';
-import { SypCompForModelMock } from '@typechain/SYPCompForModelMock';
+import { SypCompForModelMock } from '@typechain/SypCompForModelMock';
 import { BondModelV1 } from '@typechain/BondModelV1';
 import { SeniorBond } from '@typechain/SeniorBond';
 import { JuniorBond } from '@typechain/JuniorBond';
