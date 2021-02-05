@@ -81,9 +81,6 @@ interface ISmartYieldPool {
       // metadata for junior bonds
       // bond id => bond (JuniorBond)
       mapping(uint256 => JuniorBond) juniorBonds;
-
-      // is currentCumulativeSecondlyYield() providing correct values?
-      bool _safeToObserve;
     }
 
     function abond() external view returns(uint256 principal, uint256 gain, uint256 issuedAt, uint256 maturesAt, bool liquidated);
@@ -101,6 +98,8 @@ interface ISmartYieldPool {
     /**
      * sell all tokens instantly
      */
+    function juniorBonds(uint256 id) external view returns(uint256 tokens, uint256 maturesAt);
+
     function sellTokens(uint256 _tokens, uint256 _minUnderlying, uint256 _deadline) external;
 
     function buyJuniorBond(uint256 tokenAmount_, uint256 maxMaturesAt_, uint256 deadline_) external;

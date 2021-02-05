@@ -10,8 +10,8 @@ pragma solidity ^0.7.6;
 // cur_tot - totalUnderlying()
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "../lib/math/MathUtils.sol";
 
+import "../lib/math/MathUtils.sol";
 import "./IBondModel.sol";
 import "../ISmartYieldPool.sol";
 

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
+pragma abicoder v2;
 
 import "../../SmartYieldPoolCompound.sol";
 import "../../oracle/IYieldOracle.sol";
@@ -48,10 +49,6 @@ contract OraclelizedMock is SmartYieldPoolCompound {
     function setCumulativeSecondlyYieldLast(uint256 cumulativeSecondlyYieldLast_, uint256 timestampLast_) public {
         st.cumulativeSecondlyYieldLast = cumulativeSecondlyYieldLast_;
         st.timestampLast = uint32(timestampLast_ % 2**32);
-    }
-
-    function setSafeToObserve(bool safeToObserve_) public {
-        st._safeToObserve = safeToObserve_;
     }
 
     function cumulativeOverflowProof(uint256 diff)

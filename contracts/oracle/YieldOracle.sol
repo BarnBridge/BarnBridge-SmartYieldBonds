@@ -82,11 +82,6 @@ contract YieldOracle is IYieldOracle {
     // update the cumulative price for the observation at the current timestamp. each observation is updated at most
     // once per epoch period.
     function update() external override {
-        if (!pool.safeToObserve()) {
-            // pool may be ramping up or in weird state, don't polute oracle observations
-            return;
-        }
-
         // get the observation for the current period
         uint8 observationIndex = observationIndexOf(pool.currentTime());
         Observation storage observation = yieldObservations[observationIndex];
@@ -109,8 +104,7 @@ contract YieldOracle is IYieldOracle {
         uint256 forInterval
     ) private pure returns (uint256 yieldAverage) {
         return
-            ((yieldCumulativeEnd - yieldCumulativeStart) * forInterval) /
-            timeElapsed;
+            ((yieldCumulativeEnd - yieldCumulativeStart) * forInterval) / timeElapsed;
     }
 
     // returns the amount out corresponding to the amount in for a given token using the moving average over the time
@@ -145,11 +139,6 @@ contract YieldOracle is IYieldOracle {
             //     "YO: UNEXPECTED_TIME_ELAPSED"
             // );
             // if the oracle is in an odd state, it reports 0 yield => there's no incentive to buy sBOND
-            return 0;
-        }
-
-        if (!pool.safeToObserve()) {
-            // if the pool is in a weird state, the oracle reports 0 yield => there's no incentive to buy sBOND
             return 0;
         }
 

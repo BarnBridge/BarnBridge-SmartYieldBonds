@@ -142,7 +142,6 @@ describe('Yield Oracle', async function () {
       const expectedYields = [100, 100, 92, 90]; // resulting daily yields
 
       const { yieldOracle: oracle, oraclelizedMock: pool, moveTime, addCumulativeYield } = await bbFixtures(fixture(windowSize, granularity));
-      await pool.setSafeToObserve(true);
 
       for (let i = 0; i < yields.length; i++) {
         await moveTime(windowSize / granularity);
@@ -167,7 +166,6 @@ describe('Yield Oracle', async function () {
       const yieldPerPeriod = yieldPerDay.mul(windowSize / granularity).div(A_DAY);
 
       const { yieldOracle: oracle, oraclelizedMock: pool, moveTime, addCumulativeYield } = await bbFixtures(fixture(windowSize, granularity));
-      await pool.setSafeToObserve(true);
 
       const underlying = e('1.3', underlyingDecimals);
 
@@ -205,7 +203,7 @@ describe('Yield Oracle', async function () {
       for (let i = 0; i < granularity * 2; i++) {
         underlying = underlying.add(yieldPerPeriod(yield_per_day, underlying, windowSize, granularity, underlyingDecimals));
         await oraclelizedMock.setUnderlyingAndCumulate(underlying);
-        if (i < granularity) {
+        if (i < granularity - 1) {
           expect(await yieldOracle.consult(A_DAY), `should be 0 for i=${i}`).deep.equal(BN.from(0));
         } else {
           expect(await yieldOracle.consult(A_DAY), `should be ${yield_per_day} for i=${i}`).equalOrLowerWithin(yield_per_day, ERROR_MARGIN_PREFERED); // off by 2?
@@ -233,7 +231,7 @@ describe('Yield Oracle', async function () {
       for (let i = 0; i < granularity * 2; i++) {
         underlying = underlying.add(yieldPerPeriod(yield_per_day, underlying, windowSize, granularity, underlyingDecimals));
         await oraclelizedMock.setUnderlyingAndCumulate(underlying);
-        if (i < granularity - 1) {
+        if (i < granularity - 2) {
           expect(await yieldOracle.consult(A_DAY), `should be 0 for i=${i}`).deep.equal(BN.from(0));
         } else {
           expect(await yieldOracle.consult(A_DAY), `should be ${yield_per_day} for i=${i}`).equalOrLowerWithin(yield_per_day, ERROR_MARGIN_PREFERED); // off by 1

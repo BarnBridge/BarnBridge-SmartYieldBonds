@@ -101,8 +101,6 @@ contract CTokenYieldingMock is ICToken, ERC20 {
       uint256 underlyingYielded = MathUtils.compound2(underlyingPrev, yieldPerDay, elapsedDays) - underlyingPrev;
       underlyingYielded += (elapsedRemaining * yieldPerDay / (1 days)) * underlyingPrev / 1e18;
 
-      console.log("underlyingYielded", underlyingYielded);
-
       Erc20Mock(underlying).mintMock(address(this), underlyingYielded);
       lastYielded = clock.currentTime();
     }

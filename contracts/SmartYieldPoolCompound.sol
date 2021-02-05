@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
+pragma abicoder v2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -10,9 +11,9 @@ import "./external-interfaces/compound-finance/ICToken.sol";
 import "./external-interfaces/compound-finance/IComptroller.sol";
 
 import "./ControllerCompound.sol";
-import "./ASmartYieldPool.sol";
+import "./ASmartYieldPoolViews.sol";
 
-contract SmartYieldPoolCompound is ASmartYieldPool {
+contract SmartYieldPoolCompound is ASmartYieldPoolViews {
     using SafeMath for uint256;
 
     // cToken.balanceOf(this) measuring only deposits by users (excludes cToken transfers to pool)

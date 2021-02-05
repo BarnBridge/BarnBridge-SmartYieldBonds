@@ -50,22 +50,22 @@ library ASmartYieldPoolLib
         uint32 blockTimestamp = uint32(pool.currentTime() % 2**32);
         uint32 timeElapsed = blockTimestamp - st.timestampLast; // overflow is desired
         // only for the first time in the block && if there's underlying
-        if (timeElapsed > 0 && st.underlyingTotalLast > 0) {
-            // cumulativeSecondlyYieldLast overflows eventually,
-            // due to the way it is used in the oracle that's ok,
-            // as long as it doesn't overflow twice during the windowSize
-            // see OraclelizedMock.cumulativeOverflowProof() for proof
-            st.cumulativeSecondlyYieldLast +=
-                // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
-                // (this.underlyingTotal() - underlyingTotalLast) never underflows
-                ((pool.underlyingTotal() - st.underlyingTotalLast) * 1e18) /
-                st.underlyingTotalLast;
+        if (timeElapsed > 0) {
+            if (st.underlyingTotalLast > 0) {
+              // cumulativeSecondlyYieldLast overflows eventually,
+              // due to the way it is used in the oracle that's ok,
+              // as long as it doesn't overflow twice during the windowSize
+              // see OraclelizedMock.cumulativeOverflowProof() for proof
+              st.cumulativeSecondlyYieldLast +=
+                  // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
+                  // (this.underlyingTotal() - underlyingTotalLast) never underflows
+                  ((pool.underlyingTotal() - st.underlyingTotalLast) * 1e18) / st.underlyingTotalLast;
+            }
 
             st.cumulativeUnderlyingTotalLast += pool.underlyingTotal() * timeElapsed;
 
             st.timestampLast = blockTimestamp;
         }
-        st._safeToObserve = true;
     }
 
     function __accountYieldLast(ISmartYieldPool.Storage storage st) internal {
@@ -94,17 +94,17 @@ library ASmartYieldPoolLib
         cumulativeUnderlyingTotal = st.cumulativeUnderlyingTotalLast;
 
         uint32 timeElapsed = blockTimestamp - st.timestampLast; // overflow is desired
-        if (timeElapsed > 0 && st.underlyingTotalLast > 0) {
-            // cumulativeSecondlyYield overflows eventually,
-            // due to the way it is used in the oracle that's ok,
-            // as long as it doesn't overflow twice during the windowSize
-            // see OraclelizedMock.cumulativeOverflowProof() for proof
-            cumulativeSecondlyYield +=
-                // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
-                // (this.underlyingTotal() - underlyingTotalLast) never underflows
-                ((pool.underlyingTotal() - st.underlyingTotalLast) * 1e18) /
-                st.underlyingTotalLast;
-
+        if (timeElapsed > 0) {
+            if (st.underlyingTotalLast > 0) {
+              // cumulativeSecondlyYield overflows eventually,
+              // due to the way it is used in the oracle that's ok,
+              // as long as it doesn't overflow twice during the windowSize
+              // see OraclelizedMock.cumulativeOverflowProof() for proof
+              cumulativeSecondlyYield +=
+                  // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
+                  // (this.underlyingTotal() - underlyingTotalLast) never underflows
+                  ((pool.underlyingTotal() - st.underlyingTotalLast) * 1e18) / st.underlyingTotalLast;
+            }
             cumulativeUnderlyingTotal += pool.underlyingTotal() * timeElapsed;
         }
         return (cumulativeSecondlyYield, cumulativeUnderlyingTotal, uint256(blockTimestamp));
