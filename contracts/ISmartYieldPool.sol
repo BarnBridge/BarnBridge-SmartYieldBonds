@@ -81,6 +81,9 @@ interface ISmartYieldPool {
       // metadata for junior bonds
       // bond id => bond (JuniorBond)
       mapping(uint256 => JuniorBond) juniorBonds;
+
+      // is currentCumulativeSecondlyYield() providing correct values?
+      bool _safeToObserve;
     }
 
     function abond() external view returns(uint256 principal, uint256 gain, uint256 issuedAt, uint256 maturesAt, bool liquidated);

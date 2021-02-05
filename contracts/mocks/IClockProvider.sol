@@ -2,5 +2,5 @@
 pragma solidity ^0.7.6;
 
 interface IClockProvider {
-  function currentTime() external view;
+  function currentTime() external view returns(uint256);
 }

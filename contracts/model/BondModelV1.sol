@@ -9,8 +9,6 @@ pragma solidity ^0.7.6;
 // cur_j - curent junior liquidity. totalUndwerlying() - abond.principal - abond.gain - (jtokens in withdrawl * jtoken price)
 // cur_tot - totalUnderlying()
 
-import "hardhat/console.sol";
-
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "../lib/math/MathUtils.sol";
 

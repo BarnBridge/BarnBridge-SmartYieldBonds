@@ -44,6 +44,43 @@ library ASmartYieldPoolLib
 {
     using SafeMath for uint256;
 
+    function __accountYieldFirst(ISmartYieldPool.Storage storage st) internal {
+        ASmartYieldPool pool = ASmartYieldPool(address(this));
+
+        uint32 blockTimestamp = uint32(pool.currentTime() % 2**32);
+        uint32 timeElapsed = blockTimestamp - st.timestampLast; // overflow is desired
+        // only for the first time in the block && if there's underlying
+        if (timeElapsed > 0 && st.underlyingTotalLast > 0) {
+            // cumulativeSecondlyYieldLast overflows eventually,
+            // due to the way it is used in the oracle that's ok,
+            // as long as it doesn't overflow twice during the windowSize
+            // see OraclelizedMock.cumulativeOverflowProof() for proof
+            st.cumulativeSecondlyYieldLast +=
+                // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
+                // (this.underlyingTotal() - underlyingTotalLast) never underflows
+                ((pool.underlyingTotal() - st.underlyingTotalLast) * 1e18) /
+                st.underlyingTotalLast;
+
+            st.cumulativeUnderlyingTotalLast += pool.underlyingTotal() * timeElapsed;
+
+            st.timestampLast = blockTimestamp;
+        }
+        st._safeToObserve = true;
+    }
+
+    function __accountYieldLast(ISmartYieldPool.Storage storage st) internal {
+        ASmartYieldPool pool = ASmartYieldPool(address(this));
+
+        st.underlyingTotalLast = pool.underlyingTotal();
+    }
+
+    function __updateOracle() internal {
+        ASmartYieldPool pool = ASmartYieldPool(address(this));
+
+        IYieldOracle(IController(pool.controller()).oracle()).update();
+    }
+
+
     // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
     function currentCumulatives(ISmartYieldPool.Storage storage st)

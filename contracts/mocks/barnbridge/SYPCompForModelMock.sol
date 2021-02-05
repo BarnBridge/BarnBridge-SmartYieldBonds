@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
 
-import "hardhat/console.sol";
-
 import "../../SmartYieldPoolCompound.sol";
 import "../../model/IBondModel.sol";
 

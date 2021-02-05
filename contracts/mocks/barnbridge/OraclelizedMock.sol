@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
 
-import "hardhat/console.sol";
-
 import "../../SmartYieldPoolCompound.sol";
 import "../../oracle/IYieldOracle.sol";
 
@@ -53,7 +51,7 @@ contract OraclelizedMock is SmartYieldPoolCompound {
     }
 
     function setSafeToObserve(bool safeToObserve_) public {
-      _safeToObserve = safeToObserve_;
+        st._safeToObserve = safeToObserve_;
     }
 
     function cumulativeOverflowProof(uint256 diff)

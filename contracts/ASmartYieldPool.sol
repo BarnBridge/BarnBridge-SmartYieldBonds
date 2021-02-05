@@ -57,9 +57,6 @@ abstract contract ASmartYieldPool is
 
     Storage st;
 
-    // is currentCumulativeSecondlyYield() providing correct values?
-    bool public _safeToObserve;
-
     function __executeJuniorWithdrawals() internal {
         // this modifier will be added to the begginging of all (write) functions.
         // The first tx after a queued liquidation's timestamp will trigger the liquidation
@@ -74,44 +71,14 @@ abstract contract ASmartYieldPool is
         }
     }
 
-    function __accountYieldFirst() internal {
-        uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
-        uint32 timeElapsed = blockTimestamp - st.timestampLast; // overflow is desired
-        // only for the first time in the block && if there's underlying
-        if (timeElapsed > 0 && st.underlyingTotalLast > 0) {
-            // cumulativeSecondlyYieldLast overflows eventually,
-            // due to the way it is used in the oracle that's ok,
-            // as long as it doesn't overflow twice during the windowSize
-            // see OraclelizedMock.cumulativeOverflowProof() for proof
-            st.cumulativeSecondlyYieldLast +=
-                // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
-                // (this.underlyingTotal() - underlyingTotalLast) never underflows
-                ((this.underlyingTotal() - st.underlyingTotalLast) * 1e18) /
-                st.underlyingTotalLast;
-
-            st.cumulativeUnderlyingTotalLast += this.underlyingTotal() * timeElapsed;
-
-            _safeToObserve = true;
-            st.timestampLast = blockTimestamp;
-        }
-    }
-
-    function __accountYieldLast() internal {
-        st.underlyingTotalLast = this.underlyingTotal();
-    }
-
-    function __updateOracle() internal {
-        IYieldOracle(IController(controller).oracle()).update();
-    }
-
     // add to all methods changeing the underlying
     // per https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L73
     modifier accountYield() {
-        __accountYieldFirst();
-        __updateOracle();
+        ASmartYieldPoolLib.__accountYieldFirst(st);
+        ASmartYieldPoolLib.__updateOracle();
         __executeJuniorWithdrawals();
         _;
-        __accountYieldLast();
+        ASmartYieldPoolLib.__accountYieldLast(st);
     }
 
     // storage ------
@@ -182,7 +149,7 @@ abstract contract ASmartYieldPool is
     }
 
     function safeToObserve() public view override returns (bool) {
-        return _safeToObserve;
+        return st._safeToObserve;
     }
 
     // Purchase a senior bond with _principalAmount underlying for _forDays, buyer gets a bond with gain >= _minGain or revert. _deadline is timestamp before which tx is not rejected.
