@@ -34,9 +34,6 @@ interface ISmartYieldPool {
     }
 
     struct Storage {
-      // pool state / average bond
-      // holds rate of payment by juniors to seniors
-      SeniorBond abond;
 
       // previously measured total underlying
       uint256 underlyingTotalLast;
@@ -69,6 +66,10 @@ interface ISmartYieldPool {
       uint256 juniorBondsMaturitiesPrev;
       // list of junior bond maturities (timestamps)
       uint256[] juniorBondsMaturities;
+
+      // pool state / average bond
+      // holds rate of payment by juniors to seniors
+      SeniorBond abond;
 
       // checkpoints for all JuniorBonds matureing at (timestamp) -> (JuniorBondsAt)
       // timestamp -> JuniorBondsAt

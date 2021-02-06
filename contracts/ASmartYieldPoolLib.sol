@@ -44,9 +44,7 @@ library ASmartYieldPoolLib
 {
     using SafeMath for uint256;
 
-    function __accountYieldFirst(ISmartYieldPool.Storage storage st) internal {
-        ASmartYieldPool pool = ASmartYieldPool(address(this));
-
+    function __accountYieldFirst(ASmartYieldPool pool, ISmartYieldPool.Storage storage st) internal {
         uint32 blockTimestamp = uint32(pool.currentTime() % 2**32);
         uint32 timeElapsed = blockTimestamp - st.timestampLast; // overflow is desired
         // only for the first time in the block && if there's underlying
@@ -68,27 +66,36 @@ library ASmartYieldPoolLib
         }
     }
 
-    function __accountYieldLast(ISmartYieldPool.Storage storage st) internal {
-        ASmartYieldPool pool = ASmartYieldPool(address(this));
-
+    function __accountYieldLast(ASmartYieldPool pool, ISmartYieldPool.Storage storage st) internal {
         st.underlyingTotalLast = pool.underlyingTotal();
     }
 
-    function __updateOracle() internal {
-        ASmartYieldPool pool = ASmartYieldPool(address(this));
-
+    function __updateOracle(ASmartYieldPool pool) internal {
         IYieldOracle(IController(pool.controller()).oracle()).update();
     }
 
+    function __executeJuniorWithdrawals(ASmartYieldPool pool, ISmartYieldPool.Storage storage st)
+      internal
+    {
+        // this modifier will be added to the begginging of all (write) functions.
+        // The first tx after a queued liquidation's timestamp will trigger the liquidation
+        // reducing the jToken supply, and setting aside owed_dai for withdrawals
+        for (uint256 i = st.juniorBondsMaturitiesPrev; i < st.juniorBondsMaturities.length; i++) {
+            if (pool.currentTime() >= st.juniorBondsMaturities[i]) {
+                _liquidateJuniorsAt(pool, st, st.juniorBondsMaturities[i]);
+                st.juniorBondsMaturitiesPrev = i + 1;
+            } else {
+                break;
+            }
+        }
+    }
 
     // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
-    function currentCumulatives(ISmartYieldPool.Storage storage st)
+    function currentCumulatives(ASmartYieldPool pool, ISmartYieldPool.Storage storage st)
         internal view
     returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingTotal, uint256 blockTs)
     {
-        ASmartYieldPool pool = ASmartYieldPool(address(this));
-
         uint32 blockTimestamp = uint32(pool.currentTime() % 2**32);
         cumulativeSecondlyYield = st.cumulativeSecondlyYieldLast;
         cumulativeUnderlyingTotal = st.cumulativeUnderlyingTotalLast;
@@ -110,11 +117,9 @@ library ASmartYieldPoolLib
         return (cumulativeSecondlyYield, cumulativeUnderlyingTotal, uint256(blockTimestamp));
     }
 
-    function _mintBond(ISmartYieldPool.Storage storage st, address _to, ISmartYieldPool.SeniorBond memory _bond)
+    function _mintBond(ASmartYieldPool pool, ISmartYieldPool.Storage storage st, address _to, ISmartYieldPool.SeniorBond memory _bond)
       internal
     {
-        ASmartYieldPool pool = ASmartYieldPool(address(this));
-
         require(
           st.seniorBondId < uint256(-1),
           "ASYP: _mintBond"
@@ -122,18 +127,16 @@ library ASmartYieldPoolLib
 
         st.seniorBondId++;
         st.seniorBonds[st.seniorBondId] = _bond;
-        _accountBond(st, _bond);
+        _accountBond(pool, st, _bond);
         IBond(pool.seniorBond()).mint(_to, st.seniorBondId);
     }
 
     // when a new bond is added to the pool, we want:
     // - to average abond.maturesAt (the earliest date at which juniors can fully exit), this shortens the junior exit date compared to the date of the last active bond
     // - to keep the price for jTokens before a bond is bought ~equal with the price for jTokens after a bond is bought
-    function _accountBond(ISmartYieldPool.Storage storage st, ISmartYieldPool.SeniorBond memory b)
+    function _accountBond(ASmartYieldPool pool, ISmartYieldPool.Storage storage st, ISmartYieldPool.SeniorBond memory b)
       internal
     {
-        ASmartYieldPool pool = ASmartYieldPool(address(this));
-
         uint256 currentTime = pool.currentTime() * 1e18;
 
         uint256 newDebt = pool.abondDebt() + b.gain;
@@ -155,11 +158,9 @@ library ASmartYieldPoolLib
     // when a bond is redeemed from the pool, we want:
     // - for abond.maturesAt (the earliest date at which juniors can fully exit) to remain the same as before the redeem
     // - to keep the price for jTokens before a bond is bought ~equal with the price for jTokens after a bond is bought
-    function _unaccountBond(ISmartYieldPool.Storage storage st, ISmartYieldPool.SeniorBond memory b)
+    function _unaccountBond(ASmartYieldPool pool, ISmartYieldPool.Storage storage st, ISmartYieldPool.SeniorBond memory b)
       internal
     {
-        ASmartYieldPool pool = ASmartYieldPool(address(this));
-
         uint256 currentTime = pool.currentTime() * 1e18;
 
         if ((currentTime >= st.abond.maturesAt)) {
@@ -186,7 +187,43 @@ library ASmartYieldPoolLib
           st.abond.maturesAt,
           false
         );
+    }
 
+    // removes matured seniorBonds from being accounted in abond
+    function _unaccountBondsInternal(ASmartYieldPool pool, ISmartYieldPool.Storage storage st, uint256[] memory _bondIds) internal {
+        for (uint256 f = 0; f < _bondIds.length; f++) {
+            if (
+                pool.currentTime() > st.seniorBonds[_bondIds[f]].maturesAt &&
+                st.seniorBonds[_bondIds[f]].liquidated == false
+            ) {
+                st.seniorBonds[_bondIds[f]].liquidated = true;
+                _unaccountBond(pool, st, st.seniorBonds[_bondIds[f]]);
+            }
+        }
+    }
+
+    function _liquidateJuniorsAt(ASmartYieldPool pool, ISmartYieldPool.Storage storage st, uint256 timestamp)
+      internal
+    {
+        ISmartYieldPool.JuniorBondsAt storage jBondsAt = st.juniorBondsMaturingAt[timestamp];
+
+        require(
+          jBondsAt.tokens > 0,
+          "ASYP: nothing to liquidate"
+        );
+
+        require(
+          jBondsAt.price == 0,
+          "ASYP: already liquidated"
+        );
+
+        jBondsAt.price = pool.price();
+
+        // ---
+
+        st.underlyingLiquidatedJuniors += jBondsAt.tokens * jBondsAt.price / 1e18;
+        IJuniorToken(pool.juniorToken()).burn(address(this), jBondsAt.tokens); // burns Junior locked tokens reducing the jToken supply
+        st.tokensInJuniorBonds -= jBondsAt.tokens;
     }
 
 }

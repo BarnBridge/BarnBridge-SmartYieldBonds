@@ -44,6 +44,4 @@ abstract contract ASmartYieldPoolViews is
     function juniorBondsMaturities() public view returns (uint256[] memory) {
       return st.juniorBondsMaturities;
     }
-
-
 }

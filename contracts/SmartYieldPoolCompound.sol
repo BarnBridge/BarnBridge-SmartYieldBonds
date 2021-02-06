@@ -16,20 +16,6 @@ import "./ASmartYieldPoolViews.sol";
 contract SmartYieldPoolCompound is ASmartYieldPoolViews {
     using SafeMath for uint256;
 
-    // cToken.balanceOf(this) measuring only deposits by users (excludes cToken transfers to pool)
-    uint256 public cTokenBalance;
-
-    // --- COMP reward checkpoint
-    // saved comptroller.compSupplyState(cToken) value @ the moment the pool harvested
-    uint256 public compSupplierIndexLast;
-
-    // cumulative balanceOf @ last harvest
-    uint256 public cumulativeUnderlyingTotalHarvestedLast;
-
-    // when we last harvested
-    uint256 public harvestedLast;
-    // --- /COMP reward checkpoint
-
     // underlying token (ie. DAI)
     address public uToken; // IERC20
 
@@ -46,6 +32,20 @@ contract SmartYieldPoolCompound is ASmartYieldPoolViews {
     address public wethToken; //IERC20
 
     address public uniswap; //IUniswapV2Router
+
+    // cToken.balanceOf(this) measuring only deposits by users (excludes cToken transfers to pool)
+    uint256 public cTokenBalance;
+
+    // --- COMP reward checkpoint
+    // saved comptroller.compSupplyState(cToken) value @ the moment the pool harvested
+    uint256 public compSupplierIndexLast;
+
+    // cumulative balanceOf @ last harvest
+    uint256 public cumulativeUnderlyingTotalHarvestedLast;
+
+    // when we last harvested
+    uint256 public harvestedLast;
+    // --- /COMP reward checkpoint
 
     constructor()
         ASmartYieldPool()

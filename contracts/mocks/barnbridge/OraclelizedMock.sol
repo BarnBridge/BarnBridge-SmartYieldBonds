@@ -13,7 +13,10 @@ contract OraclelizedMock is SmartYieldPoolCompound {
         SmartYieldPoolCompound()
     { }
 
-    function cumulate() public accountYield {}
+    function cumulate() public {
+      _beforeProviderOp();
+      _afterProviderOp();
+    }
 
     function underlyingTotal() public view override returns (uint256) {
         return _underlyingTotal;

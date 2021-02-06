@@ -16,7 +16,7 @@ abstract contract Governed {
 
   modifier onlyDaoOrGuardian {
     require(
-      dao == msg.sender || guardian == msg.sender,
+      msg.sender == dao || msg.sender == guardian,
       "GOV: not dao/guardian"
     );
     _;
