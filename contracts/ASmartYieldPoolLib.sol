@@ -47,8 +47,9 @@ library ASmartYieldPoolLib
     function __accountYieldFirst(ASmartYieldPool pool, ISmartYieldPool.Storage storage st) internal {
         uint32 blockTimestamp = uint32(pool.currentTime() % 2**32);
         uint32 timeElapsed = blockTimestamp - st.timestampLast; // overflow is desired
-        // only for the first time in the block && if there's underlying
+        // only for the first time in the block
         if (timeElapsed > 0) {
+            // if there's underlying
             if (st.underlyingTotalLast > 0) {
               // cumulativeSecondlyYieldLast overflows eventually,
               // due to the way it is used in the oracle that's ok,

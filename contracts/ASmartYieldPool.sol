@@ -208,6 +208,7 @@ abstract contract ASmartYieldPool is
 
         // bondToken.burn will revert for already burned tokens
         IBond(seniorBond).burn(_bondId);
+        delete st.seniorBonds[_bondId];
 
         _withdrawProvider(payAmnt);
         _sendUnderlying(payTo, payAmnt);
