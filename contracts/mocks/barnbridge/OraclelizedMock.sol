@@ -2,15 +2,21 @@
 pragma solidity ^0.7.6;
 pragma abicoder v2;
 
+import "../HasClock.sol";
+
 import "../../providers/CompoundProvider.sol";
 import "../../oracle/IYieldOracle.sol";
 
-contract OraclelizedMock is CompoundProvider {
+contract OraclelizedMock is HasClock, CompoundProvider {
     uint256 public _underlyingBalance;
-    uint256 public _now;
 
-    constructor()
+    constructor(address clockProvider_)
+      HasClock(clockProvider_)
     { }
+
+    function currentTime() external view override returns(uint256) {
+      return this.clockCurrentTime();
+    }
 
     function cumulate() public {
       this.cumulatives();
@@ -33,14 +39,6 @@ contract OraclelizedMock is CompoundProvider {
     function setUnderlyingBalance(uint256 underlyingBalance_, uint256 underlyingBalanceLast_) public {
         _underlyingBalance = underlyingBalance_;
         underlyingBalanceLast = underlyingBalanceLast_;
-    }
-
-    function setCurrentTime(uint256 now_) public {
-        _now = now_;
-    }
-
-    function currentTime() public view override returns (uint256) {
-        return _now;
     }
 
     function setCumulativeSecondlyYieldLast(uint256 cumulativeSecondlyYieldLast_, uint256 timestampLast_) public {

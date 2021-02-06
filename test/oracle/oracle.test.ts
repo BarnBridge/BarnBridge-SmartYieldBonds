@@ -6,28 +6,13 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { deployContract } from 'ethereum-waffle';
 
-import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, deployUnderlying, deployCompComptroller, deployCompCToken, deployYieldOracle, deployCompoundController } from '@testhelp/index';
+import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, deployUnderlying, deployCompComptroller, deployCompCToken, deployYieldOracle, deployCompoundController, deployClockMock, moveTime, currentTime } from '@testhelp/index';
 
 import OraclelizedMockArtifact from '../../artifacts/contracts/mocks/barnbridge/OraclelizedMock.sol/OraclelizedMock.json';
 import { OraclelizedMock } from '@typechain/OraclelizedMock';
 
 const defaultWindowSize = A_DAY * 3;
 const defaultGranularity = 12 * 3; // samples in window
-
-const START_TIME = 1614556800; // 03/01/2021 @ 12:00am (UTC)
-let timePrev = BN.from(START_TIME);
-
-const moveTime = (oraclelizedMock: OraclelizedMock) => {
-  return async (seconds: number | BN | BNj) => {
-    seconds = BN.from(seconds.toString());
-    timePrev = timePrev.add(seconds);
-    await oraclelizedMock.setCurrentTime(timePrev);
-  };
-};
-
-const currentTime = () => {
-  return timePrev;
-};
 
 const yieldPerPeriod = (yieldPerDay: BN, underlying: BN, windowSize: number, granularity: number, underlyingDecimals: number) => {
   const period = BN.from(windowSize).div(granularity);
@@ -64,10 +49,12 @@ const fixture = (windowSize: number, granularity: number) => {
       ownerSign.getAddress(),
     ]);
 
+    const clock = await deployClockMock(deployerSign);
+
     const [underlying, comptrollerMock, pool] = await Promise.all([
       deployUnderlying(deployerSign, decimals),
       deployCompComptroller(deployerSign),
-      (deployContract(deployerSign, OraclelizedMockArtifact, [])) as Promise<OraclelizedMock>,
+      (deployContract(deployerSign, OraclelizedMockArtifact, [clock.address])) as Promise<OraclelizedMock>,
     ]);
 
     const [controller, cToken, yieldOracle] = await Promise.all([
@@ -83,14 +70,14 @@ const fixture = (windowSize: number, granularity: number) => {
       pool.setup('0x0000000000000000000000000000000000000000', controller.address, cToken.address),
     ]);
 
-    await (moveTime(pool))(0);
+    await (moveTime(clock))(0);
 
     return {
       yieldOracle, pool, controller,
       deployerSign: deployerSign as Signer,
       ownerSign: ownerSign as Signer,
       deployerAddr, ownerAddr,
-      moveTime: moveTime(pool),
+      moveTime: moveTime(clock),
       addCumulativeYield: addCumulativeYield(pool),
     };
   };

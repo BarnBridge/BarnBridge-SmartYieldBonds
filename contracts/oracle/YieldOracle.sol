@@ -82,7 +82,7 @@ contract YieldOracle is IYieldOracle {
 
     // update the cumulative price for the observation at the current timestamp. each observation is updated at most
     // once per epoch period.
-    function update() external override {
+    function update() external virtual override {
         // get the observation for the current period
         uint8 observationIndex = observationIndexOf(pool.currentTime());
         Observation storage observation = yieldObservations[observationIndex];

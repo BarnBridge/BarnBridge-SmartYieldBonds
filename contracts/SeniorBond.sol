@@ -10,9 +10,9 @@ contract SeniorBond is IBond, ERC721 {
     address public override smartYield;
 
     constructor(
+        address smartYield_,
         string memory name,
-        string memory symbol,
-        address smartYield_
+        string memory symbol
     ) ERC721(name, symbol) {
         smartYield = smartYield_;
     }

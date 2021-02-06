@@ -98,9 +98,11 @@ export const HD = (d: BN | number): string => {
 export const HT = (ts: BN | number): string => {
   ts = BN.from(ts).toNumber();
   return moment.unix(ts).utc().format('YYYY/MM/DD hh:mm:ss');
-}
+};
 
 export * from './misc';
 export * from './rates';
 export * from './bonds';
+export * from './tokens';
 export * from './deploy';
+export * from './time';
