@@ -106,7 +106,7 @@ contract CompoundProvider is IProvider {
     // oracle should call this when updating
     function cumulatives()
       external override
-    returns(uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingTotal, uint256 blockTs) {
+    returns(uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance, uint256 blockTs) {
         _accountYieldInternal();
         underlyingBalanceLast = this.underlyingBalance();
         return (cumulativeSecondlyYieldLast, cumulativeUnderlyingBalanceLast, this.currentTime());

@@ -1,11 +1,11 @@
-import { SmartYieldPoolCompound } from '@typechain/SmartYieldPoolCompound';
+import { SmartYield } from '@typechain/SmartYield';
 import { BigNumber as BN, Signer } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { e18, toBNj } from './misc';
 import { HD, HT } from '.';
 
 export type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
-export type BondType = ThenArg<ReturnType<SmartYieldPoolCompound['bonds']>>;
+export type BondType = ThenArg<ReturnType<SmartYield['bonds']>>;
 
 export const dumpBond = (msg: string, b: BondType, now: BN | number | undefined = undefined, isAbond = false, tabs = ''): void => {
   if (isAbond) {
@@ -31,7 +31,7 @@ export const dumpBond = (msg: string, b: BondType, now: BN | number | undefined 
   }
 };
 
-export const dumpAbondState = async (msg: string, pool: SmartYieldPoolCompound): Promise<void> => {
+export const dumpAbondState = async (msg: string, pool: SmartYield): Promise<void> => {
   const abond = await pool.abond();
   const [currentTime, abondPaid, abondDebt, abondTotal, bondsOutstanding] = await Promise.all([
     pool.currentTime(),
