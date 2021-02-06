@@ -15,7 +15,7 @@ contract SmartYieldPoolCompoundMock is SmartYieldPoolCompound {
         return _currentTime;
     }
 
-    function setCurrentTime(uint256 ts) public {
+    function setCurrentTime(uint256 ts) external {
         _currentTime = ts;
     }
 }

@@ -79,33 +79,21 @@ abstract contract ASmartYieldPool is
         ASmartYieldPoolLib.__accountYieldLast(this, st);
     }
 
+    function cumulatives()
+      external override
+    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingTotal, uint256 blockTs) {
+        ASmartYieldPoolLib.__accountYieldFirst(this, st);
+        ASmartYieldPoolLib.__accountYieldLast(this, st);
+        return (st.cumulativeSecondlyYieldLast, st.cumulativeUnderlyingTotalLast, this.currentTime());
+    }
+
     // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
     function currentCumulatives()
-        public view override
+        external view override
     returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingTotal, uint256 blockTs)
     {
-
       return ASmartYieldPoolLib.currentCumulatives(this, st);
-        // uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
-        // cumulativeSecondlyYield = st.cumulativeSecondlyYieldLast;
-        // cumulativeUnderlyingTotal = st.cumulativeUnderlyingTotalLast;
-
-        // uint32 timeElapsed = blockTimestamp - st.timestampLast; // overflow is desired
-        // if (timeElapsed > 0 && st.underlyingTotalLast > 0) {
-        //     // cumulativeSecondlyYield overflows eventually,
-        //     // due to the way it is used in the oracle that's ok,
-        //     // as long as it doesn't overflow twice during the windowSize
-        //     // see OraclelizedMock.cumulativeOverflowProof() for proof
-        //     cumulativeSecondlyYield +=
-        //         // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
-        //         // (this.underlyingTotal() - underlyingTotalLast) never underflows
-        //         ((this.underlyingTotal() - st.underlyingTotalLast) * 1e18) /
-        //         st.underlyingTotalLast;
-
-        //     cumulativeUnderlyingTotal += this.underlyingTotal() * timeElapsed;
-        // }
-        // return (cumulativeSecondlyYield, cumulativeUnderlyingTotal, uint256(blockTimestamp));
     }
 
     // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
