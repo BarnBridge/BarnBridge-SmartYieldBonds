@@ -47,9 +47,6 @@ contract SmartYield is
     // junior BOND (NFT)
     address public juniorBond; // IBond
 
-    // junior TOKEN (fungible)
-    address public juniorToken; // IJuniorToken
-
     // underlying amount in matured and liquidated juniorBonds
     uint256 public underlyingLiquidatedJuniors;
 
