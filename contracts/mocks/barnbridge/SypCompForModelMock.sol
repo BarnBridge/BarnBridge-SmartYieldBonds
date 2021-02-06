@@ -5,7 +5,7 @@ pragma abicoder v2;
 import "../../SmartYield.sol";
 import "../../model/IBondModel.sol";
 
-contract SYPCompForModelMock is SmartYield {
+contract SypCompForModelMock is SmartYield {
     uint256 public _currentTime = 0;
     uint256 public _underlyingLoanable = 0;
     uint256 public _underlyingTotal = 0;

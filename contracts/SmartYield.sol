@@ -64,10 +64,6 @@ contract SmartYield is
     // list of junior bond maturities (timestamps)
     uint256[] public juniorBondsMaturities;
 
-    // pool state / average bond
-    // holds rate of payment by juniors to seniors
-    SeniorBond public abond;
-
     // checkpoints for all JuniorBonds matureing at (timestamp) -> (JuniorBondsAt)
     // timestamp -> JuniorBondsAt
     mapping(uint256 => JuniorBondsAt) public juniorBondsMaturingAt;
@@ -80,12 +76,39 @@ contract SmartYield is
     // bond id => bond (JuniorBond)
     mapping(uint256 => JuniorBond) public juniorBonds;
 
+    // pool state / average bond
+    // holds rate of payment by juniors to seniors
+    SeniorBond public abond;
+
+    bool public _setup;
+
     constructor(
       string memory name,
       string memory symbol
     )
       JuniorToken(name, symbol)
     {}
+
+    function setup(
+      address controller_,
+      address pool_,
+      address seniorBond_,
+      address juniorBond_
+    )
+      external
+    {
+        require(
+          false == _setup,
+          "SY: already setup"
+        );
+
+        controller = controller_;
+        pool = pool_;
+        seniorBond = seniorBond_;
+        juniorBond = juniorBond_;
+
+        _setup = true;
+    }
 
     function currentTime()
       external view virtual override
@@ -120,12 +143,12 @@ contract SmartYield is
 
         require(
           jBondsAt.tokens > 0,
-          "ASYP: nothing to liquidate"
+          "SY: nothing to liquidate"
         );
 
         require(
           jBondsAt.price == 0,
-          "ASYP: already liquidated"
+          "SY: already liquidated"
         );
 
         jBondsAt.price = this.price();
@@ -157,34 +180,34 @@ contract SmartYield is
 
         require(
           false == IController(controller).PAUSED_BUY_SENIOR_BOND(),
-          "ASYP: buyBond paused"
+          "SY: buyBond paused"
         );
 
         require(
           this.currentTime() <= _deadline,
-          "ASYP: buyBond deadline"
+          "SY: buyBond deadline"
         );
 
         require(
             0 < _forDays && _forDays <= IController(controller).BOND_LIFE_MAX(),
-            "ASYP: buyBond forDays"
+            "SY: buyBond forDays"
         );
 
         uint256 gain = this.bondGain(_principalAmount, _forDays);
 
         require(
           gain >= _minGain,
-          "ASYP: buyBond minGain"
+          "SY: buyBond minGain"
         );
 
         require(
           gain > 0,
-          "ASYP: buyBond gain 0"
+          "SY: buyBond gain 0"
         );
 
         require(
           gain < this.underlyingLoanable(),
-          "ASYP: buyBond underlyingLoanable"
+          "SY: buyBond underlyingLoanable"
         );
 
         uint256 issuedAt = this.currentTime();
@@ -215,7 +238,7 @@ contract SmartYield is
 
         require(
             this.currentTime() >= seniorBonds[_bondId].maturesAt,
-            "ASYP: redeemBond not matured"
+            "SY: redeemBond not matured"
         );
 
         // bondToken.ownerOf will revert for burned tokens
@@ -264,12 +287,12 @@ contract SmartYield is
 
         require(
           false == IController(controller).PAUSED_BUY_JUNIOR_TOKEN(),
-          "ASYP: buyTokens paused"
+          "SY: buyTokens paused"
         );
 
         require(
           this.currentTime() <= deadline_,
-          "ASYP: buyTokens deadline"
+          "SY: buyTokens deadline"
         );
 
         uint256 fee = MathUtils.fractionOf(underlyingAmount_, IController(controller).FEE_BUY_JUNIOR_TOKEN());
@@ -277,7 +300,7 @@ contract SmartYield is
 
         require(
           getsTokens >= minTokens_,
-          "ASYP: buyTokens minTokens"
+          "SY: buyTokens minTokens"
         );
 
         // ---
@@ -299,7 +322,7 @@ contract SmartYield is
 
         require(
           this.currentTime() <= deadline_,
-          "ASYP: sellTokens deadline"
+          "SY: sellTokens deadline"
         );
 
         // share of these tokens in the debt
@@ -309,7 +332,7 @@ contract SmartYield is
 
         require(
           toPay >= minUnderlying_,
-          "ASYP: sellTokens minUnderlying"
+          "SY: sellTokens minUnderlying"
         );
 
         // ---
@@ -330,12 +353,12 @@ contract SmartYield is
 
         require(
           this.currentTime() <= deadline_,
-          "ASYP: buyJuniorBond deadline"
+          "SY: buyJuniorBond deadline"
         );
 
         require(
           maturesAt <= maxMaturesAt_,
-          "ASYP: buyJuniorBond maxMaturesAt"
+          "SY: buyJuniorBond maxMaturesAt"
         );
 
         JuniorBond memory jb = JuniorBond(
@@ -373,7 +396,7 @@ contract SmartYield is
     {
         require(
           seniorBondId < uint256(-1),
-          "ASYP: _mintBond"
+          "SY: _mintBond"
         );
 
         seniorBondId++;
@@ -395,7 +418,7 @@ contract SmartYield is
         uint256 newMaturesAt = (abond.maturesAt * this.abondDebt() + b.maturesAt * 1e18 * b.gain) / newDebt;
 
         // timestamp = timestamp - tokens * d / tokens
-        uint256 newIssuedAt = newMaturesAt.sub(uint256(1) + ((abond.gain + b.gain) * (newMaturesAt - _now)) / newDebt, "ASYP: liquidate some seniorBonds");
+        uint256 newIssuedAt = newMaturesAt.sub(uint256(1) + ((abond.gain + b.gain) * (newMaturesAt - _now)) / newDebt, "SY: liquidate some seniorBonds");
 
         abond = SeniorBond(
           abond.principal + b.principal,
@@ -429,7 +452,7 @@ contract SmartYield is
         }
 
         // timestamp = timestamp - tokens * d / tokens
-        uint256 newIssuedAt = abond.maturesAt.sub(uint256(1) + (abond.gain - b.gain) * (abond.maturesAt - now_) / this.abondDebt(), "ASYP: liquidate some seniorBonds");
+        uint256 newIssuedAt = abond.maturesAt.sub(uint256(1) + (abond.gain - b.gain) * (abond.maturesAt - now_) / this.abondDebt(), "SY: liquidate some seniorBonds");
 
         abond = SeniorBond(
           abond.principal - b.principal,
@@ -445,7 +468,7 @@ contract SmartYield is
     {
         require(
           juniorBondId < uint256(-1),
-          "ASYP: _mintJuniorBond"
+          "SY: _mintJuniorBond"
         );
 
         juniorBondId++;
@@ -501,7 +524,7 @@ contract SmartYield is
         JuniorBond memory jb = juniorBonds[jBondId_];
         require(
             jb.maturesAt <= this.currentTime(),
-            "ASYP: redeemJuniorBond maturesAt"
+            "SY: redeemJuniorBond maturesAt"
         );
 
         JuniorBondsAt memory jBondsAt = juniorBondsMaturingAt[jb.maturesAt];
@@ -568,11 +591,11 @@ contract SmartYield is
     function _takeTokens(address _from, uint256 _amount) internal {
         require(
             _amount <= allowance(_from, address(this)),
-            "ASYP: _takeTokens allowance"
+            "SY: _takeTokens allowance"
         );
         require(
             transferFrom(_from, address(this), _amount),
-            "ASYP: _takeTokens transferFrom"
+            "SY: _takeTokens transferFrom"
         );
     }
 
