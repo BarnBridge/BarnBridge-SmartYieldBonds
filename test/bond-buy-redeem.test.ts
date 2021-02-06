@@ -3,113 +3,54 @@ import 'tsconfig-paths/register';
 
 import { expect } from 'chai';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
-import { BigNumber as BNj } from 'bignumber.js';
-import { deployContract } from 'ethereum-waffle';
 
-import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN } from '@testhelp/index';
-
-import BondModelMockArtifact from '../artifacts/contracts/mocks/barnbridge/BondModelMock.sol/BondModelMock.json';
-import SeniorBondArtifact from '../artifacts/contracts/SeniorBond.sol/SeniorBond.json';
-import JuniorBondArtifact from '../artifacts/contracts/JuniorBond.sol/JuniorBond.json';
-import Erc20MockArtifact from '../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
-import CTokenMockArtifact from '../artifacts/contracts/mocks/compound-finance/CTokenMock.sol/CTokenMock.json';
-import SmartYieldPoolCompoundMockArtifact from '../artifacts/contracts/mocks/barnbridge/SmartYieldPoolCompoundMock.sol/SmartYieldPoolCompoundMock.json';
-import YieldOracleMockArtifact from '../artifacts/contracts/mocks/barnbridge/YieldOracleMock.sol/YieldOracleMock.json';
-import ComptrollerMockArtifact from '../artifacts/contracts/mocks/compound-finance/ComptrollerMock.sol/ComptrollerMock.json';
-import JuniorTokenArtifact from '../artifacts/contracts/JuniorToken.sol/JuniorToken.json';
-import ControllerCompoundArtifact from './../artifacts/contracts/ControllerCompound.sol/ControllerCompound.json';
-
-import { YieldOracleMock } from '@typechain/YieldOracleMock';
-import { SmartYieldPoolCompoundMock } from '@typechain/SmartYieldPoolCompoundMock';
-import { BondModelMock } from '@typechain/BondModelMock';
-import { SeniorBond } from '@typechain/SeniorBond';
-import { JuniorBond } from '@typechain/JuniorBond';
-import { Erc20Mock } from '@typechain/Erc20Mock';
-import { CTokenMock } from '@typechain/CTokenMock';
-import { ComptrollerMock } from '@typechain/ComptrollerMock';
-import { JuniorToken} from '@typechain/JuniorToken';
-import { ControllerCompound } from '@typechain/ControllerCompound';
-
-const START_TIME = 1614556800; // 03/01/2021 @ 12:00am (UTC)
-let timePrev = BN.from(START_TIME);
+import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN, deployClockMock, deployBondModelMock, deployUnderlying, deployCompComptroller, deployYieldOracleMock, deployCompoundController, deployCompoundProvider, deploySmartYield, deployCompCToken, deploySeniorBond, deployJuniorBond, currentTime, moveTime, buyTokens, buyBond, redeemBond } from '@testhelp/index';
 
 const decimals = 18;
 const supplyRatePerBlock = BN.from('40749278849'); // 8.94% // 89437198474492656
 const exchangeRateStored = BN.from('209682627301038234646967647');
 
-const moveTime = (pool: SmartYieldPoolCompoundMock) => {
-  return async (seconds: number | BN | BNj) => {
-    seconds = BN.from(seconds.toString());
-    timePrev = timePrev.add(seconds);
-    await pool.setCurrentTime(timePrev);
-  };
-};
-
-const currentTime = () => {
-  return timePrev;
-};
-
-const buyTokens = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => {
-  return async (user: Wallet, amountUnderlying: number | BN) => {
-    amountUnderlying = toBN(amountUnderlying);
-    await underlying.mintMock(user.address, amountUnderlying);
-    await underlying.connect(user).approve(pool.address, amountUnderlying);
-    await pool.connect(user).buyTokens(amountUnderlying, 0, currentTime().add(1));
-  };
-};
-
-const buyBond = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => {
-  return async (user: Wallet, amountUnderlying: number | BN, minGain: number | BN, forDays: number | BN) => {
-    amountUnderlying = toBN(amountUnderlying);
-    forDays = toBN(forDays);
-    minGain = toBN(minGain);
-    await underlying.mintMock(user.address, amountUnderlying);
-    await underlying.connect(user).approve(pool.address, amountUnderlying);
-    await pool.connect(user).buyBond(amountUnderlying, minGain, currentTime().add(1), forDays);
-  };
-};
-
-const redeemBond = (pool: SmartYieldPoolCompoundMock, underlying: Erc20Mock) => {
-  return async (user: Wallet, id: number | BN) => {
-    id = toBN(id);
-    await pool.connect(user).redeemBond(id);
-  };
-};
-
 const fixture = (decimals: number) => {
   return async (wallets: Wallet[]) => {
     const [deployerSign, ownerSign, junior1, junior2, junior3, senior1, senior2, senior3] = wallets;
 
-    const bondModel = (await deployContract(deployerSign, BondModelMockArtifact, [])) as BondModelMock;
-    const underlying = (await deployContract(deployerSign, Erc20MockArtifact, ['DAI MOCK', 'DAI', decimals])) as Erc20Mock;
-    const comptroller = (await deployContract(deployerSign, ComptrollerMockArtifact, [])) as ComptrollerMock;
-    const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptroller.address])) as CTokenMock;
-    const pool = (await deployContract(deployerSign, SmartYieldPoolCompoundMockArtifact, [])) as SmartYieldPoolCompoundMock;
-    const oracle = (await deployContract(deployerSign, YieldOracleMockArtifact, [pool.address])) as YieldOracleMock;
-    const seniorBond = (await deployContract(deployerSign, SeniorBondArtifact, ['BOND', 'BOND MOCK', pool.address])) as SeniorBond;
-    const juniorBond = (await deployContract(deployerSign, JuniorBondArtifact, ['jBOND', 'jBOND MOCK', pool.address])) as JuniorBond;
-    const juniorToken = (await deployContract(deployerSign, JuniorTokenArtifact, ['jTOKEN MOCK', 'bbDAI', pool.address])) as JuniorToken;
-    const controller = (await deployContract(deployerSign, ControllerCompoundArtifact, [])) as ControllerCompound;
+    const clock = await deployClockMock(deployerSign);
+
+    const [bondModel, underlying, comptroller, oracle, controller, pool, smartYield] = await Promise.all([
+      deployBondModelMock(deployerSign),
+      deployUnderlying(deployerSign, decimals),
+      deployCompComptroller(deployerSign),
+      deployYieldOracleMock(deployerSign),
+      deployCompoundController(deployerSign),
+      deployCompoundProvider(deployerSign, clock),
+      deploySmartYield(deployerSign, clock),
+    ]);
+
+    const [cToken, seniorBond, juniorBond] = await Promise.all([
+      deployCompCToken(deployerSign, underlying, comptroller),
+      deploySeniorBond(deployerSign, smartYield),
+      deployJuniorBond(deployerSign, smartYield),
+    ]);
 
     await Promise.all([
       controller.setOracle(oracle.address),
       controller.setBondModel(bondModel.address),
       comptroller.setHolder(pool.address),
       comptroller.setMarket(cToken.address),
-      pool.setup(controller.address, seniorBond.address, juniorBond.address, juniorToken.address, cToken.address),
+      pool.setup(smartYield.address, controller.address, cToken.address),
+      smartYield.setup(controller.address, pool.address, seniorBond.address, juniorBond.address),
+      (moveTime(clock))(0),
     ]);
 
-    await (moveTime(pool))(0);
-
     return {
-      oracle, pool, cToken, bondModel, seniorBond, underlying, controller,
+      oracle, pool, cToken, bondModel, seniorBond, underlying, controller, smartYield,
       deployerSign: deployerSign as Signer,
       ownerSign: ownerSign as Signer,
       junior1, junior2, junior3, senior1, senior2, senior3,
-      buyTokens: buyTokens(pool, underlying),
-      buyBond: buyBond(pool, underlying),
-      redeemBond: redeemBond(pool, underlying),
-      moveTime: moveTime(pool),
+      buyTokens: buyTokens(smartYield, pool, underlying),
+      buyBond: buyBond(smartYield, pool, underlying),
+      redeemBond: redeemBond(smartYield),
+      moveTime: moveTime(clock),
     };
   };
 };
@@ -117,12 +58,12 @@ const fixture = (decimals: number) => {
 describe('buyBond() / redeemBond()', async function () {
   it('should deploy contracts correctly', async function () {
     const decimals = 18;
-    const { pool, oracle, bondModel, cToken, underlying, controller, seniorBond } = await bbFixtures(fixture(decimals));
+    const { pool, oracle, bondModel, cToken, underlying, controller, seniorBond, smartYield } = await bbFixtures(fixture(decimals));
 
     expect(await pool.controller()).equals(controller.address, 'pool.controller()');
     expect(await pool.uToken()).equals(underlying.address, 'pool.uToken()');
     expect(await pool.cToken()).equals(cToken.address, 'pool.cToken()');
-    expect(await pool.seniorBond()).equals(seniorBond.address, 'pool.seniorBond()');
+    expect(await smartYield.seniorBond()).equals(seniorBond.address, 'smartYield.seniorBond()');
     expect(await controller.oracle()).equals(oracle.address, 'controller.oracle()');
     expect(await controller.bondModel()).equals(bondModel.address, 'controller.bondModel()');
   });
@@ -148,22 +89,22 @@ describe('buyBond() / redeemBond()', async function () {
 
   describe('buyBond()', async function () {
     it('buyBond require forDays / minGain / allowance', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, buyTokens, controller, junior1 } = await bbFixtures(fixture(decimals));
+      const { pool, oracle, bondModel, cToken, underlying, buyTokens, controller, junior1, smartYield } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);
       await buyTokens(junior1, e18(10));
-      await expect(pool.buyBond(e18(1), 0, currentTime().add(1), 0), 'should throw for 0 days bond').revertedWith('ASYP: buyBond forDays');
-      await expect(pool.buyBond(e18(1), 0, currentTime().sub(1), 10), 'should throw for deadline').revertedWith('ASYP: buyBond deadline');
-      await expect(pool.buyBond(e18(1), 0, currentTime().add(1), 91), 'should throw for > BOND_MAX_LIFE days bond (1)').revertedWith('ASYP: buyBond forDays');
+      await expect(smartYield.buyBond(e18(1), 0, currentTime().add(1), 0), 'should throw for 0 days bond').revertedWith('SY: buyBond forDays');
+      await expect(smartYield.buyBond(e18(1), 0, currentTime().sub(1), 10), 'should throw for deadline').revertedWith('SY: buyBond deadline');
+      await expect(smartYield.buyBond(e18(1), 0, currentTime().add(1), 91), 'should throw for > BOND_MAX_LIFE days bond (1)').revertedWith('SY: buyBond forDays');
       await controller.setBondLifeMax(100);
-      await expect(pool.buyBond(e18(1), 0, currentTime().add(1), 101), 'should throw for > BOND_MAX_LIFE days bond (2)').revertedWith('ASYP: buyBond forDays');
-      await expect(pool.buyBond(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY).add(1), currentTime().add(1), 1), 'should throw if gain below min').revertedWith('ASYP: buyBond minGain');
+      await expect(smartYield.buyBond(e18(1), 0, currentTime().add(1), 101), 'should throw for > BOND_MAX_LIFE days bond (2)').revertedWith('SY: buyBond forDays');
+      await expect(smartYield.buyBond(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY).add(1), currentTime().add(1), 1), 'should throw if gain below min').revertedWith('SY: buyBond minGain');
 
-      await expect(pool.buyBond(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), currentTime().add(1), 1), 'should not throw (1)').not.revertedWith('ASYP: buyBond minGain');
-      await expect(pool.buyBond(e18(1), 0, currentTime().add(1), 100), 'should not throw (2)').not.revertedWith('ASYP: buyBond forDays');
+      await expect(smartYield.buyBond(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), currentTime().add(1), 1), 'should not throw (1)').not.revertedWith('SY: buyBond minGain');
+      await expect(smartYield.buyBond(e18(1), 0, currentTime().add(1), 100), 'should not throw (2)').not.revertedWith('SY: buyBond forDays');
 
-      await expect(pool.buyBond(e18(1), 0, currentTime().add(1), 100), 'should throw if no allowance').revertedWith('SYCOMP: _takeUnderlying allowance');
+      await expect(smartYield.buyBond(e18(1), 0, currentTime().add(1), 100), 'should throw if no allowance').revertedWith('PPC: _takeUnderlying allowance');
     });
 
     it('TODO: buyBond require gain < underlyingJuniors', async function () {
@@ -173,7 +114,7 @@ describe('buyBond() / redeemBond()', async function () {
     });
 
     it('buyBond creates a correct bond token', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, seniorBond, junior1, senior1, buyTokens, buyBond, moveTime } = await bbFixtures(fixture(decimals));
+      const { pool, oracle, bondModel, cToken, underlying, seniorBond, junior1, senior1, buyTokens, buyBond, moveTime, smartYield } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);
@@ -184,7 +125,7 @@ describe('buyBond() / redeemBond()', async function () {
       expect(await seniorBond.tokenOfOwnerByIndex(senior1.address, 0), 'id of first token should be 1').deep.equal(BN.from(1));
       expect(await seniorBond.ownerOf(1), 'correct owner').equal(senior1.address);
 
-      const bondMeta = await pool.seniorBonds(1);
+      const bondMeta = await smartYield.seniorBonds(1);
 
       expect(bondMeta.principal, 'bondMeta.principal').deep.equal(e18(1));
       expect(bondMeta.gain, 'bondMeta.gain').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
@@ -196,7 +137,7 @@ describe('buyBond() / redeemBond()', async function () {
     });
 
     it('buyBond creates several correct bond tokens', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, seniorBond, junior1, senior1, senior2, buyTokens, buyBond, moveTime } = await bbFixtures(fixture(decimals));
+      const { smartYield, pool, oracle, bondModel, cToken, underlying, seniorBond, junior1, senior1, senior2, buyTokens, buyBond, moveTime } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);
@@ -208,13 +149,13 @@ describe('buyBond() / redeemBond()', async function () {
 
       await moveTime(10);
 
-      const gain2 = await pool.bondGain(e18(1.1), 5);
+      const gain2 = await smartYield.bondGain(e18(1.1), 5);
       const issued2 = currentTime();
       await buyBond(senior2, e18(1.1), 1, 5); // id 2
 
       await moveTime(10);
 
-      const gain3 = await pool.bondGain(e18(1.5), 30);
+      const gain3 = await smartYield.bondGain(e18(1.5), 30);
       const issued3 = currentTime();
       await buyBond(senior1, e18(1.5), 1, 30); // id 3
 
@@ -229,7 +170,7 @@ describe('buyBond() / redeemBond()', async function () {
       expect(await seniorBond.ownerOf(2), 'correct owner 2').equal(senior2.address);
       expect(await seniorBond.ownerOf(3), 'correct owner 3').equal(senior1.address);
 
-      const [bond1, bond2, bond3] = await Promise.all([pool.seniorBonds(1), pool.seniorBonds(2), pool.seniorBonds(3)]);
+      const [bond1, bond2, bond3] = await Promise.all([smartYield.seniorBonds(1), smartYield.seniorBonds(2), smartYield.seniorBonds(3)]);
 
       expect(bond1.principal, 'bond1.principal').deep.equal(e18(1));
       expect(bond1.gain, 'bond1.gain').deep.equal(gain1);
@@ -256,7 +197,7 @@ describe('buyBond() / redeemBond()', async function () {
 
   describe('redeemBond()', async function () {
     it('redeemBond require matured, unredeemed', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, buyTokens, buyBond, redeemBond, moveTime, junior1, senior1 } = await bbFixtures(fixture(decimals));
+      const { smartYield, pool, oracle, bondModel, cToken, underlying, buyTokens, buyBond, redeemBond, moveTime, junior1, senior1 } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);
@@ -264,18 +205,18 @@ describe('buyBond() / redeemBond()', async function () {
       await buyTokens(junior1, e18(10));
       await buyBond(senior1, e18(1), 1, 1);
 
-      await expect(redeemBond(senior1, 1), 'should throw if not matured (1)').revertedWith('ASYP: redeemBond not matured');
+      await expect(redeemBond(senior1, 1), 'should throw if not matured (1)').revertedWith('SY: redeemBond not matured');
       await moveTime(10);
-      await expect(redeemBond(senior1, 1), 'should throw if not matured (2)').revertedWith('ASYP: redeemBond not matured');
+      await expect(redeemBond(senior1, 1), 'should throw if not matured (2)').revertedWith('SY: redeemBond not matured');
       await moveTime(A_DAY - 11);
-      await expect(redeemBond(senior1, 1), 'should throw if not matured (3)').revertedWith('ASYP: redeemBond not matured');
+      await expect(redeemBond(senior1, 1), 'should throw if not matured (3)').revertedWith('SY: redeemBond not matured');
       await moveTime(1);
       await redeemBond(senior1, 1);
       await expect(redeemBond(senior1, 1), 'should revert if already redeemed').revertedWith('ERC721: owner query for nonexistent token');
     });
 
     it('redeemBond gives correct amounts', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, controller, buyTokens, buyBond, redeemBond, moveTime, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
+      const { smartYield, pool, oracle, bondModel, cToken, underlying, controller, buyTokens, buyBond, redeemBond, moveTime, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);
@@ -284,12 +225,12 @@ describe('buyBond() / redeemBond()', async function () {
       await buyTokens(junior1, e18(10));
       await moveTime(A_DAY);
 
-      const gain1 = await pool.bondGain(e18(2), 30);
+      const gain1 = await smartYield.bondGain(e18(2), 30);
       await buyBond(senior1, e18(2), 1, 30);
       await moveTime(A_DAY);
       expect(await underlying.balanceOf(senior1.address), 'senior1 should have 0 underlying').deep.equal(BN.from(0));
 
-      const gain2 = await pool.bondGain(e18(2.5), 25);
+      const gain2 = await smartYield.bondGain(e18(2.5), 25);
       await buyBond(senior2, e18(2.5), 1, 25);
       await moveTime(A_DAY);
       expect(await underlying.balanceOf(senior2.address), 'senior2 should have 0 underlying').deep.equal(BN.from(0));
@@ -305,7 +246,7 @@ describe('buyBond() / redeemBond()', async function () {
     });
 
     it('redeemBond gives amounts to owner', async function () {
-      const { pool, oracle, bondModel, cToken, underlying, controller, buyTokens, buyBond, redeemBond, moveTime, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
+      const { smartYield, pool, oracle, bondModel, cToken, underlying, controller, buyTokens, buyBond, redeemBond, moveTime, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));
 
       await bondModel.setRatePerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
       await cToken.setExchangeRateStored(exchangeRateStored);
@@ -313,7 +254,7 @@ describe('buyBond() / redeemBond()', async function () {
 
       await buyTokens(junior1, e18(10));
 
-      const gain1 = await pool.bondGain(e18(2), 30);
+      const gain1 = await smartYield.bondGain(e18(2), 30);
       await buyBond(senior1, e18(2), 1, 30);
       expect(await underlying.balanceOf(senior1.address), 'senior1 should have 0 underlying').deep.equal(BN.from(0));
 
