@@ -7,7 +7,7 @@ import "../HasClock.sol";
 import "../../SmartYield.sol";
 import "../../model/IBondModel.sol";
 
-contract SypCompForModelMock is HasClock, SmartYield {
+contract SmartYieldForModelMock is HasClock, SmartYield {
     uint256 public _underlyingLoanable = 0;
     uint256 public _underlyingTotal = 0;
     uint256 public _providerRatePerDay = 0;

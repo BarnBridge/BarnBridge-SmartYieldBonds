@@ -34,11 +34,17 @@ import { SeniorBond } from '@typechain/SeniorBond';
 import SmartYieldMockArtifact from './../../artifacts/contracts/mocks/barnbridge/SmartYieldMock.sol/SmartYieldMock.json';
 import { SmartYieldMock } from '@typechain/SmartYieldMock';
 
+import SmartYieldForModelMockArtifact from './../../artifacts/contracts/mocks/barnbridge/SmartYieldForModelMock.sol/SmartYieldForModelMock.json';
+import { SmartYieldForModelMock } from '@typechain/SmartYieldForModelMock';
+
 import BondModelMockArtifact from './../../artifacts/contracts/mocks/barnbridge/BondModelMock.sol/BondModelMock.json';
 import { BondModelMock } from '@typechain/BondModelMock';
 
 import CompoundProviderMockArtifact from './../../artifacts/contracts/mocks/barnbridge/CompoundProviderMock.sol/CompoundProviderMock.json';
 import { CompoundProviderMock } from '@typechain/CompoundProviderMock';
+
+import BondModelV1Artifact from './../../artifacts/contracts/model/BondModelV1.sol/BondModelV1.json';
+import { BondModelV1 } from '@typechain/BondModelV1';
 
 
 export const deployClockMock = (deployerSign: Wallet): Promise<ClockMock> => {
@@ -81,8 +87,16 @@ export const deploySmartYield = (deployerSign: Wallet, clock: ClockMock): Promis
   return (deployContract(deployerSign, SmartYieldMockArtifact, [clock.address])) as Promise<SmartYieldMock>;
 };
 
+export const deploySmartYieldForModel = (deployerSign: Wallet, clock: ClockMock): Promise<SmartYieldForModelMock> => {
+  return (deployContract(deployerSign, SmartYieldForModelMockArtifact, [clock.address])) as Promise<SmartYieldForModelMock>;
+};
+
 export const deployBondModelMock = (deployerSign: Wallet): Promise<BondModelMock> => {
   return (deployContract(deployerSign, BondModelMockArtifact, [])) as Promise<BondModelMock>;
+};
+
+export const deployBondModel = (deployerSign: Wallet): Promise<BondModelV1> => {
+  return (deployContract(deployerSign, BondModelV1Artifact, [])) as Promise<BondModelV1>;
 };
 
 export const deployCompoundProvider = (deployerSign: Wallet, clock: ClockMock): Promise<CompoundProviderMock> => {
