@@ -41,7 +41,6 @@ contract ComptrollerMock is IComptroller {
       return r;
     }
 
-
     function setHolder(address holder_) public {
       holder = holder_;
     }
@@ -50,4 +49,7 @@ contract ComptrollerMock is IComptroller {
       cToken = market_;
     }
 
+    function getCompAddress() public view override returns(address){
+      return address(0x0);
+    }
 }

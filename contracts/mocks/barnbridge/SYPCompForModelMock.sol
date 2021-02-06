@@ -2,10 +2,10 @@
 pragma solidity ^0.7.6;
 pragma abicoder v2;
 
-import "../../SmartYieldPoolCompound.sol";
+import "../../SmartYield.sol";
 import "../../model/IBondModel.sol";
 
-contract SYPCompForModelMock is SmartYieldPoolCompound {
+contract SYPCompForModelMock is SmartYield {
     uint256 public _currentTime = 0;
     uint256 public _underlyingLoanable = 0;
     uint256 public _underlyingTotal = 0;
@@ -14,7 +14,7 @@ contract SYPCompForModelMock is SmartYieldPoolCompound {
     uint256 public _lastCheckGas = 0;
 
     constructor()
-        SmartYieldPoolCompound()
+        SmartYield()
     {}
 
     function currentTime() public view override returns (uint256) {
@@ -34,7 +34,7 @@ contract SYPCompForModelMock is SmartYieldPoolCompound {
     }
 
     function checkGas(uint256 principal, uint16 forDays) public {
-      _lastCheckGas = IBondModel(ControllerCompound(controller).bondModel()).gain(address(this), principal, forDays);
+      _lastCheckGas = IBondModel(IController(controller).bondModel()).gain(address(this), principal, forDays);
     }
 
     function setCurrentTime(uint256 currentTime_) public {

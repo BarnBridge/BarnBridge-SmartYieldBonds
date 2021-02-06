@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "../lib/math/MathUtils.sol";
 import "./IBondModel.sol";
-import "../ISmartYieldPool.sol";
+import "../ISmartYield.sol";
 
 contract BondModelV1 is IBondModel {
     using SafeMath for uint256;
@@ -23,9 +23,9 @@ contract BondModelV1 is IBondModel {
         uint256 principal,
         uint16 forDays
     ) external view override returns (uint256) {
-        uint256 loanable = ISmartYieldPool(pool).underlyingLoanable();
-        uint256 total = ISmartYieldPool(pool).underlyingTotal();
-        uint256 dailyRate = ISmartYieldPool(pool).providerRatePerDay();
+        uint256 loanable = ISmartYield(pool).underlyingLoanable();
+        uint256 total = ISmartYield(pool).underlyingTotal();
+        uint256 dailyRate = ISmartYield(pool).providerRatePerDay();
 
         //uint256 aproxGain = MathUtils.compound(principal, dailyRate * (loanable * 1e18 / (total + principal)) / 1e18, forDays).sub(principal);
         uint256 aproxGain = MathUtils.compound2(

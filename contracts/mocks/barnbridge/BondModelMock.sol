@@ -2,8 +2,6 @@
 pragma solidity ^0.7.6;
 
 import "../../lib/math/MathUtils.sol";
-
-import "../../SmartYieldPoolCompound.sol";
 import "../../model/IBondModel.sol";
 
 contract BondModelMock is IBondModel {
