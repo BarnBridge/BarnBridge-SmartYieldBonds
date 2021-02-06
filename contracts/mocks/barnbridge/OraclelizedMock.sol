@@ -2,10 +2,10 @@
 pragma solidity ^0.7.6;
 pragma abicoder v2;
 
-import "../../providers/CompoundProviderPool.sol";
+import "../../providers/CompoundProvider.sol";
 import "../../oracle/IYieldOracle.sol";
 
-contract OraclelizedMock is CompoundProviderPool {
+contract OraclelizedMock is CompoundProvider {
     uint256 public _underlyingBalance;
     uint256 public _now;
 

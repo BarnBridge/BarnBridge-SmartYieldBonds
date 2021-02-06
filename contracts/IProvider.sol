@@ -4,7 +4,7 @@ pragma abicoder v2;
 
 import "./oracle/IYieldOraclelizable.sol";
 
-abstract contract IProviderPool is IYieldOraclelizable {
+abstract contract IProvider is IYieldOraclelizable {
 
     address public smartYield;
 

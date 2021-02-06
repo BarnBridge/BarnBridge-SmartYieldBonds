@@ -13,9 +13,9 @@ import "./../lib/math/MathUtils.sol";
 
 import "./CompoundController.sol";
 import "./../oracle/IYieldOracle.sol";
-import "./../IProviderPool.sol";
+import "./../IProvider.sol";
 
-contract CompoundProviderPool is IProviderPool {
+contract CompoundProvider is IProvider {
     using SafeMath for uint256;
 
     // underlying token (ie. DAI)

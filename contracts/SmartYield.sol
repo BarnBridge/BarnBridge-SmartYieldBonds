@@ -21,7 +21,7 @@ import "./IController.sol";
 import "./oracle/IYieldOraclelizable.sol";
 import "./ISmartYield.sol";
 
-import "./IProviderPool.sol";
+import "./IProvider.sol";
 
 import "./model/IBondModel.sol";
 import "./oracle/IYieldOracle.sol";
@@ -30,8 +30,7 @@ import "./JuniorToken.sol";
 
 contract SmartYield is
     JuniorToken,
-    ISmartYield,
-    Governed
+    ISmartYield
 {
     using SafeMath for uint256;
 
@@ -214,8 +213,8 @@ contract SmartYield is
 
         // ---
 
-        IProviderPool(pool)._takeUnderlying(msg.sender, _principalAmount);
-        IProviderPool(pool)._depositProvider(_principalAmount, 0);
+        IProvider(pool)._takeUnderlying(msg.sender, _principalAmount);
+        IProvider(pool)._depositProvider(_principalAmount, 0);
 
         SeniorBond memory b =
             SeniorBond(
@@ -258,8 +257,8 @@ contract SmartYield is
         IBond(seniorBond).burn(_bondId);
         delete seniorBonds[_bondId];
 
-        IProviderPool(pool)._withdrawProvider(payAmnt, fee);
-        IProviderPool(pool)._sendUnderlying(payTo, payAmnt);
+        IProvider(pool)._withdrawProvider(payAmnt, fee);
+        IProvider(pool)._sendUnderlying(payTo, payAmnt);
     }
 
     // removes matured seniorBonds from being accounted in abond
@@ -305,8 +304,8 @@ contract SmartYield is
 
         // ---
 
-        IProviderPool(pool)._takeUnderlying(msg.sender, underlyingAmount_);
-        IProviderPool(pool)._depositProvider(underlyingAmount_, fee);
+        IProvider(pool)._takeUnderlying(msg.sender, underlyingAmount_);
+        IProvider(pool)._depositProvider(underlyingAmount_, fee);
         _mint(msg.sender, getsTokens);
     }
 
@@ -338,8 +337,8 @@ contract SmartYield is
         // ---
 
         _burn(msg.sender, tokenAmount_);
-        IProviderPool(pool)._withdrawProvider(toPay, 0);
-        IProviderPool(pool)._sendUnderlying(msg.sender, toPay);
+        IProvider(pool)._withdrawProvider(toPay, 0);
+        IProvider(pool)._sendUnderlying(msg.sender, toPay);
     }
 
     function buyJuniorBond(
@@ -536,8 +535,8 @@ contract SmartYield is
         // ---
 
         _burnJuniorBond(jBondId_);
-        IProviderPool(pool)._withdrawProvider(payAmnt, 0);
-        IProviderPool(pool)._sendUnderlying(payTo, payAmnt);
+        IProvider(pool)._withdrawProvider(payAmnt, 0);
+        IProvider(pool)._sendUnderlying(payTo, payAmnt);
         underlyingLiquidatedJuniors -= payAmnt;
     }
 
@@ -553,7 +552,7 @@ contract SmartYield is
       public view virtual override
       returns(uint256)
     {
-      return IProviderPool(pool).underlyingBalance() - IProviderPool(pool).underlyingFees() - underlyingLiquidatedJuniors;
+      return IProvider(pool).underlyingBalance() - IProvider(pool).underlyingFees() - underlyingLiquidatedJuniors;
     }
 
     function underlyingJuniors()
