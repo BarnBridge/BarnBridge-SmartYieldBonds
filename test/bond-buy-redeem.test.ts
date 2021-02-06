@@ -127,7 +127,7 @@ describe('buyBond() / redeemBond()', async function () {
     expect(await controller.bondModel()).equals(bondModel.address, 'controller.bondModel()');
   });
 
-  it('MathUtils.compound works', async function () {
+  it('MathUtils.compound / MathUtils.compound2 works', async function () {
     const decimals = 18;
     const supplyRatePerBlock = BN.from('40749278849'); // 8.94% // 89437198474492656
     const { pool, oracle, bondModel, cToken, underlying } = await bbFixtures(fixture(decimals));
@@ -137,6 +137,13 @@ describe('buyBond() / redeemBond()', async function () {
 
     await bondModel.compoundingTest(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), 365);
     expect(await bondModel.compoundingTestLast(), 'MathUtils.compound not working (2)').deep.equal(BN.from('89437198474492656'));
+
+    await bondModel.compoundingTest2(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), 1);
+    expect(await bondModel.compoundingTestLast(), 'MathUtils.compound not working (1)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
+
+    await bondModel.compoundingTest2(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), 365);
+    expect(await bondModel.compoundingTestLast(), 'MathUtils.compound not working (2)').deep.equal(BN.from('89437198474492686'));
+
   });
 
   describe('buyBond()', async function () {
@@ -260,7 +267,7 @@ describe('buyBond() / redeemBond()', async function () {
       await expect(redeemBond(senior1, 1), 'should throw if not matured (1)').revertedWith('ASYP: redeemBond not matured');
       await moveTime(10);
       await expect(redeemBond(senior1, 1), 'should throw if not matured (2)').revertedWith('ASYP: redeemBond not matured');
-      await moveTime(A_DAY - 10);
+      await moveTime(A_DAY - 11);
       await expect(redeemBond(senior1, 1), 'should throw if not matured (3)').revertedWith('ASYP: redeemBond not matured');
       await moveTime(1);
       await redeemBond(senior1, 1);

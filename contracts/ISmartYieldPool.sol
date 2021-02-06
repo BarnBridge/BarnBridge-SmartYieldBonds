@@ -34,9 +34,6 @@ interface ISmartYieldPool {
     }
 
     struct Storage {
-      // pool state / average bond
-      // holds rate of payment by juniors to seniors
-      SeniorBond abond;
 
       // previously measured total underlying
       uint256 underlyingTotalLast;
@@ -70,6 +67,10 @@ interface ISmartYieldPool {
       // list of junior bond maturities (timestamps)
       uint256[] juniorBondsMaturities;
 
+      // pool state / average bond
+      // holds rate of payment by juniors to seniors
+      SeniorBond abond;
+
       // checkpoints for all JuniorBonds matureing at (timestamp) -> (JuniorBondsAt)
       // timestamp -> JuniorBondsAt
       mapping(uint256 => JuniorBondsAt) juniorBondsMaturingAt;
@@ -98,6 +99,8 @@ interface ISmartYieldPool {
     /**
      * sell all tokens instantly
      */
+    function juniorBonds(uint256 id) external view returns(uint256 tokens, uint256 maturesAt);
+
     function sellTokens(uint256 _tokens, uint256 _minUnderlying, uint256 _deadline) external;
 
     function buyJuniorBond(uint256 tokenAmount_, uint256 maxMaturesAt_, uint256 deadline_) external;

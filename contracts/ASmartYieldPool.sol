@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
+pragma abicoder v2;
 
 import "hardhat/console.sol";
 
@@ -44,6 +45,7 @@ abstract contract ASmartYieldPool is
 {
     using SafeMath for uint256;
 
+    // controller address
     address public controller;
 
     // senior BOND {NFT}
@@ -55,122 +57,43 @@ abstract contract ASmartYieldPool is
     // junior TOKEN (fungible)
     address public juniorToken; // IJuniorToken
 
-    Storage st;
-
-    // is currentCumulativeSecondlyYield() providing correct values?
-    bool public _safeToObserve;
-
-    function __executeJuniorWithdrawals() internal {
-        // this modifier will be added to the begginging of all (write) functions.
-        // The first tx after a queued liquidation's timestamp will trigger the liquidation
-        // reducing the jToken supply, and setting aside owed_dai for withdrawals
-        for (uint256 i = st.juniorBondsMaturitiesPrev; i < st.juniorBondsMaturities.length; i++) {
-            if (this.currentTime() >= st.juniorBondsMaturities[i]) {
-                _liquidateJuniors(st.juniorBondsMaturities[i]);
-                st.juniorBondsMaturitiesPrev = i;
-            } else {
-                break;
-            }
-        }
-    }
-
-    function __accountYieldFirst() internal {
-        uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
-        uint32 timeElapsed = blockTimestamp - st.timestampLast; // overflow is desired
-        // only for the first time in the block && if there's underlying
-        if (timeElapsed > 0 && st.underlyingTotalLast > 0) {
-            // cumulativeSecondlyYieldLast overflows eventually,
-            // due to the way it is used in the oracle that's ok,
-            // as long as it doesn't overflow twice during the windowSize
-            // see OraclelizedMock.cumulativeOverflowProof() for proof
-            st.cumulativeSecondlyYieldLast +=
-                // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
-                // (this.underlyingTotal() - underlyingTotalLast) never underflows
-                ((this.underlyingTotal() - st.underlyingTotalLast) * 1e18) /
-                st.underlyingTotalLast;
-
-            st.cumulativeUnderlyingTotalLast += this.underlyingTotal() * timeElapsed;
-
-            _safeToObserve = true;
-            st.timestampLast = blockTimestamp;
-        }
-    }
-
-    function __accountYieldLast() internal {
-        st.underlyingTotalLast = this.underlyingTotal();
-    }
-
-    function __updateOracle() internal {
-        IYieldOracle(IController(controller).oracle()).update();
-    }
+    Storage public st;
 
     // add to all methods changeing the underlying
     // per https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L73
-    modifier accountYield() {
-        __accountYieldFirst();
-        __updateOracle();
-        __executeJuniorWithdrawals();
-        _;
-        __accountYieldLast();
+    // modifier accountYield() {
+    //     ASmartYieldPoolLib.__accountYieldFirst(this, st);
+    //     ASmartYieldPoolLib.__updateOracle(this);
+    //     __executeJuniorWithdrawals();
+    //     _;
+    //     ASmartYieldPoolLib.__accountYieldLast(this, st);
+    // }
+
+    function _beforeProviderOp() internal {
+        ASmartYieldPoolLib.__accountYieldFirst(this, st);
+        ASmartYieldPoolLib.__updateOracle(this);
+        ASmartYieldPoolLib.__executeJuniorWithdrawals(this, st);
     }
 
-    // storage ------
-
-    function abond()
-      public view override
-      returns(uint256 principal, uint256 gain, uint256 issuedAt, uint256 maturesAt, bool liquidated)
-    {
-        return (
-          st.abond.principal,
-          st.abond.gain,
-          st.abond.issuedAt,
-          st.abond.maturesAt,
-          st.abond.liquidated
-        );
+    function _afterProviderOp() internal {
+        ASmartYieldPoolLib.__accountYieldLast(this, st);
     }
 
-    function seniorBonds(uint256 id)
-      public view override
-      returns(uint256 principal, uint256 gain, uint256 issuedAt, uint256 maturesAt, bool liquidated)
-    {
-        return (
-          st.seniorBonds[id].principal,
-          st.seniorBonds[id].gain,
-          st.seniorBonds[id].issuedAt,
-          st.seniorBonds[id].maturesAt,
-          st.seniorBonds[id].liquidated
-        );
+    function cumulatives()
+      external override
+    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingTotal, uint256 blockTs) {
+        ASmartYieldPoolLib.__accountYieldFirst(this, st);
+        ASmartYieldPoolLib.__accountYieldLast(this, st);
+        return (st.cumulativeSecondlyYieldLast, st.cumulativeUnderlyingTotalLast, this.currentTime());
     }
-
-    // /storage -----
 
     // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
     function currentCumulatives()
-        public view override
+        external view override
     returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingTotal, uint256 blockTs)
     {
-
-      return ASmartYieldPoolLib.currentCumulatives(st);
-        // uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
-        // cumulativeSecondlyYield = st.cumulativeSecondlyYieldLast;
-        // cumulativeUnderlyingTotal = st.cumulativeUnderlyingTotalLast;
-
-        // uint32 timeElapsed = blockTimestamp - st.timestampLast; // overflow is desired
-        // if (timeElapsed > 0 && st.underlyingTotalLast > 0) {
-        //     // cumulativeSecondlyYield overflows eventually,
-        //     // due to the way it is used in the oracle that's ok,
-        //     // as long as it doesn't overflow twice during the windowSize
-        //     // see OraclelizedMock.cumulativeOverflowProof() for proof
-        //     cumulativeSecondlyYield +=
-        //         // (this.underlyingTotal() - underlyingTotalLast) * 1e18 -> overflows only if (this.underlyingTotal() - underlyingTotalLast) >~ 10^41 ETH, DAI, USDC etc
-        //         // (this.underlyingTotal() - underlyingTotalLast) never underflows
-        //         ((this.underlyingTotal() - st.underlyingTotalLast) * 1e18) /
-        //         st.underlyingTotalLast;
-
-        //     cumulativeUnderlyingTotal += this.underlyingTotal() * timeElapsed;
-        // }
-        // return (cumulativeSecondlyYield, cumulativeUnderlyingTotal, uint256(blockTimestamp));
+      return ASmartYieldPoolLib.currentCumulatives(this, st);
     }
 
     // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
@@ -181,10 +104,6 @@ abstract contract ASmartYieldPool is
         return IBondModel(IController(controller).bondModel()).gain(address(this), _principalAmount, _forDays);
     }
 
-    function safeToObserve() public view override returns (bool) {
-        return _safeToObserve;
-    }
-
     // Purchase a senior bond with _principalAmount underlying for _forDays, buyer gets a bond with gain >= _minGain or revert. _deadline is timestamp before which tx is not rejected.
     function buyBond(
         uint256 _principalAmount,
@@ -192,8 +111,10 @@ abstract contract ASmartYieldPool is
         uint256 _deadline,
         uint16 _forDays
     ) public override
-      accountYield
+      //accountYield
     {
+        _beforeProviderOp();
+
         require(
           false == IController(controller).PAUSED_BUY_SENIOR_BOND(),
           "ASYP: buyBond paused"
@@ -217,11 +138,21 @@ abstract contract ASmartYieldPool is
         );
 
         require(
-            gain < this.underlyingLoanable(),
-            "ASYP: buyBond underlyingLoanable"
+          gain > 0,
+          "ASYP: buyBond gain 0"
+        );
+
+        require(
+          gain < this.underlyingLoanable(),
+          "ASYP: buyBond underlyingLoanable"
         );
 
         uint256 issuedAt = this.currentTime();
+
+        // ---
+
+        _takeUnderlying(msg.sender, _principalAmount);
+        _depositProvider(_principalAmount);
 
         SeniorBond memory b =
             SeniorBond(
@@ -232,19 +163,21 @@ abstract contract ASmartYieldPool is
                 false
             );
 
-        _takeUnderlying(msg.sender, _principalAmount);
-        _depositProvider(_principalAmount);
-        ASmartYieldPoolLib._mintBond(st, msg.sender, b);
+        ASmartYieldPoolLib._mintBond(this, st, msg.sender, b);
+
+        _afterProviderOp();
     }
 
     // Redeem a senior bond by it's id. Anyone can redeem but owner gets principal + gain
     function redeemBond(
       uint256 _bondId
     ) public override
-      accountYield
+      //accountYield
     {
+        _beforeProviderOp();
+
         require(
-            this.currentTime() > st.seniorBonds[_bondId].maturesAt,
+            this.currentTime() >= st.seniorBonds[_bondId].maturesAt,
             "ASYP: redeemBond not matured"
         );
 
@@ -258,29 +191,24 @@ abstract contract ASmartYieldPool is
 
         if (st.seniorBonds[_bondId].liquidated == false) {
             st.seniorBonds[_bondId].liquidated = true;
-            ASmartYieldPoolLib._unaccountBond(st, st.seniorBonds[_bondId]);
+            ASmartYieldPoolLib._unaccountBond(this, st, st.seniorBonds[_bondId]);
         }
 
         // bondToken.burn will revert for already burned tokens
         IBond(seniorBond).burn(_bondId);
+        delete st.seniorBonds[_bondId];
 
         _withdrawProvider(payAmnt);
         _sendUnderlying(payTo, payAmnt);
 
         st.underlyingFees += fee;
+
+        _afterProviderOp();
     }
 
     // removes matured seniorBonds from being accounted in abond
     function unaccountBonds(uint256[] memory _bondIds) public override {
-        for (uint256 f = 0; f < _bondIds.length; f++) {
-            if (
-                this.currentTime() > st.seniorBonds[_bondIds[f]].maturesAt &&
-                st.seniorBonds[_bondIds[f]].liquidated == false
-            ) {
-                st.seniorBonds[_bondIds[f]].liquidated = true;
-                ASmartYieldPoolLib._unaccountBond(st, st.seniorBonds[_bondIds[f]]);
-            }
-        }
+        ASmartYieldPoolLib._unaccountBondsInternal(this, st, _bondIds);
     }
 
     // buy at least _minTokens with _underlyingAmount, before _deadline passes
@@ -290,8 +218,10 @@ abstract contract ASmartYieldPool is
       uint256 deadline_
     )
       public override
-      accountYield
+      //accountYield
     {
+        _beforeProviderOp();
+
         require(
           false == IController(controller).PAUSED_BUY_JUNIOR_TOKEN(),
           "ASYP: buyTokens paused"
@@ -317,6 +247,8 @@ abstract contract ASmartYieldPool is
         IJuniorToken(juniorToken).mint(msg.sender, getsTokens);
 
         st.underlyingFees += fee;
+
+        _afterProviderOp();
     }
 
     // sell _tokens for at least _minUnderlying, before _deadline and forfeit potential future gains
@@ -326,15 +258,19 @@ abstract contract ASmartYieldPool is
       uint256 deadline_
     )
       public override
-      accountYield
+      //accountYield
     {
+        _beforeProviderOp();
+
         require(
           this.currentTime() <= deadline_,
           "ASYP: sellTokens deadline"
         );
 
-        uint256 unlockedRatio = (this.abondGain() == 0) ? 1e18 : 1e18 - (this.abondDebt() * 1e18) / (IJuniorToken(juniorToken).totalSupply() * this.price() / 1e18);
-        uint256 toPay = ((tokenAmount_ * unlockedRatio / 1e18) * this.price()) / 1e18;
+        // share of these tokens in the debt
+        uint256 debtShare = tokenAmount_ * 1e18 / IJuniorToken(juniorToken).totalSupply();
+        // debt share is forfeit, and only diff is returned to user
+        uint256 toPay = (tokenAmount_ * this.price() - this.abondDebt() * debtShare) / 1e18;
 
         require(
           toPay >= minUnderlying_,
@@ -344,7 +280,10 @@ abstract contract ASmartYieldPool is
         // ---
 
         IJuniorToken(juniorToken).burn(msg.sender, tokenAmount_);
-        _withdrawJuniors(msg.sender, toPay);
+        _withdrawProvider(toPay);
+        _sendUnderlying(msg.sender, toPay);
+
+        _afterProviderOp();
     }
 
     function buyJuniorBond(
@@ -353,22 +292,22 @@ abstract contract ASmartYieldPool is
       uint256 deadline_
     )
       public override
-      // TODO: accountYield modifies abond.maturesAt?
-      accountYield
     {
+        uint256 maturesAt = 1 + st.abond.maturesAt / 1e18;
+
         require(
           this.currentTime() <= deadline_,
           "ASYP: buyJuniorBond deadline"
         );
 
         require(
-          st.abond.maturesAt <= maxMaturesAt_,
+          maturesAt <= maxMaturesAt_,
           "ASYP: buyJuniorBond maxMaturesAt"
         );
 
         JuniorBond memory jb = JuniorBond(
           tokenAmount_,
-          st.abond.maturesAt
+          maturesAt
         );
 
         // ---
@@ -377,18 +316,18 @@ abstract contract ASmartYieldPool is
         _mintJuniorBond(msg.sender, jb);
 
         // if abond.maturesAt is past we can liquidate, but juniorBondsMaturingAt might have already been liquidated
-        if (this.currentTime() >= st.abond.maturesAt) {
+        if (this.currentTime() >= maturesAt) {
             JuniorBondsAt memory jBondsAt = st.juniorBondsMaturingAt[jb.maturesAt];
 
             if (jBondsAt.price == 0) {
-                _liquidateJuniors(jb.maturesAt);
+                ASmartYieldPoolLib._liquidateJuniorsAt(this, st, jb.maturesAt);
             } else {
                 // juniorBondsMaturingAt was previously liquidated,
                 IJuniorToken(juniorToken).burn(address(this), jb.tokens); // burns user's locked tokens reducing the jToken supply
                 st.underlyingLiquidatedJuniors += jb.tokens * jBondsAt.price / 1e18;
                 _unaccountJuniorBond(jb);
             }
-            return this.redeemJuniorBond(st.juniorBondId);
+            return redeemJuniorBond(st.juniorBondId);
         }
     }
 
@@ -415,9 +354,9 @@ abstract contract ASmartYieldPool is
         JuniorBondsAt storage jBondsAt = st.juniorBondsMaturingAt[jb_.maturesAt];
         uint256 tmp;
 
-        if (jBondsAt.tokens == 0) {
+        if (jBondsAt.tokens == 0 && this.currentTime() < jb_.maturesAt) {
           st.juniorBondsMaturities.push(jb_.maturesAt);
-          for (uint256 i = st.juniorBondsMaturities.length - 1; i > MathUtils.max(1, st.juniorBondsMaturitiesPrev); i--) {
+          for (uint256 i = st.juniorBondsMaturities.length - 1; i >= MathUtils.max(1, st.juniorBondsMaturitiesPrev); i--) {
             if (st.juniorBondsMaturities[i] > st.juniorBondsMaturities[i - 1]) {
               break;
             }
@@ -446,8 +385,10 @@ abstract contract ASmartYieldPool is
 
     function redeemJuniorBond(uint256 jBondId_)
         public override
-        accountYield
+        //accountYield
     {
+        _beforeProviderOp();
+
         JuniorBond memory jb = st.juniorBonds[jBondId_];
         require(
             jb.maturesAt <= this.currentTime(),
@@ -463,37 +404,11 @@ abstract contract ASmartYieldPool is
         // ---
 
         _burnJuniorBond(jBondId_);
-        _withdrawJuniors(payTo, payAmnt);
-
+        _withdrawProvider(payAmnt);
+        _sendUnderlying(payTo, payAmnt);
         st.underlyingLiquidatedJuniors -= payAmnt;
-    }
 
-    function _withdrawJuniors(address _to, uint256 _underlyingAmount) internal {
-        _withdrawProvider(_underlyingAmount);
-        _sendUnderlying(_to, _underlyingAmount);
-    }
-
-    function _liquidateJuniors(uint256 timestamp) internal {
-        JuniorBondsAt storage jBondsAt = st.juniorBondsMaturingAt[timestamp];
-
-        // TODO: this needs to return or require()
-        require(
-          jBondsAt.tokens > 0,
-          "ASYP: nothing to liquidate"
-        );
-
-        require(
-          jBondsAt.price == 0,
-          "ASYP: already liquidated"
-        );
-
-        jBondsAt.price = this.price();
-
-        // ---
-
-        st.underlyingLiquidatedJuniors += jBondsAt.tokens * jBondsAt.price / 1e18;
-        IJuniorToken(juniorToken).burn(address(this), jBondsAt.tokens); // burns Junior locked tokens reducing the jToken supply
-        st.tokensInJuniorBonds -= jBondsAt.tokens;
+        _afterProviderOp();
     }
 
     // jToken price * 1e18
@@ -515,7 +430,7 @@ abstract contract ASmartYieldPool is
       public view virtual override
     returns (uint256) {
         // underlyingTotal - abond.principal - abond.gain - queued withdrawls
-        return this.underlyingTotal() - st.abond.principal - st.abond.gain - (st.tokensInJuniorBonds * this.price());
+        return this.underlyingTotal() - st.abond.principal - st.abond.gain - (st.tokensInJuniorBonds * this.price() / 1e18);
     }
 
     // function _mintBond(address _to, SeniorBond memory _bond) private {
@@ -593,19 +508,14 @@ abstract contract ASmartYieldPool is
         return st.abond.gain;
     }
 
-    function _abondPaidAt(uint256 timestamp_) internal view returns (uint256) {
-      timestamp_ = timestamp_ * 1e18;
-      if (timestamp_ <= st.abond.issuedAt || (st.abond.maturesAt <= st.abond.issuedAt)) {
-        return 0;
-      }
-
-      uint256 d = st.abond.maturesAt - st.abond.issuedAt;
-
-      return (this.abondGain() * MathUtils.min(timestamp_ - st.abond.issuedAt, d)) / d;
-    }
-
     function abondPaid() public view override returns (uint256) {
-        return _abondPaidAt(this.currentTime());
+        uint256 ts = this.currentTime() * 1e18;
+        if (ts <= st.abond.issuedAt || (st.abond.maturesAt <= st.abond.issuedAt)) {
+          return 0;
+        }
+
+        uint256 d = st.abond.maturesAt - st.abond.issuedAt;
+        return (this.abondGain() * MathUtils.min(ts - st.abond.issuedAt, d)) / d;
     }
 
     function abondDebt() public view override returns (uint256) {
