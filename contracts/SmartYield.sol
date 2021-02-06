@@ -5,22 +5,11 @@ pragma abicoder v2;
 import "hardhat/console.sol";
 
 // TODO:
-// 2 step withdraw + tests
 // comp value + spot price + rate = min(MAX, oracle, spot)
-// dumped CToken to fees
 // tests
 
-// feature: pause deposits
-
 // configurable:
-// DAO is owner
-// owner can be changed
-// configurable by DAO BOND_LIFE_MAX, at launch =3mo
-// guardian address can pause
-// guardian can be changed by owner
 // MAX_YIELD allowed for sBONDS can be changed by guardian / dao
-// https://github.com/BarnBridge/BarnBridge-SmartYieldBonds/blob/master/SPEC.md#senior-deposit-buy-bond, x = (cur_j - (b_p*x*n*b_t)) / (cur_tot + b_p + (b_p*x*n*b_t)) * n * m,  <- bond yield formula should be pluggable
-// oracle should be pluggable
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -37,9 +26,10 @@ import "./IProviderPool.sol";
 import "./model/IBondModel.sol";
 import "./oracle/IYieldOracle.sol";
 import "./IBond.sol";
-import "./IJuniorToken.sol";
+import "./JuniorToken.sol";
 
 contract SmartYield is
+    JuniorToken,
     ISmartYield,
     Governed
 {
@@ -93,16 +83,12 @@ contract SmartYield is
     // bond id => bond (JuniorBond)
     mapping(uint256 => JuniorBond) public juniorBonds;
 
-
-    // add to all methods changeing the underlying
-    // per https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L73
-    // modifier accountYield() {
-    //     ASmartYieldPoolLib.__accountYieldFirst(this, st);
-    //     ASmartYieldPoolLib.__updateOracle(this);
-    //     __executeJuniorWithdrawals();
-    //     _;
-    //     ASmartYieldPoolLib.__accountYieldLast(this, st);
-    // }
+    constructor(
+      string memory name,
+      string memory symbol
+    )
+      JuniorToken(name, symbol)
+    {}
 
     function currentTime()
       external view virtual override
@@ -150,7 +136,7 @@ contract SmartYield is
         // ---
 
         underlyingLiquidatedJuniors += jBondsAt.tokens * jBondsAt.price / 1e18;
-        IJuniorToken(this.juniorToken()).burn(address(this), jBondsAt.tokens); // burns Junior locked tokens reducing the jToken supply
+        _burn(address(this), jBondsAt.tokens); // burns Junior locked tokens reducing the jToken supply
         tokensInJuniorBonds -= jBondsAt.tokens;
     }
 
@@ -301,7 +287,7 @@ contract SmartYield is
 
         IProviderPool(pool)._takeUnderlying(msg.sender, underlyingAmount_);
         IProviderPool(pool)._depositProvider(underlyingAmount_, fee);
-        IJuniorToken(juniorToken).mint(msg.sender, getsTokens);
+        _mint(msg.sender, getsTokens);
     }
 
     // sell _tokens for at least _minUnderlying, before _deadline and forfeit potential future gains
@@ -320,7 +306,7 @@ contract SmartYield is
         );
 
         // share of these tokens in the debt
-        uint256 debtShare = tokenAmount_ * 1e18 / IJuniorToken(juniorToken).totalSupply();
+        uint256 debtShare = tokenAmount_ * 1e18 / totalSupply();
         // debt share is forfeit, and only diff is returned to user
         uint256 toPay = (tokenAmount_ * this.price() - this.abondDebt() * debtShare) / 1e18;
 
@@ -331,7 +317,7 @@ contract SmartYield is
 
         // ---
 
-        IJuniorToken(juniorToken).burn(msg.sender, tokenAmount_);
+        _burn(msg.sender, tokenAmount_);
         IProviderPool(pool)._withdrawProvider(toPay, 0);
         IProviderPool(pool)._sendUnderlying(msg.sender, toPay);
     }
@@ -373,7 +359,7 @@ contract SmartYield is
                 _liquidateJuniorsAt(jb.maturesAt);
             } else {
                 // juniorBondsMaturingAt was previously liquidated,
-                IJuniorToken(juniorToken).burn(address(this), jb.tokens); // burns user's locked tokens reducing the jToken supply
+                _burn(address(this), jb.tokens); // burns user's locked tokens reducing the jToken supply
                 underlyingLiquidatedJuniors += jb.tokens * jBondsAt.price / 1e18;
                 _unaccountJuniorBond(jb);
             }
@@ -539,7 +525,7 @@ contract SmartYield is
     function price()
       public view override
     returns (uint256) {
-        uint256 ts = IJuniorToken(juniorToken).totalSupply();
+        uint256 ts = totalSupply();
         return (ts == 0) ? 1e18 : (this.underlyingJuniors() * 1e18) / ts;
     }
 
@@ -655,11 +641,11 @@ contract SmartYield is
 
     function _takeTokens(address _from, uint256 _amount) internal {
         require(
-            _amount <= IJuniorToken(juniorToken).allowance(_from, address(this)),
+            _amount <= allowance(_from, address(this)),
             "ASYP: _takeTokens allowance"
         );
         require(
-            IJuniorToken(juniorToken).transferFrom(_from, address(this), _amount),
+            transferFrom(_from, address(this), _amount),
             "ASYP: _takeTokens transferFrom"
         );
     }

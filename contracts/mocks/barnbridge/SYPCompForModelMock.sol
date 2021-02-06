@@ -14,7 +14,7 @@ contract SYPCompForModelMock is SmartYield {
     uint256 public _lastCheckGas = 0;
 
     constructor()
-        SmartYield()
+        SmartYield("bbDAI mock", "bbDAI")
     {}
 
     function currentTime() public view override returns (uint256) {

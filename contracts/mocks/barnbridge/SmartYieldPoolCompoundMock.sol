@@ -8,7 +8,7 @@ contract SmartYieldPoolCompoundMock is SmartYield {
     uint256 public _currentTime = 0;
 
     constructor()
-        SmartYield()
+        SmartYield("bbDAI mock", "bbDAI")
     {}
 
     function currentTime() public view virtual override returns (uint256) {
