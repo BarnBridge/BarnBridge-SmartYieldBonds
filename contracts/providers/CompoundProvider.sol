@@ -79,86 +79,65 @@ contract CompoundProvider is IProvider {
         _setup = true;
     }
 
-    function _accountYieldInternal()
-      internal
-    {
-        uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
-        uint32 timeElapsed = blockTimestamp - cumulativeTimestampLast; // overflow is desired
-        // only for the first time in the block
-        if (timeElapsed > 0) {
-            // if there's underlying
-            if (underlyingBalanceLast > 0) {
-              // cumulativeSecondlyYieldLast overflows eventually,
-              // due to the way it is used in the oracle that's ok,
-              // as long as it doesn't overflow twice during the windowSize
-              // see OraclelizedMock.cumulativeOverflowProof() for proof
-              cumulativeSecondlyYieldLast +=
-                  // (this.underlyingBalance() - underlyingBalanceLast) * 1e18 -> overflows only if (this.underlyingBalance() - underlyingBalanceLast) >~ 10^41 ETH, DAI, USDC etc
-                  // (this.underlyingBalance() - underlyingBalanceLast) never underflows
-                  ((this.underlyingBalance() - underlyingBalanceLast) * 1e18) / underlyingBalanceLast;
-            }
+  // externals
 
-            cumulativeUnderlyingBalanceLast += this.underlyingBalance() * timeElapsed;
-
-            cumulativeTimestampLast = blockTimestamp;
-        }
-    }
-
-    // returns cumulatives and accumulates/updates internal state
-    // oracle should call this when updating
-    function cumulatives()
+    // take underlyingAmount_ from from_
+    function _takeUnderlying(address from_, uint256 underlyingAmount_)
       external override
-    returns(uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance, uint256 blockTs) {
-        _accountYieldInternal();
-        underlyingBalanceLast = this.underlyingBalance();
-        return (cumulativeSecondlyYieldLast, cumulativeUnderlyingBalanceLast, this.currentTime());
+      onlySmartYield
+    {
+        require(
+            underlyingAmount_ <= IERC20(uToken).allowance(from_, address(this)),
+            "PPC: _takeUnderlying allowance"
+        );
+        require(
+            IERC20(uToken).transferFrom(from_, address(this), underlyingAmount_),
+            "PPC: _takeUnderlying transferFrom"
+        );
     }
 
-    // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
-    // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
-    function currentCumulatives()
-      external view override
-    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance, uint256 blockTs)
+    // transfer away underlyingAmount_ to to_
+    function _sendUnderlying(address to_, uint256 underlyingAmount_)
+      external override
+      onlySmartYield
+      returns (bool)
     {
-        uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
-        cumulativeSecondlyYield = cumulativeSecondlyYieldLast;
-        cumulativeUnderlyingBalance = cumulativeUnderlyingBalanceLast;
+        return IERC20(uToken).transfer(to_, underlyingAmount_);
+    }
 
-        uint32 timeElapsed = blockTimestamp - cumulativeTimestampLast; // overflow is desired
-        if (timeElapsed > 0) {
-            if (underlyingBalanceLast > 0) {
-              // cumulativeSecondlyYield overflows eventually,
-              // due to the way it is used in the oracle that's ok,
-              // as long as it doesn't overflow twice during the windowSize
-              // see OraclelizedMock.cumulativeOverflowProof() for proof
-              cumulativeSecondlyYield +=
-                  // (this.underlyingBalance() - underlyingBalanceLast) * 1e18 -> overflows only if (this.underlyingBalance() - underlyingBalanceLast) >~ 10^41 ETH, DAI, USDC etc
-                  // (this.underlyingBalance() - underlyingBalanceLast) never underflows
-                  ((this.underlyingBalance() - underlyingBalanceLast) * 1e18) / underlyingBalanceLast;
-            }
-            cumulativeUnderlyingBalance += this.underlyingBalance() * timeElapsed;
+    // deposit underlyingAmount_ with the liquidity provider adds resulting cTokens to cTokenBalance
+    // on the very first call enters the compound.finance market and saves the checkpoint needed for compRewardExpected
+    function _depositProvider(uint256 underlyingAmount_, uint256 takeFees_)
+      external override
+      onlySmartYield
+      accountYield
+    {
+        if (0 == cTokenBalance && 0 == compSupplierIndexLast) {
+          // this will be called once only for the first comp deposit after pool deploy
+          _updateCompState();
         }
-        return (cumulativeSecondlyYield, cumulativeUnderlyingBalance, uint256(blockTimestamp));
+        underlyingFees += takeFees_;
+
+        uint256 cTokensBefore = ICTokenErc20(cToken).balanceOf(address(this));
+        // TODO: optimization, pre-approve provider: gas
+        IERC20(uToken).approve(address(cToken), underlyingAmount_);
+        uint256 err = ICToken(cToken).mint(underlyingAmount_);
+        require(0 == err, "PPC: _depositProvider mint");
+        cTokenBalance += ICTokenErc20(cToken).balanceOf(address(this)) - cTokensBefore;
     }
 
-    function currentTime()
-      external view virtual override
-      returns (uint256)
+    // withdraw underlyingAmount_ from the liquidity provider, substract the lost cTokens from cTokenBalance
+    function _withdrawProvider(uint256 underlyingAmount_, uint256 takeFees_)
+      external override
+      onlySmartYield
+      accountYield
     {
-        // mockable
-        return block.timestamp;
-    }
+        underlyingFees += takeFees_;
 
-    /**
-     * @notice current total underlying balance
-     */
-    function underlyingBalance()
-      external view virtual override
-      returns (uint256)
-    {
-        // https://compound.finance/docs#protocol-math
-        return
-            cTokenBalance * ICToken(cToken).exchangeRateStored() / 1e18;
+        uint256 cTokensBefore = ICTokenErc20(cToken).balanceOf(address(this));
+        uint256 err = ICToken(cToken).redeemUnderlying(underlyingAmount_);
+        require(0 == err, "PPC: _withdrawProvider redeemUnderlying");
+        cTokenBalance -= cTokensBefore - ICTokenErc20(cToken).balanceOf(address(this));
     }
 
     // called by anyone to convert pool's COMP -> underlying and then deposit it. caller gets HARVEST_REWARD of the harvest
@@ -243,87 +222,79 @@ contract CompoundProvider is IProvider {
         IERC20(uToken).transfer(msg.sender, IERC20(uToken).balanceOf(address(this)));
     }
 
-    // take _underlyingAmount from from_
-    function _takeUnderlying(address from_, uint256 underlyingAmount_)
-      external override
-      onlySmartYield
+    function transferFees()
+      external
+      override
     {
-        require(
-            underlyingAmount_ <= IERC20(uToken).allowance(from_, address(this)),
-            "PPC: _takeUnderlying allowance"
-        );
-        require(
-            IERC20(uToken).transferFrom(from_, address(this), underlyingAmount_),
-            "PPC: _takeUnderlying transferFrom"
-        );
+      // cleanup any cTokens dust or cTokens that may have been dumped on the pool
+      if (ICTokenErc20(cToken).balanceOf(address(this)) > cTokenBalance) {
+        underlyingFees += ICToken(cToken).exchangeRateStored() * (ICTokenErc20(cToken).balanceOf(address(this)) - cTokenBalance) / 1e18;
+      }
+      uint256 ctokensToPay = underlyingFees * 1e18 / ICToken(cToken).exchangeRateStored();
+      uint256 err = ICToken(cToken).redeem(
+          MathUtils.min(ctokensToPay, ICTokenErc20(cToken).balanceOf(address(this)))
+      );
+      require(0 == err, "PPC: transferFees redeem");
+      underlyingFees = 0;
+      cTokenBalance = ICTokenErc20(cToken).balanceOf(address(this));
+      IERC20(uToken).transfer(IController(controller).feesOwner(), IERC20(uToken).balanceOf(address(this)));
     }
 
-    // transfer away _underlyingAmount to to_
-    function _sendUnderlying(address to_, uint256 underlyingAmount_)
+    // returns cumulatives and accumulates/updates internal state
+    // oracle should call this when updating
+    function cumulatives()
       external override
-      onlySmartYield
-      returns (bool)
-    {
-        return IERC20(uToken).transfer(to_, underlyingAmount_);
+    returns(uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance, uint256 blockTs) {
+        _accountYieldInternal();
+        underlyingBalanceLast = this.underlyingBalance();
+        return (cumulativeSecondlyYieldLast, cumulativeUnderlyingBalanceLast, this.currentTime());
     }
 
-    // deposit _underlyingAmount with the liquidity provider adds resulting cTokens to cTokenBalance
-    // on the very first call enters the compound.finance market and saves the checkpoint needed for compRewardExpected
-    function _depositProvider(uint256 underlyingAmount_, uint256 takeFees_)
-      external override
-      onlySmartYield
-      accountYield
+    // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
+    // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
+    function currentCumulatives()
+      external view override
+    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance, uint256 blockTs)
     {
-        if (0 == cTokenBalance && 0 == compSupplierIndexLast) {
-          // this will be called once only for the first comp deposit after pool deploy
-          _updateCompState();
+        uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
+        cumulativeSecondlyYield = cumulativeSecondlyYieldLast;
+        cumulativeUnderlyingBalance = cumulativeUnderlyingBalanceLast;
+
+        uint32 timeElapsed = blockTimestamp - cumulativeTimestampLast; // overflow is desired
+        if (timeElapsed > 0) {
+            if (underlyingBalanceLast > 0) {
+              // cumulativeSecondlyYield overflows eventually,
+              // due to the way it is used in the oracle that's ok,
+              // as long as it doesn't overflow twice during the windowSize
+              // see OraclelizedMock.cumulativeOverflowProof() for proof
+              cumulativeSecondlyYield +=
+                  // (this.underlyingBalance() - underlyingBalanceLast) * 1e18 -> overflows only if (this.underlyingBalance() - underlyingBalanceLast) >~ 10^41 ETH, DAI, USDC etc
+                  // (this.underlyingBalance() - underlyingBalanceLast) never underflows
+                  ((this.underlyingBalance() - underlyingBalanceLast) * 1e18) / underlyingBalanceLast;
+            }
+            cumulativeUnderlyingBalance += this.underlyingBalance() * timeElapsed;
         }
-        underlyingFees += takeFees_;
-
-        uint256 cTokensBefore = ICTokenErc20(cToken).balanceOf(address(this));
-        // TODO: optimization, pre-approve provider: gas
-        IERC20(uToken).approve(address(cToken), underlyingAmount_);
-        uint256 err = ICToken(cToken).mint(underlyingAmount_);
-        require(0 == err, "PPC: _depositProvider mint");
-        cTokenBalance += ICTokenErc20(cToken).balanceOf(address(this)) - cTokensBefore;
+        return (cumulativeSecondlyYield, cumulativeUnderlyingBalance, uint256(blockTimestamp));
     }
 
-    // withdraw _underlyingAmount from the liquidity provider, substract the lost cTokens from cTokenBalance
-    function _withdrawProvider(uint256 underlyingAmount_, uint256 takeFees_)
-      external override
-      onlySmartYield
-      accountYield
+    // current total underlying balance, as measured by pool
+    function underlyingBalance()
+      external view virtual override
+    returns (uint256)
     {
-        underlyingFees += takeFees_;
-
-        uint256 cTokensBefore = ICTokenErc20(cToken).balanceOf(address(this));
-        uint256 err = ICToken(cToken).redeemUnderlying(underlyingAmount_);
-        require(0 == err, "PPC: _withdrawProvider redeemUnderlying");
-        cTokenBalance -= cTokensBefore - ICTokenErc20(cToken).balanceOf(address(this));
+        // https://compound.finance/docs#protocol-math
+        return
+            cTokenBalance * ICToken(cToken).exchangeRateStored() / 1e18;
     }
 
-    // call comptroller.enterMarkets()
-    // needs to be called only once BUT before any interactions with the provider
-    function _enterMarket()
-      internal
-    {
-        address[] memory markets = new address[](1);
-        markets[0] = cToken;
-        uint256[] memory err = IComptroller(comptroller).enterMarkets(markets);
-        require(err[0] == 0, "PPC: _enterMarket");
-    }
+  // /externals
 
-    // --- COMP reward
-
-    // creates checkpoint items needed to compute compRewardExpected()
-    // needs to be called right after each claimComp(), and just before the first ever deposit
-    function _updateCompState()
-      internal
+    function currentTime()
+      public view virtual override
+      returns (uint256)
     {
-        (uint224 supplyStateIndex, ) = IComptroller(comptroller).compSupplyState(cToken);
-        compSupplierIndexLast = uint256(supplyStateIndex);
-        (, cumulativeUnderlyingBalanceHarvestedLast, ) = this.currentCumulatives();
-        harvestedLast = this.currentTime();
+        // mockable
+        return block.timestamp;
     }
 
     // computes how much COMP tokens compound.finance will give us at comptroller.claimComp()
@@ -346,24 +317,57 @@ contract CompoundProvider is IProvider {
         uint256 supplierTokens = waUnderlyingTotal / ICToken(cToken).exchangeRateStored();
         return (supplierTokens).mul(deltaIndex).div(1e36); // a * b / doubleScale => uint
     }
-    // --- /COMP reward
 
-    function transferFees()
-      public
-      override
+  // internals
+
+    function _accountYieldInternal()
+      internal
     {
-      // cleanup any cTokens dust or cTokens that may have been dumped on the pool
-      if (ICTokenErc20(cToken).balanceOf(address(this)) > cTokenBalance) {
-        underlyingFees += ICToken(cToken).exchangeRateStored() * (ICTokenErc20(cToken).balanceOf(address(this)) - cTokenBalance) / 1e18;
-      }
-      uint256 ctokensToPay = underlyingFees * 1e18 / ICToken(cToken).exchangeRateStored();
-      uint256 err = ICToken(cToken).redeem(
-          MathUtils.min(ctokensToPay, ICTokenErc20(cToken).balanceOf(address(this)))
-      );
-      require(0 == err, "PPC: transferFees redeem");
-      underlyingFees = 0;
-      cTokenBalance = ICTokenErc20(cToken).balanceOf(address(this));
-      IERC20(uToken).transfer(IController(controller).feesOwner(), IERC20(uToken).balanceOf(address(this)));
+        uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
+        uint32 timeElapsed = blockTimestamp - cumulativeTimestampLast; // overflow is desired
+        // only for the first time in the block
+        if (timeElapsed > 0) {
+            // if there's underlying
+            if (underlyingBalanceLast > 0) {
+              // cumulativeSecondlyYieldLast overflows eventually,
+              // due to the way it is used in the oracle that's ok,
+              // as long as it doesn't overflow twice during the windowSize
+              // see OraclelizedMock.cumulativeOverflowProof() for proof
+              cumulativeSecondlyYieldLast +=
+                  // (this.underlyingBalance() - underlyingBalanceLast) * 1e18 -> overflows only if (this.underlyingBalance() - underlyingBalanceLast) >~ 10^41 ETH, DAI, USDC etc
+                  // (this.underlyingBalance() - underlyingBalanceLast) never underflows
+                  ((this.underlyingBalance() - underlyingBalanceLast) * 1e18) / underlyingBalanceLast;
+            }
+
+            cumulativeUnderlyingBalanceLast += this.underlyingBalance() * timeElapsed;
+
+            cumulativeTimestampLast = blockTimestamp;
+        }
     }
+
+    // call comptroller.enterMarkets()
+    // needs to be called only once BUT before any interactions with the provider
+    function _enterMarket()
+      internal
+    {
+        address[] memory markets = new address[](1);
+        markets[0] = cToken;
+        uint256[] memory err = IComptroller(comptroller).enterMarkets(markets);
+        require(err[0] == 0, "PPC: _enterMarket");
+    }
+
+
+    // creates checkpoint items needed to compute compRewardExpected()
+    // needs to be called right after each claimComp(), and just before the first ever deposit
+    function _updateCompState()
+      internal
+    {
+        (uint224 supplyStateIndex, ) = IComptroller(comptroller).compSupplyState(cToken);
+        compSupplierIndexLast = uint256(supplyStateIndex);
+        (, cumulativeUnderlyingBalanceHarvestedLast, ) = this.currentCumulatives();
+        harvestedLast = this.currentTime();
+    }
+
+    // /internals
 
 }
