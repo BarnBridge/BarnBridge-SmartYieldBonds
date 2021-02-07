@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
+pragma abicoder v2;
 
-interface ISmartYieldPool {
+interface ISmartYield {
 
     // a senior BOND (metadata for NFT)
     struct SeniorBond {
@@ -33,60 +34,27 @@ interface ISmartYieldPool {
         uint256 price;
     }
 
-    struct Storage {
+    // struct Storage {
 
-      // previously measured total underlying
-      uint256 underlyingTotalLast;
+    //   // // previously measured total underlying
+    //   // uint256 underlyingTotalLast;
 
-      // CUMULATIVE
-      // cumulates (new yield per second) * (seconds since last cumulation)
-      uint256 cumulativeSecondlyYieldLast;
-      // cummulates balanceOf underlying
-      uint256 cumulativeUnderlyingTotalLast;
-      // timestamp of the last cumulation
-      uint32 timestampLast;
-      // /CUMULATIVE
+    //   // // CUMULATIVE
+    //   // // cumulates (new yield per second) * (seconds since last cumulation)
+    //   // uint256 cumulativeSecondlyYieldLast;
+    //   // // cummulates balanceOf underlying
+    //   // uint256 cumulativeUnderlyingTotalLast;
+    //   // // timestamp of the last cumulation
+    //   // uint32 timestampLast;
+    //   // // /CUMULATIVE
 
-      // fees colected in underlying
-      uint256 underlyingFees;
+    //   // // fees colected in underlying
+    //   // uint256 underlyingFees;
 
-      // underlying amount in matured and liquidated juniorBonds
-      uint256 underlyingLiquidatedJuniors;
 
-      // tokens amount in unmatured juniorBonds or matured and unliquidated
-      uint256 tokensInJuniorBonds;
+    // }
 
-      // latest SeniorBond Id
-      uint256 seniorBondId;
-
-      // latest JuniorBond Id
-      uint256 juniorBondId;
-
-      // last index of juniorBondsMaturities that was liquidated
-      uint256 juniorBondsMaturitiesPrev;
-      // list of junior bond maturities (timestamps)
-      uint256[] juniorBondsMaturities;
-
-      // pool state / average bond
-      // holds rate of payment by juniors to seniors
-      SeniorBond abond;
-
-      // checkpoints for all JuniorBonds matureing at (timestamp) -> (JuniorBondsAt)
-      // timestamp -> JuniorBondsAt
-      mapping(uint256 => JuniorBondsAt) juniorBondsMaturingAt;
-
-      // metadata for senior bonds
-      // bond id => bond (SeniorBond)
-      mapping(uint256 => SeniorBond) seniorBonds;
-
-      // metadata for junior bonds
-      // bond id => bond (JuniorBond)
-      mapping(uint256 => JuniorBond) juniorBonds;
-    }
-
-    function abond() external view returns(uint256 principal, uint256 gain, uint256 issuedAt, uint256 maturesAt, bool liquidated);
-
-    function seniorBonds(uint256 id) external view returns(uint256 principal, uint256 gain, uint256 issuedAt, uint256 maturesAt, bool liquidated);
+    function currentTime() external view returns(uint256);
 
     function buyBond(uint256 _principalAmount, uint256 _minGain, uint256 _deadline, uint16 _forDays) external;
 
@@ -99,8 +67,6 @@ interface ISmartYieldPool {
     /**
      * sell all tokens instantly
      */
-    function juniorBonds(uint256 id) external view returns(uint256 tokens, uint256 maturesAt);
-
     function sellTokens(uint256 _tokens, uint256 _minUnderlying, uint256 _deadline) external;
 
     function buyJuniorBond(uint256 tokenAmount_, uint256 maxMaturesAt_, uint256 deadline_) external;
@@ -136,8 +102,4 @@ interface ISmartYieldPool {
         external
         view
         returns (uint256);
-
-    function harvest() external;
-
-    function transferFees() external;
 }

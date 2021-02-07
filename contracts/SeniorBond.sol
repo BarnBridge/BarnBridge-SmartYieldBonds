@@ -1,28 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
+pragma abicoder v2;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 import "./IBond.sol";
 
 contract SeniorBond is IBond, ERC721 {
-    address public override pool;
+    address public override smartYield;
 
     constructor(
+        address smartYield_,
         string memory name,
-        string memory symbol,
-        address pool_
+        string memory symbol
     ) ERC721(name, symbol) {
-        pool = pool_;
+        smartYield = smartYield_;
     }
 
     function mint(address to, uint256 tokenId) public override {
-        require(msg.sender == pool, "SB: mint not pool");
+        require(msg.sender == smartYield, "SB: mint not smartYield");
         _mint(to, tokenId);
     }
 
     function burn(uint256 tokenId) public override {
-        require(msg.sender == pool, "SB: burn not pool");
+        require(msg.sender == smartYield, "SB: burn not smartYield");
         _burn(tokenId);
     }
 }

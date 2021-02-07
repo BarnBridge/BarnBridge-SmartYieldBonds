@@ -16,12 +16,6 @@ contract ComptrollerMock is IComptroller {
       return (0, 0);
     }
 
-    //mapping(address => mapping(address => uint)) public compSupplierIndex;
-
-    //mapping(address => uint) public compAccrued;
-
-    //function claimComp(address holder) public virtual;
-
     function claimComp(address[] memory holders, address[] memory cTokens, bool borrowers, bool suppliers) public override {
       require(holders.length == 1, "ComptrollerMock: claimComp one holders");
       require(cTokens.length == 1, "ComptrollerMock: claimComp one cTokens");
@@ -41,7 +35,6 @@ contract ComptrollerMock is IComptroller {
       return r;
     }
 
-
     function setHolder(address holder_) public {
       holder = holder_;
     }
@@ -50,4 +43,7 @@ contract ComptrollerMock is IComptroller {
       cToken = market_;
     }
 
+    function getCompAddress() public view override returns(address){
+      return address(0);
+    }
 }
