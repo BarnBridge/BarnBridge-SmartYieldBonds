@@ -4,7 +4,7 @@ import 'tsconfig-paths/register';
 import { expect } from 'chai';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
 
-import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN, HT, toBNj, deployClockMock, deployBondModelMock, deployUnderlying, deployCompComptroller, deployYieldOracleMock, deployCompoundController, deployCompoundProvider, deploySmartYield, deployCompCToken, deploySeniorBond, deployJuniorBond, moveTime, deploySmartYieldForModel, deployBondModel } from '@testhelp/index';
+import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN, HT, toBNj, deployClockMock, deployBondModelMock, deployUnderlying, deployCompComptroller, deployYieldOracleMock, deployCompoundController, deployCompoundProvider, deploySmartYield, deployCompCTokenDump, deploySeniorBond, deployJuniorBond, moveTime, deploySmartYieldForModel, deployBondModel } from '@testhelp/index';
 
 const decimals = 18;
 const supplyRatePerBlock = BN.from('17887002461'); // 3.83% // 89437198474492656
@@ -27,7 +27,7 @@ const fixture = (decimals: number) => {
     ]);
 
     const [cToken, seniorBond, juniorBond] = await Promise.all([
-      deployCompCToken(deployerSign, underlying, comptroller),
+      deployCompCTokenDump(deployerSign, underlying, comptroller),
       deploySeniorBond(deployerSign, smartYield),
       deployJuniorBond(deployerSign, smartYield),
     ]);

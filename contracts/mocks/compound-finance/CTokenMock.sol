@@ -1,70 +1,85 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
 
+// used by the compound provider tests
+
 // https://rinkeby.etherscan.io/address/0x6d7f0754ffeb405d23c51ce938289d4835be3b14#readContract
 
 import "hardhat/console.sol";
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "./../Erc20Mock.sol";
 
 import "../../external-interfaces/compound-finance/ICToken.sol";
 import "./ComptrollerMock.sol";
 
 contract CTokenMock is ICToken, ERC20 {
-    uint256 public exchangeRateStored_ = 0;
 
-    address public override underlying;
-    address public override comptroller;
+    address public _underlying;
+    address public _comptroller;
+    uint256 public _exchangeRateStored;
 
-    constructor(address underlying_, address comptroller_) ERC20("cDAI mock", "cDAI") {
-        underlying = underlying_;
-        comptroller = comptroller_;
-        ComptrollerMock(comptroller_).setCToken(address(this));
-        _setupDecimals(8);
+    uint256 public mintCalled;
+    uint256 public redeemCalled;
+    uint256 public redeemUnderlyingCalled;
+
+    constructor()
+      ERC20("cDAI mock", "cDAI")
+    {
+      _setupDecimals(8);
     }
 
-    // CErc20Interface
+    function setup(address underlying_, address comptroller_, uint256 exchangeRateStored_)
+      external
+    {
+      _underlying = underlying_;
+      _comptroller = comptroller_;
+      _exchangeRateStored = exchangeRateStored_;
 
-    function mint(uint256 mintAmount) external override returns (uint256) {
-        require(IERC20(underlying).transferFrom(msg.sender, address(this), mintAmount), "CTokenMock: mint transferFrom");
-        _mint(msg.sender, mintAmount * 1e18 / (exchangeRateStored_));
+      mintCalled = 0;
+      redeemCalled = 0;
+      redeemUnderlyingCalled = 0;
+    }
+
+    function mint(uint256 mintAmount)
+      external override
+    returns (uint256)
+    {
+        require(Erc20Mock(_underlying).transferFrom(msg.sender, address(this), mintAmount), "CTokenMock: mint transferFrom");
+        Erc20Mock(_underlying).burnMock(address(this), mintAmount);
+        _mint(msg.sender, mintAmount * 1e18 / (_exchangeRateStored));
+        mintCalled++;
         return 0;
     }
 
-    function redeem(uint256 redeemTokens) external override returns (uint256) {
-        require(IERC20(underlying).transfer(address(msg.sender), redeemTokens * exchangeRateStored_ / 1e18), "CTokenMock: redeem transfer");
+    function redeem(uint256 redeemTokens)
+      external override
+    returns (uint256)
+    {
+        Erc20Mock(_underlying).mintMock(address(msg.sender), redeemTokens * _exchangeRateStored / 1e18);
         _burn(msg.sender, redeemTokens);
+        redeemCalled++;
         return 0;
     }
 
     function redeemUnderlying(uint256 redeemAmount)
-        external
-        override
-        returns (uint256)
+      external override
+    returns (uint256)
     {
-        require(IERC20(underlying).transfer(address(msg.sender), redeemAmount), "CTokenMock: redeemUnderlying transfer");
-        _burn(msg.sender, redeemAmount * 1e18 / (exchangeRateStored_));
+        Erc20Mock(_underlying).mintMock(address(msg.sender), redeemAmount);
+        _burn(msg.sender, redeemAmount * 1e18 / (_exchangeRateStored));
+        redeemUnderlyingCalled++;
         return 0;
     }
 
-    // https://compound.finance/docs#protocol-math
-    function exchangeRateStored() public override view returns (uint256) {
-        return exchangeRateStored_;
+    function exchangeRateStored() external view override returns (uint256) {
+      return _exchangeRateStored;
     }
 
-    // helpers
-
-
-    function setExchangeRateStored(uint256 newRate) public {
-        exchangeRateStored_ = newRate;
+    function underlying() external view override returns (address) {
+      return _underlying;
     }
 
-    function mockMint(address account, uint256 amount) public {
-        _mint(account, amount);
+    function comptroller() external view override returns (address) {
+      return _comptroller;
     }
-
-    function mockBurn(address account, uint256 amount) public {
-        _burn(account, amount);
-    }
-
 }

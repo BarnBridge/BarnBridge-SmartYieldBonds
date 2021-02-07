@@ -4,7 +4,7 @@ import 'tsconfig-paths/register';
 import { expect } from 'chai';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
 
-import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN, buyTokens, sellTokens, buyBond, redeemBond, deployBondModel, deployUnderlying, deployCompComptroller, deployYieldOracleMock, deployCompoundController, deployCompoundProvider, deploySmartYield, deployCompCToken, deploySeniorBond, deployJuniorBond, moveTime, deployYieldOracle, deployClockMock, currentTime, deployCompCTokenYielding, buyJuniorBond, redeemJuniorBond } from '@testhelp/index';
+import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN, buyTokens, sellTokens, buyBond, redeemBond, deployBondModel, deployUnderlying, deployCompComptroller, deployYieldOracleMock, deployCompoundController, deployCompoundProvider, deploySmartYield, deployCompCTokenDump, deploySeniorBond, deployJuniorBond, moveTime, deployYieldOracle, deployClockMock, currentTime, deployCompCTokenYielding, buyJuniorBond, redeemJuniorBond } from '@testhelp/index';
 
 const decimals = 18;
 const supplyRatePerBlock = BN.from('40749278849'); // 8.94% // 89437198474492656

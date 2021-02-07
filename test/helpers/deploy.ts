@@ -16,6 +16,9 @@ import { ComptrollerMock } from '@typechain/ComptrollerMock';
 import CTokenMockArtifact from '../../artifacts/contracts/mocks/compound-finance/CTokenMock.sol/CTokenMock.json';
 import { CTokenMock } from '@typechain/CTokenMock';
 
+import CTokenDumpMockArtifact from '../../artifacts/contracts/mocks/compound-finance/CTokenDumbMock.sol/CTokenDumbMock.json';
+import { CTokenDumbMock } from '@typechain/CTokenDumbMock';
+
 import CTokenYieldingMockArtifact from '../../artifacts/contracts/mocks/compound-finance/CTokenYieldingMock.sol/CTokenYieldingMock.json';
 import { CTokenYieldingMock } from '@typechain/CTokenYieldingMock';
 
@@ -44,12 +47,17 @@ import { SmartYieldForModelMock } from '@typechain/SmartYieldForModelMock';
 import BondModelMockArtifact from './../../artifacts/contracts/mocks/barnbridge/BondModelMock.sol/BondModelMock.json';
 import { BondModelMock } from '@typechain/BondModelMock';
 
+import CompoundProviderMockCompRewardExpectedArtifact from './../../artifacts/contracts/mocks/barnbridge/CompoundProviderMockCompRewardExpected.sol/CompoundProviderMockCompRewardExpected.json';
+import { CompoundProviderMockCompRewardExpected } from '@typechain/CompoundProviderMockCompRewardExpected';
+
 import CompoundProviderMockArtifact from './../../artifacts/contracts/mocks/barnbridge/CompoundProviderMock.sol/CompoundProviderMock.json';
 import { CompoundProviderMock } from '@typechain/CompoundProviderMock';
 
 import BondModelV1Artifact from './../../artifacts/contracts/model/BondModelV1.sol/BondModelV1.json';
 import { BondModelV1 } from '@typechain/BondModelV1';
 
+import UniswapMockArtifact from './../../artifacts/contracts/mocks/uniswap/UniswapMock.sol/UniswapMock.json';
+import { UniswapMock } from '@typechain/UniswapMock';
 
 export const deployClockMock = (deployerSign: Wallet): Promise<ClockMock> => {
   return (deployContract(deployerSign, ClockMockArtifact, [])) as Promise<ClockMock>;
@@ -59,12 +67,20 @@ export const deployUnderlying = (deployerSign: Wallet, decimals: number): Promis
   return (deployContract(deployerSign, Erc20MockArtifact, ['DAI mock', 'DAI', decimals])) as Promise<Erc20Mock>;
 };
 
+export const deployCompToken = (deployerSign: Wallet): Promise<Erc20Mock> => {
+  return (deployContract(deployerSign, Erc20MockArtifact, ['COMP mock', 'COMP', 18])) as Promise<Erc20Mock>;
+};
+
 export const deployCompComptroller = (deployerSign: Wallet): Promise<ComptrollerMock> => {
   return (deployContract(deployerSign, ComptrollerMockArtifact, [])) as Promise<ComptrollerMock>;
 };
 
-export const deployCompCToken = (deployerSign: Wallet, underlying: Erc20Mock, comptroller: ComptrollerMock): Promise<CTokenMock> => {
-  return (deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptroller.address])) as Promise<CTokenMock>;
+export const deployCompCTokenDump = (deployerSign: Wallet, underlying: Erc20Mock, comptroller: ComptrollerMock): Promise<CTokenDumbMock> => {
+  return (deployContract(deployerSign, CTokenDumpMockArtifact, [underlying.address, comptroller.address])) as Promise<CTokenDumbMock>;
+};
+
+export const deployCompCToken = (deployerSign: Wallet): Promise<CTokenMock> => {
+  return (deployContract(deployerSign, CTokenMockArtifact, [])) as Promise<CTokenMock>;
 };
 
 export const deployCompCTokenYielding = (deployerSign: Wallet, underlying: Erc20Mock, comptroller: ComptrollerMock, clock: ClockMock, exchangeRateStored: BN | number): Promise<CTokenYieldingMock> => {
@@ -110,4 +126,12 @@ export const deployBondModel = (deployerSign: Wallet): Promise<BondModelV1> => {
 
 export const deployCompoundProvider = (deployerSign: Wallet, clock: ClockMock): Promise<CompoundProviderMock> => {
   return (deployContract(deployerSign, CompoundProviderMockArtifact, [clock.address])) as Promise<CompoundProviderMock>;
+};
+
+export const deployCompoundProviderMockCompRewardExpected = (deployerSign: Wallet, clock: ClockMock): Promise<CompoundProviderMockCompRewardExpected> => {
+  return (deployContract(deployerSign, CompoundProviderMockCompRewardExpectedArtifact, [clock.address])) as Promise<CompoundProviderMockCompRewardExpected>;
+};
+
+export const deployUniswapMock = (deployerSign: Wallet): Promise<UniswapMock> => {
+  return (deployContract(deployerSign, UniswapMockArtifact, [])) as Promise<UniswapMock>;
 };

@@ -6,7 +6,7 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { deployContract } from 'ethereum-waffle';
 
-import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, deployUnderlying, deployCompComptroller, deployCompCToken, deployYieldOracle, deployCompoundController, deployClockMock, moveTime, currentTime } from '@testhelp/index';
+import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, deployUnderlying, deployCompComptroller, deployCompCTokenDump, deployYieldOracle, deployCompoundController, deployClockMock, moveTime, currentTime } from '@testhelp/index';
 
 import OraclelizedMockArtifact from '../../artifacts/contracts/mocks/barnbridge/OraclelizedMock.sol/OraclelizedMock.json';
 import { OraclelizedMock } from '@typechain/OraclelizedMock';
@@ -59,7 +59,7 @@ const fixture = (windowSize: number, granularity: number) => {
 
     const [controller, cToken, yieldOracle] = await Promise.all([
       deployCompoundController(deployerSign),
-      deployCompCToken(deployerSign, underlying, comptrollerMock),
+      deployCompCTokenDump(deployerSign, underlying, comptrollerMock),
       deployYieldOracle(deployerSign, pool, windowSize, granularity),
     ]);
 

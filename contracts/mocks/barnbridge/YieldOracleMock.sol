@@ -6,7 +6,9 @@ import "../../oracle/YieldOracle.sol";
 
 contract YieldOracleMock is YieldOracle {
     uint256 public yieldPerDay;
+
     address public updatedBy;
+    uint256 public updateCalled;
 
     constructor() YieldOracle(address(0), (3 days), 6) {}
 
@@ -21,9 +23,15 @@ contract YieldOracleMock is YieldOracle {
       external override
     {
       updatedBy = msg.sender;
+      updateCalled++;
     }
 
     function setYieldPerDay(uint256 yieldPerDay_) external {
         yieldPerDay = yieldPerDay_;
+    }
+
+    function reset() external {
+      updatedBy = address(0);
+      updateCalled = 0;
     }
 }
