@@ -6,9 +6,6 @@ import "./../IController.sol";
 
 contract CompoundController is IController {
 
-    // reward for calling harvest 3%
-    uint256 public HARVEST_REWARD = 3 * 1e16; // 3%
-
     address public uniswap;
 
     address[] public uniswapPath;
@@ -19,13 +16,6 @@ contract CompoundController is IController {
     ) IController() {
       setUniswap(uniswap_);
       setUniswapPath(uniswapPath_);
-    }
-
-    function setHarvestReward(uint256 newValue_)
-      public
-      onlyDaoOrGuardian
-    {
-        HARVEST_REWARD = newValue_;
     }
 
     function setUniswap(address newValue_)
