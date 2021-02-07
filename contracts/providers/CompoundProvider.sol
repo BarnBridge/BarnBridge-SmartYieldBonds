@@ -74,6 +74,8 @@ contract CompoundProvider is IProvider {
         comptroller = ICToken(cToken_).comptroller();
         rewardCToken = IComptroller(comptroller).getCompAddress();
 
+        _enterMarket();
+
         _setup = true;
     }
 
@@ -256,13 +258,13 @@ contract CompoundProvider is IProvider {
         );
     }
 
-    // transfer away _underlyingAmount to _to
-    function _sendUnderlying(address _to, uint256 _underlyingAmount)
+    // transfer away _underlyingAmount to to_
+    function _sendUnderlying(address to_, uint256 underlyingAmount_)
       external override
       onlySmartYield
       returns (bool)
     {
-        return IERC20(uToken).transfer(_to, _underlyingAmount);
+        return IERC20(uToken).transfer(to_, underlyingAmount_);
     }
 
     // deposit _underlyingAmount with the liquidity provider adds resulting cTokens to cTokenBalance
@@ -274,12 +276,12 @@ contract CompoundProvider is IProvider {
     {
         if (0 == cTokenBalance && 0 == compSupplierIndexLast) {
           // this will be called once only for the first comp deposit after pool deploy
-          _enterMarket();
           _updateCompState();
         }
         underlyingFees += takeFees_;
 
         uint256 cTokensBefore = ICTokenErc20(cToken).balanceOf(address(this));
+        // TODO: optimization, pre-approve provider: gas
         IERC20(uToken).approve(address(cToken), underlyingAmount_);
         uint256 err = ICToken(cToken).mint(underlyingAmount_);
         require(0 == err, "PPC: _depositProvider mint");
