@@ -40,7 +40,7 @@ contract SmartYield is
     // address of IProviderPool
     address public pool;
 
-    // senior BOND {NFT}
+    // senior BOND (NFT)
     address public seniorBond; // IBond
 
     // junior BOND (NFT)
@@ -82,10 +82,10 @@ contract SmartYield is
     bool public _setup;
 
     constructor(
-      string memory name,
-      string memory symbol
+      string memory name_,
+      string memory symbol_
     )
-      JuniorToken(name, symbol)
+      JuniorToken(name_, symbol_)
     {}
 
     function setup(
@@ -135,10 +135,10 @@ contract SmartYield is
       }
     }
 
-    function _liquidateJuniorsAt(uint256 timestamp)
+    function _liquidateJuniorsAt(uint256 timestamp_)
       internal
     {
-        JuniorBondsAt storage jBondsAt = juniorBondsMaturingAt[timestamp];
+        JuniorBondsAt storage jBondsAt = juniorBondsMaturingAt[timestamp_];
 
         require(
           jBondsAt.tokens > 0,
@@ -160,19 +160,19 @@ contract SmartYield is
     }
 
     // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
-    function bondGain(uint256 _principalAmount, uint16 _forDays)
+    function bondGain(uint256 principalAmount_, uint16 forDays_)
       public view override
       returns (uint256)
     {
-        return IBondModel(IController(controller).bondModel()).gain(address(this), _principalAmount, _forDays);
+        return IBondModel(IController(controller).bondModel()).gain(address(this), principalAmount_, forDays_);
     }
 
     // Purchase a senior bond with _principalAmount underlying for _forDays, buyer gets a bond with gain >= _minGain or revert. _deadline is timestamp before which tx is not rejected.
     function buyBond(
-        uint256 _principalAmount,
-        uint256 _minGain,
-        uint256 _deadline,
-        uint16 _forDays
+        uint256 principalAmount_,
+        uint256 minGain_,
+        uint256 deadline_,
+        uint16 forDays_
     ) public override
     {
         _beforeProviderOp();
@@ -183,19 +183,19 @@ contract SmartYield is
         );
 
         require(
-          this.currentTime() <= _deadline,
+          this.currentTime() <= deadline_,
           "SY: buyBond deadline"
         );
 
         require(
-            0 < _forDays && _forDays <= IController(controller).BOND_LIFE_MAX(),
+            0 < forDays_ && forDays_ <= IController(controller).BOND_LIFE_MAX(),
             "SY: buyBond forDays"
         );
 
-        uint256 gain = this.bondGain(_principalAmount, _forDays);
+        uint256 gain = this.bondGain(principalAmount_, forDays_);
 
         require(
-          gain >= _minGain,
+          gain >= minGain_,
           "SY: buyBond minGain"
         );
 
@@ -213,15 +213,15 @@ contract SmartYield is
 
         // ---
 
-        IProvider(pool)._takeUnderlying(msg.sender, _principalAmount);
-        IProvider(pool)._depositProvider(_principalAmount, 0);
+        IProvider(pool)._takeUnderlying(msg.sender, principalAmount_);
+        IProvider(pool)._depositProvider(principalAmount_, 0);
 
         SeniorBond memory b =
             SeniorBond(
-                _principalAmount,
+                principalAmount_,
                 gain,
                 issuedAt,
-                uint256(1 days) * uint256(_forDays) + issuedAt,
+                uint256(1 days) * uint256(forDays_) + issuedAt,
                 false
             );
 
@@ -230,32 +230,32 @@ contract SmartYield is
 
     // Redeem a senior bond by it's id. Anyone can redeem but owner gets principal + gain
     function redeemBond(
-      uint256 _bondId
+      uint256 bondId_
     ) public override
     {
         _beforeProviderOp();
 
         require(
-            this.currentTime() >= seniorBonds[_bondId].maturesAt,
+            this.currentTime() >= seniorBonds[bondId_].maturesAt,
             "SY: redeemBond not matured"
         );
 
         // bondToken.ownerOf will revert for burned tokens
-        address payTo = IBond(seniorBond).ownerOf(_bondId);
-        uint256 payAmnt = seniorBonds[_bondId].gain + seniorBonds[_bondId].principal;
-        uint256 fee = MathUtils.fractionOf(seniorBonds[_bondId].gain, IController(controller).FEE_REDEEM_SENIOR_BOND());
+        address payTo = IBond(seniorBond).ownerOf(bondId_);
+        uint256 payAmnt = seniorBonds[bondId_].gain + seniorBonds[bondId_].principal;
+        uint256 fee = MathUtils.fractionOf(seniorBonds[bondId_].gain, IController(controller).FEE_REDEEM_SENIOR_BOND());
         payAmnt -= fee;
 
         // ---
 
-        if (seniorBonds[_bondId].liquidated == false) {
-            seniorBonds[_bondId].liquidated = true;
-            _unaccountBond(seniorBonds[_bondId]);
+        if (seniorBonds[bondId_].liquidated == false) {
+            seniorBonds[bondId_].liquidated = true;
+            _unaccountBond(seniorBonds[bondId_]);
         }
 
         // bondToken.burn will revert for already burned tokens
-        IBond(seniorBond).burn(_bondId);
-        delete seniorBonds[_bondId];
+        IBond(seniorBond).burn(bondId_);
+        delete seniorBonds[bondId_];
 
         IProvider(pool)._withdrawProvider(payAmnt, fee);
         IProvider(pool)._sendUnderlying(payTo, payAmnt);
@@ -390,7 +390,7 @@ contract SmartYield is
 
     // -------------------
 
-    function _mintBond(address _to, SeniorBond memory _bond)
+    function _mintBond(address to_, SeniorBond memory bond_)
       internal
     {
         require(
@@ -399,29 +399,29 @@ contract SmartYield is
         );
 
         seniorBondId++;
-        seniorBonds[seniorBondId] = _bond;
-        _accountBond(_bond);
-        IBond(seniorBond).mint(_to, seniorBondId);
+        seniorBonds[seniorBondId] = bond_;
+        _accountBond(bond_);
+        IBond(seniorBond).mint(to_, seniorBondId);
     }
 
     // when a new bond is added to the pool, we want:
     // - to average abond.maturesAt (the earliest date at which juniors can fully exit), this shortens the junior exit date compared to the date of the last active bond
     // - to keep the price for jTokens before a bond is bought ~equal with the price for jTokens after a bond is bought
-    function _accountBond(SeniorBond memory b)
+    function _accountBond(SeniorBond memory b_)
       internal
     {
         uint256 _now = this.currentTime() * 1e18;
 
-        uint256 newDebt = this.abondDebt() + b.gain;
+        uint256 newDebt = this.abondDebt() + b_.gain;
         // for the very first bond or the first bond after abond maturity: this.abondDebt() = 0 => newMaturesAt = b.maturesAt
-        uint256 newMaturesAt = (abond.maturesAt * this.abondDebt() + b.maturesAt * 1e18 * b.gain) / newDebt;
+        uint256 newMaturesAt = (abond.maturesAt * this.abondDebt() + b_.maturesAt * 1e18 * b_.gain) / newDebt;
 
         // timestamp = timestamp - tokens * d / tokens
-        uint256 newIssuedAt = newMaturesAt.sub(uint256(1) + ((abond.gain + b.gain) * (newMaturesAt - _now)) / newDebt, "SY: liquidate some seniorBonds");
+        uint256 newIssuedAt = newMaturesAt.sub(uint256(1) + ((abond.gain + b_.gain) * (newMaturesAt - _now)) / newDebt, "SY: liquidate some seniorBonds");
 
         abond = SeniorBond(
-          abond.principal + b.principal,
-          abond.gain + b.gain,
+          abond.principal + b_.principal,
+          abond.gain + b_.gain,
           newIssuedAt,
           newMaturesAt,
           false
@@ -431,7 +431,7 @@ contract SmartYield is
     // when a bond is redeemed from the pool, we want:
     // - for abond.maturesAt (the earliest date at which juniors can fully exit) to remain the same as before the redeem
     // - to keep the price for jTokens before a bond is bought ~equal with the price for jTokens after a bond is bought
-    function _unaccountBond(SeniorBond memory b)
+    function _unaccountBond(SeniorBond memory b_)
       internal
     {
         uint256 now_ = this.currentTime() * 1e18;
@@ -440,8 +440,8 @@ contract SmartYield is
           // abond matured
           // this.abondDebt() == 0
           abond = SeniorBond(
-            abond.principal - b.principal,
-            abond.gain - b.gain,
+            abond.principal - b_.principal,
+            abond.gain - b_.gain,
             now_ - (abond.maturesAt - abond.issuedAt),
             now_,
             false
@@ -451,11 +451,11 @@ contract SmartYield is
         }
 
         // timestamp = timestamp - tokens * d / tokens
-        uint256 newIssuedAt = abond.maturesAt.sub(uint256(1) + (abond.gain - b.gain) * (abond.maturesAt - now_) / this.abondDebt(), "SY: liquidate some seniorBonds");
+        uint256 newIssuedAt = abond.maturesAt.sub(uint256(1) + (abond.gain - b_.gain) * (abond.maturesAt - now_) / this.abondDebt(), "SY: liquidate some seniorBonds");
 
         abond = SeniorBond(
-          abond.principal - b.principal,
-          abond.gain - b.gain,
+          abond.principal - b_.principal,
+          abond.gain - b_.gain,
           newIssuedAt,
           abond.maturesAt,
           false
@@ -588,6 +588,7 @@ contract SmartYield is
     }
 
     function _takeTokens(address _from, uint256 _amount) internal {
+        // TODO: optimization, use _transfer() gas + no approve
         require(
             transferFrom(_from, address(this), _amount),
             "SY: _takeTokens transferFrom"
