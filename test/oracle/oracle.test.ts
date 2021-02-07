@@ -211,6 +211,6 @@ describe('Yield Oracle', async function () {
         }
         await moveTime(windowSize / granularity);
       }
-    });
+    }).timeout(100 * 1000);
   });
 });
