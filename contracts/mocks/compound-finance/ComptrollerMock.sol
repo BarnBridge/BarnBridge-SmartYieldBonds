@@ -35,6 +35,10 @@ contract ComptrollerMock is IComptroller {
       return r;
     }
 
+    function setCToken(address cToken_) public {
+      cToken = cToken_;
+    }
+
     function setHolder(address holder_) public {
       holder = holder_;
     }

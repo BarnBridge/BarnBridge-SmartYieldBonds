@@ -5,8 +5,10 @@ pragma solidity ^0.7.6;
 
 import "hardhat/console.sol";
 
-import "../../external-interfaces/compound-finance/ICToken.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+import "../../external-interfaces/compound-finance/ICToken.sol";
+import "./ComptrollerMock.sol";
 
 contract CTokenMock is ICToken, ERC20 {
     uint256 public exchangeRateStored_ = 0;
@@ -17,6 +19,7 @@ contract CTokenMock is ICToken, ERC20 {
     constructor(address underlying_, address comptroller_) ERC20("cDAI mock", "cDAI") {
         underlying = underlying_;
         comptroller = comptroller_;
+        ComptrollerMock(comptroller_).setCToken(address(this));
         _setupDecimals(8);
     }
 
