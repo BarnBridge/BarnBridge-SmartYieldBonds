@@ -19,8 +19,6 @@ contract CTokenYieldingMock is HasClock, ICToken, ERC20 {
     address public override comptroller;
     address public override underlying;
 
-    HasClock public clock;
-
     uint256 public lastYielded;
     uint256 public yieldPerDay;
     uint256 public exchangeRateInitial;
@@ -67,7 +65,7 @@ contract CTokenYieldingMock is HasClock, ICToken, ERC20 {
       ) {
         return exchangeRateInitial;
       }
-      uint256 elapsed = clock.clockCurrentTime() - lastYielded;
+      uint256 elapsed = this.clockCurrentTime() - lastYielded;
       uint16 elapsedDays = uint16(elapsed / (1 days));
       uint256 elapsedRemaining = elapsed - (uint256(elapsedDays) * (1 days));
       uint256 underlyingPrev = Erc20Mock(underlying).balanceOf(address(this));
@@ -89,10 +87,10 @@ contract CTokenYieldingMock is HasClock, ICToken, ERC20 {
 
     function doYield() public {
       if (0 == Erc20Mock(underlying).balanceOf(address(this))) {
-        lastYielded = clock.clockCurrentTime();
+        lastYielded = this.clockCurrentTime();
         return;
       }
-      uint256 elapsed = clock.clockCurrentTime() - lastYielded;
+      uint256 elapsed = this.clockCurrentTime() - lastYielded;
       uint16 elapsedDays = uint16(elapsed / (1 days));
       uint256 elapsedRemaining = elapsed - (uint256(elapsedDays) * (1 days));
       uint256 underlyingPrev = Erc20Mock(underlying).balanceOf(address(this));
@@ -101,7 +99,7 @@ contract CTokenYieldingMock is HasClock, ICToken, ERC20 {
       underlyingYielded += (elapsedRemaining * yieldPerDay / (1 days)) * underlyingPrev / 1e18;
 
       Erc20Mock(underlying).mintMock(address(this), underlyingYielded);
-      lastYielded = clock.clockCurrentTime();
+      lastYielded = this.clockCurrentTime();
     }
 
 

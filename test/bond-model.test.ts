@@ -42,28 +42,6 @@ const fixture = (decimals: number) => {
       (moveTime(clock))(0),
     ]);
 
-
-    // const bondModel = (await deployContract(deployerSign, BondModelV1Artifact, [])) as BondModelV1;
-    // const underlying = (await deployContract(deployerSign, Erc20MockArtifact, ['DAI MOCK', 'DAI', decimals])) as Erc20Mock;
-    // const comptroller = (await deployContract(deployerSign, ComptrollerMockArtifact, [])) as ComptrollerMock;
-    // const cToken = (await deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptroller.address])) as CTokenMock;
-    // const smartYield = (await deployContract(deployerSign, SYPCompForModelMockArtifact, [])) as SypCompForModelMock;
-    // const oracle = (await deployContract(deployerSign, YieldOracleMockArtifact, [smartYield.address])) as YieldOracleMock;
-    // const seniorBond = (await deployContract(deployerSign, SeniorBondArtifact, ['BOND', 'BOND MOCK', smartYield.address])) as SeniorBond;
-    // const juniorBond = (await deployContract(deployerSign, JuniorBondArtifact, ['jBOND', 'jBOND MOCK', smartYield.address])) as JuniorBond;
-    // const juniorToken = (await deployContract(deployerSign, JuniorTokenArtifact, ['jTOKEN MOCK', 'bbDAI', smartYield.address])) as JuniorToken;
-    // const controller = (await deployContract(deployerSign, ControllerCompoundArtifact, [])) as ControllerCompound;
-
-    // await Promise.all([
-    //   controller.setOracle(oracle.address),
-    //   controller.setBondModel(bondModel.address),
-    //   comptroller.setHolder(smartYield.address),
-    //   comptroller.setMarket(cToken.address),
-    //   smartYield.setup(controller.address, seniorBond.address, juniorBond.address, juniorToken.address, cToken.address),
-    // ]);
-
-    // await (moveTime(clock))(0);
-
     return {
       oracle, smartYield, cToken, bondModel, seniorBond, underlying, controller, pool,
       deployerSign: deployerSign as Signer,

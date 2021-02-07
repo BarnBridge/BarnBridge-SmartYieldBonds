@@ -16,4 +16,8 @@ contract SmartYieldMock is HasClock, SmartYield {
     function currentTime() public view virtual override returns (uint256) {
         return this.clockCurrentTime();
     }
+
+    function juniorBondsMaturitiesAll() public view returns(uint256[] memory) {
+      return juniorBondsMaturities;
+    }
 }

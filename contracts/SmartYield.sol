@@ -589,10 +589,6 @@ contract SmartYield is
 
     function _takeTokens(address _from, uint256 _amount) internal {
         require(
-            _amount <= allowance(_from, address(this)),
-            "SY: _takeTokens allowance"
-        );
-        require(
             transferFrom(_from, address(this), _amount),
             "SY: _takeTokens transferFrom"
         );

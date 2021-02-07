@@ -15,3 +15,11 @@ export const buyTokens = (smartYield: SmartYield, pool: CompoundProviderMock, un
     await smartYield.connect(user).buyTokens(amountUnderlying, 1, currentTime().add(20));
   };
 };
+
+export const sellTokens = (smartYield: SmartYield, pool: CompoundProviderMock) => {
+  return async (user: Wallet, amountTokens: number | BN): Promise<void> => {
+    amountTokens = toBN(amountTokens);
+    await smartYield.connect(user).approve(smartYield.address, amountTokens);
+    await smartYield.connect(user).sellTokens(amountTokens, 0, currentTime().add(1));
+  };
+};

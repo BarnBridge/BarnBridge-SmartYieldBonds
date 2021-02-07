@@ -1,5 +1,6 @@
 import { deployContract } from 'ethereum-waffle';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
+import { toBN } from './misc';
 
 import ClockMockArtifact from '../../artifacts/contracts/mocks/ClockMock.sol/ClockMock.json';
 import { ClockMock } from '@typechain/ClockMock';
@@ -14,6 +15,9 @@ import { ComptrollerMock } from '@typechain/ComptrollerMock';
 
 import CTokenMockArtifact from '../../artifacts/contracts/mocks/compound-finance/CTokenMock.sol/CTokenMock.json';
 import { CTokenMock } from '@typechain/CTokenMock';
+
+import CTokenYieldingMockArtifact from '../../artifacts/contracts/mocks/compound-finance/CTokenYieldingMock.sol/CTokenYieldingMock.json';
+import { CTokenYieldingMock } from '@typechain/CTokenYieldingMock';
 
 import YieldOracleArtifact from './../../artifacts/contracts/oracle/YieldOracle.sol/YieldOracle.json';
 import { YieldOracle } from '@typechain/YieldOracle';
@@ -61,6 +65,11 @@ export const deployCompComptroller = (deployerSign: Wallet): Promise<Comptroller
 
 export const deployCompCToken = (deployerSign: Wallet, underlying: Erc20Mock, comptroller: ComptrollerMock): Promise<CTokenMock> => {
   return (deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptroller.address])) as Promise<CTokenMock>;
+};
+
+export const deployCompCTokenYielding = (deployerSign: Wallet, underlying: Erc20Mock, comptroller: ComptrollerMock, clock: ClockMock, exchangeRateStored: BN | number): Promise<CTokenYieldingMock> => {
+  exchangeRateStored = toBN(exchangeRateStored);
+  return (deployContract(deployerSign, CTokenYieldingMockArtifact, [underlying.address, comptroller.address, clock.address, exchangeRateStored])) as Promise<CTokenYieldingMock>;
 };
 
 export const deployYieldOracle = (deployerSign: Wallet, pool: IYieldOraclelizable, windowSize: number, granularity: number): Promise<YieldOracle> => {

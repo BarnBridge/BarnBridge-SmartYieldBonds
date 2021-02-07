@@ -102,7 +102,8 @@ export const HT = (ts: BN | number): string => {
 
 export * from './misc';
 export * from './rates';
-export * from './bonds';
+export * from './sbonds';
+export * from './jbonds';
 export * from './tokens';
 export * from './deploy';
 export * from './time';
