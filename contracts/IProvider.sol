@@ -33,13 +33,6 @@ abstract contract IProvider is IYieldOraclelizable {
       _;
     }
 
-    // current total underlying balance as measured by the provider pool
-    function underlyingBalance() external view virtual returns (uint256);
-
-    function harvest() external virtual;
-
-    function transferFees() external virtual;
-
     // deposit underlyingAmount_ into provider, add takeFees_ to fees
     function _depositProvider(uint256 underlyingAmount_, uint256 takeFees_) external virtual;
 
@@ -49,4 +42,12 @@ abstract contract IProvider is IYieldOraclelizable {
     function _takeUnderlying(address from_, uint256 amount_) external virtual;
 
     function _sendUnderlying(address to_, uint256 amount_) external virtual returns (bool);
+
+    function harvest() external virtual;
+
+    function transferFees() external virtual;
+
+    // current total underlying balance as measured by the provider pool
+    function underlyingBalance() external view virtual returns (uint256);
+
 }

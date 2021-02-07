@@ -90,7 +90,7 @@ contract YieldOracle is IYieldOracle {
         // we only want to commit updates once per period (i.e. windowSize / granularity)
         uint256 timeElapsed = pool.currentTime() - observation.timestamp;
         if (timeElapsed > periodSize) {
-            (uint256 yieldCumulative, , ) = pool.cumulatives();
+            (uint256 yieldCumulative, ) = pool.cumulatives();
             observation.timestamp = pool.currentTime();
             observation.yieldCumulative = yieldCumulative;
         }
@@ -143,7 +143,7 @@ contract YieldOracle is IYieldOracle {
             return 0;
         }
 
-        (uint256 yieldCumulative, , ) = pool.currentCumulatives();
+        (uint256 yieldCumulative, ) = pool.currentCumulatives();
 
         return
             computeAmountOut(

@@ -110,20 +110,8 @@ contract CompoundProvider is IProvider {
     function _depositProvider(uint256 underlyingAmount_, uint256 takeFees_)
       external override
       onlySmartYield
-      accountYield
     {
-        if (0 == cTokenBalance && 0 == compSupplierIndexLast) {
-          // this will be called once only for the first comp deposit after pool deploy
-          _updateCompState();
-        }
-        underlyingFees += takeFees_;
-
-        uint256 cTokensBefore = ICTokenErc20(cToken).balanceOf(address(this));
-        // TODO: optimization, pre-approve provider: gas
-        IERC20(uToken).approve(address(cToken), underlyingAmount_);
-        uint256 err = ICToken(cToken).mint(underlyingAmount_);
-        require(0 == err, "PPC: _depositProvider mint");
-        cTokenBalance += ICTokenErc20(cToken).balanceOf(address(this)) - cTokensBefore;
+        _depositProviderInternal(underlyingAmount_, takeFees_);
     }
 
     // withdraw underlyingAmount_ from the liquidity provider, substract the lost cTokens from cTokenBalance
@@ -173,12 +161,15 @@ contract CompoundProvider is IProvider {
         if (rewardGot > 0) {
             address uniswap = CompoundController(controller).uniswap();
 
-            IERC20(rewardCToken).approve(address(uniswap), rewardGot);
+            // should be like:
             // address[] memory path = new address[](3);
             // path[0] = address(rewardCToken);
             // path[1] = address(wethToken);
             // path[2] = address(uToken);
             address[] memory path = CompoundController(controller).getUniswapPath();
+
+            // TODO: optimize pre-approve uniswap, gas
+            IERC20(rewardCToken).approve(address(uniswap), rewardGot);
 
             IUniswapV2Router(uniswap).swapExactTokensForTokens(
                 rewardGot,
@@ -196,7 +187,7 @@ contract CompoundProvider is IProvider {
           return;
         }
 
-        uint256 extra = 0;
+        uint256 extra;
 
         if (underlyingBefore > 0) {
           // someone sent us a present as underlying -> add it to the fees
@@ -216,7 +207,7 @@ contract CompoundProvider is IProvider {
 
         // deposit pool reward to compound - harvest reward + any goodies we received
         // any extra goodies go to fees
-        this._depositProvider(underlyingGot - toCaller + extra, extra);
+        _depositProviderInternal(underlyingGot - toCaller + extra, extra);
 
         // pay this man
         IERC20(uToken).transfer(msg.sender, IERC20(uToken).balanceOf(address(this)));
@@ -244,17 +235,17 @@ contract CompoundProvider is IProvider {
     // oracle should call this when updating
     function cumulatives()
       external override
-    returns(uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance, uint256 blockTs) {
+    returns(uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance) {
         _accountYieldInternal();
         underlyingBalanceLast = this.underlyingBalance();
-        return (cumulativeSecondlyYieldLast, cumulativeUnderlyingBalanceLast, this.currentTime());
+        return (cumulativeSecondlyYieldLast, cumulativeUnderlyingBalanceLast);
     }
 
     // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
     function currentCumulatives()
       external view override
-    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance, uint256 blockTs)
+    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance)
     {
         uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
         cumulativeSecondlyYield = cumulativeSecondlyYieldLast;
@@ -274,7 +265,7 @@ contract CompoundProvider is IProvider {
             }
             cumulativeUnderlyingBalance += this.underlyingBalance() * timeElapsed;
         }
-        return (cumulativeSecondlyYield, cumulativeUnderlyingBalance, uint256(blockTimestamp));
+        return (cumulativeSecondlyYield, cumulativeUnderlyingBalance);
     }
 
     // current total underlying balance, as measured by pool
@@ -301,7 +292,7 @@ contract CompoundProvider is IProvider {
     // note: have to do it because comptroller.claimComp() is callable by anyone
     // source: https://github.com/compound-finance/compound-protocol/blob/master/contracts/Comptroller.sol#L1145
     function compRewardExpected()
-      public view
+      public view virtual
       returns (uint256)
     {
         (uint224 supplyStateIndex, ) = IComptroller(comptroller).compSupplyState(cToken);
@@ -309,7 +300,7 @@ contract CompoundProvider is IProvider {
         uint256 supplierIndex = compSupplierIndexLast;
 
         uint256 deltaIndex = (supplyIndex).sub(supplierIndex); // a - b
-        (, uint256 cumulativeUnderlyingBalanceNow, ) = this.currentCumulatives();
+        (, uint256 cumulativeUnderlyingBalanceNow) = this.currentCumulatives();
         uint256 timeElapsed = this.currentTime() - harvestedLast; // harvest() has require
 
         uint256 waUnderlyingTotal = ((cumulativeUnderlyingBalanceNow - cumulativeUnderlyingBalanceHarvestedLast) * 1e18 / timeElapsed);
@@ -319,6 +310,24 @@ contract CompoundProvider is IProvider {
     }
 
   // internals
+
+    function _depositProviderInternal(uint256 underlyingAmount_, uint256 takeFees_)
+      internal
+      accountYield
+    {
+        if (0 == cTokenBalance && 0 == compSupplierIndexLast) {
+          // this will be called once only for the first comp deposit after pool deploy
+          _updateCompState();
+        }
+        underlyingFees += takeFees_;
+
+        uint256 cTokensBefore = ICTokenErc20(cToken).balanceOf(address(this));
+        // TODO: optimization, pre-approve provider: gas
+        IERC20(uToken).approve(address(cToken), underlyingAmount_);
+        uint256 err = ICToken(cToken).mint(underlyingAmount_);
+        require(0 == err, "PPC: _depositProvider mint");
+        cTokenBalance += ICTokenErc20(cToken).balanceOf(address(this)) - cTokensBefore;
+    }
 
     function _accountYieldInternal()
       internal
@@ -364,7 +373,7 @@ contract CompoundProvider is IProvider {
     {
         (uint224 supplyStateIndex, ) = IComptroller(comptroller).compSupplyState(cToken);
         compSupplierIndexLast = uint256(supplyStateIndex);
-        (, cumulativeUnderlyingBalanceHarvestedLast, ) = this.currentCumulatives();
+        (, cumulativeUnderlyingBalanceHarvestedLast) = this.currentCumulatives();
         harvestedLast = this.currentTime();
     }
 

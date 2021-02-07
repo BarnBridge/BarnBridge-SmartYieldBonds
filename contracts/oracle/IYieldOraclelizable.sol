@@ -7,12 +7,12 @@ interface IYieldOraclelizable {
     // oracle should call this when updating
     function cumulatives()
       external
-    returns(uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance, uint256 blockTs);
+    returns(uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance);
 
     // returns cumulative yield up to currentTime()
     function currentCumulatives()
       external view
-    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance, uint256 blockTs);
+    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance);
 
     // needs to return block.timestamp, otherwise used for mocks
     function currentTime() external view returns (uint256);
