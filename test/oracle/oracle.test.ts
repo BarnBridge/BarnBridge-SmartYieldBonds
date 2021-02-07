@@ -183,7 +183,7 @@ describe('Yield Oracle', async function () {
         }
         await moveTime(windowSize / granularity);
       }
-    });
+    }).timeout(100 * 1000);
 
     it('should not bork for small underlying (1)(e18)', async function () {
       const underlyingDecimals = 18;
