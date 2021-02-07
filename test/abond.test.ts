@@ -230,7 +230,7 @@ describe('abond value computations', async function () {
       const abondAfter5 = await smartYield.abond();
       expectDebtEqualsWithinPayRate1Sec(debtBefore5, debtAfter5, abondAfter5, 'abondDebt5 changed');
 
-    });
+    }).timeout(100 * 1000);
 
   });
 
