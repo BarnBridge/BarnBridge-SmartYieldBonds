@@ -14,7 +14,7 @@ contract OraclelizedMock is HasClock, CompoundProvider {
       HasClock(clockProvider_)
     { }
 
-    function currentTime() external view override returns(uint256) {
+    function currentTime() public view override returns(uint256) {
       return this.clockCurrentTime();
     }
 

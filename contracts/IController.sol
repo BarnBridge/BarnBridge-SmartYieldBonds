@@ -12,6 +12,9 @@ contract IController is Governed {
 
     address public feesOwner; // fees are sent here
 
+    // reward for calling harvest 3%
+    uint256 public HARVEST_REWARD = 3 * 1e16; // 3%
+
     // fee for buying jTokens
     uint256 public FEE_BUY_JUNIOR_TOKEN = 3 * 1e16; // 3%
 
@@ -26,6 +29,13 @@ contract IController is Governed {
     bool public PAUSED_BUY_SENIOR_BOND = false;
 
     constructor() Governed() { }
+
+    function setHarvestReward(uint256 newValue_)
+      public
+      onlyDaoOrGuardian
+    {
+        HARVEST_REWARD = newValue_;
+    }
 
     function setBondLifeMax(uint16 newVal_)
       external

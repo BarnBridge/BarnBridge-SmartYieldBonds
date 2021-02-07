@@ -33,7 +33,7 @@ abstract contract IProvider is IYieldOraclelizable {
       _;
     }
 
-    // current total underlying balance as measured by the pool
+    // current total underlying balance as measured by the provider pool
     function underlyingBalance() external view virtual returns (uint256);
 
     function harvest() external virtual;

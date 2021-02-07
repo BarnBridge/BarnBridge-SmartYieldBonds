@@ -3,10 +3,6 @@ pragma solidity ^0.7.6;
 
 interface IBondModel {
 
-    function gain(
-        address pool,
-        uint256 principal,
-        uint16 forDays
-    ) external view returns (uint256);
+    function gain(address pool_, uint256 principal_, uint16 forDays_) external view returns (uint256);
 
 }

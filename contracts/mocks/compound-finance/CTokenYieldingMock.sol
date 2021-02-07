@@ -7,6 +7,8 @@ import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+import "./ComptrollerMock.sol";
+
 import "./../../lib/math/MathUtils.sol";
 import "./../../external-interfaces/compound-finance/ICToken.sol";
 
@@ -26,6 +28,7 @@ contract CTokenYieldingMock is HasClock, ICToken, ERC20 {
     constructor(address underlying_, address comptroller_, address clock_, uint256 exchangeRateInitial_) HasClock(clock_) ERC20("cDAI Mock", "cDAI") {
         underlying = underlying_;
         comptroller = comptroller_;
+        ComptrollerMock(comptroller_).setCToken(address(this));
         exchangeRateInitial = exchangeRateInitial_;
         _setupDecimals(8);
     }

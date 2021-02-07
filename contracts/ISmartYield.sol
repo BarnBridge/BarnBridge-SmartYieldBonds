@@ -34,40 +34,20 @@ interface ISmartYield {
         uint256 price;
     }
 
-    // struct Storage {
-
-    //   // // previously measured total underlying
-    //   // uint256 underlyingTotalLast;
-
-    //   // // CUMULATIVE
-    //   // // cumulates (new yield per second) * (seconds since last cumulation)
-    //   // uint256 cumulativeSecondlyYieldLast;
-    //   // // cummulates balanceOf underlying
-    //   // uint256 cumulativeUnderlyingTotalLast;
-    //   // // timestamp of the last cumulation
-    //   // uint32 timestampLast;
-    //   // // /CUMULATIVE
-
-    //   // // fees colected in underlying
-    //   // uint256 underlyingFees;
-
-
-    // }
-
     function currentTime() external view returns(uint256);
 
-    function buyBond(uint256 _principalAmount, uint256 _minGain, uint256 _deadline, uint16 _forDays) external;
+    function buyBond(uint256 principalAmount_, uint256 minGain_, uint256 deadline_, uint16 forDays_) external;
 
-    function redeemBond(uint256 _bondId) external;
+    function redeemBond(uint256 bondId_) external;
 
-    function unaccountBonds(uint256[] memory _bondIds) external;
+    function unaccountBonds(uint256[] memory bondIds_) external;
 
-    function buyTokens(uint256 _underlyingAmount, uint256 _minTokens, uint256 _deadline) external;
+    function buyTokens(uint256 underlyingAmount_, uint256 minTokens_, uint256 deadline_) external;
 
     /**
      * sell all tokens instantly
      */
-    function sellTokens(uint256 _tokens, uint256 _minUnderlying, uint256 _deadline) external;
+    function sellTokens(uint256 tokens_, uint256 minUnderlying_, uint256 deadline_) external;
 
     function buyJuniorBond(uint256 tokenAmount_, uint256 maxMaturesAt_, uint256 deadline_) external;
 
@@ -98,8 +78,5 @@ interface ISmartYield {
 
     function providerRatePerDay() external view returns (uint256);
 
-    function bondGain(uint256 _principalAmount, uint16 _forDays)
-        external
-        view
-        returns (uint256);
+    function bondGain(uint256 principalAmount_, uint16 forDays_) external view returns (uint256);
 }

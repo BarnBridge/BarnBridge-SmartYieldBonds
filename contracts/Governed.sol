@@ -23,7 +23,8 @@ abstract contract Governed {
     _;
   }
 
-  constructor() {
+  constructor()
+  {
     dao = msg.sender;
     guardian = msg.sender;
   }

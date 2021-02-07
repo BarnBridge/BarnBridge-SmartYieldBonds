@@ -59,12 +59,12 @@ contract YieldOracle is IYieldOracle {
     }
 
     // returns the index of the observation corresponding to the given timestamp
-    function observationIndexOf(uint256 timestamp)
+    function observationIndexOf(uint256 timestamp_)
         public
         view
         returns (uint8 index)
     {
-        uint256 epochPeriod = timestamp / periodSize;
+        uint256 epochPeriod = timestamp_ / periodSize;
         return uint8(epochPeriod % granularity);
     }
 
@@ -99,13 +99,13 @@ contract YieldOracle is IYieldOracle {
     // given the cumulative yields of the start and end of a period, and the length of the period (timeElapsed in seconds), compute the average
     // yield and extrapolate it for forInterval (seconds) in terms of how much amount out is received for the amount in
     function computeAmountOut(
-        uint256 yieldCumulativeStart,
-        uint256 yieldCumulativeEnd,
-        uint256 timeElapsed,
-        uint256 forInterval
+        uint256 yieldCumulativeStart_,
+        uint256 yieldCumulativeEnd_,
+        uint256 timeElapsed_,
+        uint256 forInterval_
     ) private pure returns (uint256 yieldAverage) {
         return
-            ((yieldCumulativeEnd - yieldCumulativeStart) * forInterval) / timeElapsed;
+            ((yieldCumulativeEnd_ - yieldCumulativeStart_) * forInterval_) / timeElapsed_;
     }
 
     // returns the amount out corresponding to the amount in for a given token using the moving average over the time

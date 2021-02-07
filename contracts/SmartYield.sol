@@ -40,7 +40,7 @@ contract SmartYield is
     // address of IProviderPool
     address public pool;
 
-    // senior BOND {NFT}
+    // senior BOND (NFT)
     address public seniorBond; // IBond
 
     // junior BOND (NFT)
@@ -82,10 +82,10 @@ contract SmartYield is
     bool public _setup;
 
     constructor(
-      string memory name,
-      string memory symbol
+      string memory name_,
+      string memory symbol_
     )
-      JuniorToken(name, symbol)
+      JuniorToken(name_, symbol_)
     {}
 
     function setup(
@@ -109,170 +109,7 @@ contract SmartYield is
         _setup = true;
     }
 
-    function currentTime()
-      external view virtual override
-      returns (uint256)
-    {
-        // mockable
-        return block.timestamp;
-    }
-
-    function providerRatePerDay() external view virtual override returns (uint256) {
-        return IYieldOracle(IController(controller).oracle()).consult(1 days);
-    }
-
-    function _beforeProviderOp() internal {
-      // this modifier will be added to the begginging of all (write) functions.
-      // The first tx after a queued liquidation's timestamp will trigger the liquidation
-      // reducing the jToken supply, and setting aside owed_dai for withdrawals
-      for (uint256 i = juniorBondsMaturitiesPrev; i < juniorBondsMaturities.length; i++) {
-          if (this.currentTime() >= juniorBondsMaturities[i]) {
-              _liquidateJuniorsAt(juniorBondsMaturities[i]);
-              juniorBondsMaturitiesPrev = i + 1;
-          } else {
-              break;
-          }
-      }
-    }
-
-    function _liquidateJuniorsAt(uint256 timestamp)
-      internal
-    {
-        JuniorBondsAt storage jBondsAt = juniorBondsMaturingAt[timestamp];
-
-        require(
-          jBondsAt.tokens > 0,
-          "SY: nothing to liquidate"
-        );
-
-        require(
-          jBondsAt.price == 0,
-          "SY: already liquidated"
-        );
-
-        jBondsAt.price = this.price();
-
-        // ---
-
-        underlyingLiquidatedJuniors += jBondsAt.tokens * jBondsAt.price / 1e18;
-        _burn(address(this), jBondsAt.tokens); // burns Junior locked tokens reducing the jToken supply
-        tokensInJuniorBonds -= jBondsAt.tokens;
-    }
-
-    // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
-    function bondGain(uint256 _principalAmount, uint16 _forDays)
-      public view override
-      returns (uint256)
-    {
-        return IBondModel(IController(controller).bondModel()).gain(address(this), _principalAmount, _forDays);
-    }
-
-    // Purchase a senior bond with _principalAmount underlying for _forDays, buyer gets a bond with gain >= _minGain or revert. _deadline is timestamp before which tx is not rejected.
-    function buyBond(
-        uint256 _principalAmount,
-        uint256 _minGain,
-        uint256 _deadline,
-        uint16 _forDays
-    ) public override
-    {
-        _beforeProviderOp();
-
-        require(
-          false == IController(controller).PAUSED_BUY_SENIOR_BOND(),
-          "SY: buyBond paused"
-        );
-
-        require(
-          this.currentTime() <= _deadline,
-          "SY: buyBond deadline"
-        );
-
-        require(
-            0 < _forDays && _forDays <= IController(controller).BOND_LIFE_MAX(),
-            "SY: buyBond forDays"
-        );
-
-        uint256 gain = this.bondGain(_principalAmount, _forDays);
-
-        require(
-          gain >= _minGain,
-          "SY: buyBond minGain"
-        );
-
-        require(
-          gain > 0,
-          "SY: buyBond gain 0"
-        );
-
-        require(
-          gain < this.underlyingLoanable(),
-          "SY: buyBond underlyingLoanable"
-        );
-
-        uint256 issuedAt = this.currentTime();
-
-        // ---
-
-        IProvider(pool)._takeUnderlying(msg.sender, _principalAmount);
-        IProvider(pool)._depositProvider(_principalAmount, 0);
-
-        SeniorBond memory b =
-            SeniorBond(
-                _principalAmount,
-                gain,
-                issuedAt,
-                uint256(1 days) * uint256(_forDays) + issuedAt,
-                false
-            );
-
-        _mintBond(msg.sender, b);
-    }
-
-    // Redeem a senior bond by it's id. Anyone can redeem but owner gets principal + gain
-    function redeemBond(
-      uint256 _bondId
-    ) public override
-    {
-        _beforeProviderOp();
-
-        require(
-            this.currentTime() >= seniorBonds[_bondId].maturesAt,
-            "SY: redeemBond not matured"
-        );
-
-        // bondToken.ownerOf will revert for burned tokens
-        address payTo = IBond(seniorBond).ownerOf(_bondId);
-        uint256 payAmnt = seniorBonds[_bondId].gain + seniorBonds[_bondId].principal;
-        uint256 fee = MathUtils.fractionOf(seniorBonds[_bondId].gain, IController(controller).FEE_REDEEM_SENIOR_BOND());
-        payAmnt -= fee;
-
-        // ---
-
-        if (seniorBonds[_bondId].liquidated == false) {
-            seniorBonds[_bondId].liquidated = true;
-            _unaccountBond(seniorBonds[_bondId]);
-        }
-
-        // bondToken.burn will revert for already burned tokens
-        IBond(seniorBond).burn(_bondId);
-        delete seniorBonds[_bondId];
-
-        IProvider(pool)._withdrawProvider(payAmnt, fee);
-        IProvider(pool)._sendUnderlying(payTo, payAmnt);
-    }
-
-    // removes matured seniorBonds from being accounted in abond
-    function unaccountBonds(uint256[] memory bondIds_) public override {
-      for (uint256 f = 0; f < bondIds_.length; f++) {
-        if (
-            this.currentTime() > seniorBonds[bondIds_[f]].maturesAt &&
-            seniorBonds[bondIds_[f]].liquidated == false
-        ) {
-            seniorBonds[bondIds_[f]].liquidated = true;
-            _unaccountBond(seniorBonds[bondIds_[f]]);
-        }
-      }
-    }
+    // externals
 
     // buy at least _minTokens with _underlyingAmount, before _deadline passes
     function buyTokens(
@@ -280,7 +117,7 @@ contract SmartYield is
       uint256 minTokens_,
       uint256 deadline_
     )
-      public override
+      external override
     {
         _beforeProviderOp();
 
@@ -315,7 +152,7 @@ contract SmartYield is
       uint256 minUnderlying_,
       uint256 deadline_
     )
-      public override
+      external override
     {
         _beforeProviderOp();
 
@@ -341,12 +178,75 @@ contract SmartYield is
         IProvider(pool)._sendUnderlying(msg.sender, toPay);
     }
 
+    // Purchase a senior bond with principalAmount_ underlying for forDays_, buyer gets a bond with gain >= minGain_ or revert. deadline_ is timestamp before which tx is not rejected.
+    function buyBond(
+        uint256 principalAmount_,
+        uint256 minGain_,
+        uint256 deadline_,
+        uint16 forDays_
+    )
+      external override
+    {
+        _beforeProviderOp();
+
+        require(
+          false == IController(controller).PAUSED_BUY_SENIOR_BOND(),
+          "SY: buyBond paused"
+        );
+
+        require(
+          this.currentTime() <= deadline_,
+          "SY: buyBond deadline"
+        );
+
+        require(
+            0 < forDays_ && forDays_ <= IController(controller).BOND_LIFE_MAX(),
+            "SY: buyBond forDays"
+        );
+
+        uint256 gain = this.bondGain(principalAmount_, forDays_);
+
+        require(
+          gain >= minGain_,
+          "SY: buyBond minGain"
+        );
+
+        require(
+          gain > 0,
+          "SY: buyBond gain 0"
+        );
+
+        require(
+          gain < this.underlyingLoanable(),
+          "SY: buyBond underlyingLoanable"
+        );
+
+        uint256 issuedAt = this.currentTime();
+
+        // ---
+
+        IProvider(pool)._takeUnderlying(msg.sender, principalAmount_);
+        IProvider(pool)._depositProvider(principalAmount_, 0);
+
+        SeniorBond memory b =
+            SeniorBond(
+                principalAmount_,
+                gain,
+                issuedAt,
+                uint256(1 days) * uint256(forDays_) + issuedAt,
+                false
+            );
+
+        _mintBond(msg.sender, b);
+    }
+
+    // buy an nft with tokenAmount_ jTokens, that matures at abond maturesAt
     function buyJuniorBond(
       uint256 tokenAmount_,
       uint256 maxMaturesAt_,
       uint256 deadline_
     )
-      public override
+      external override
     {
         uint256 maturesAt = 1 + abond.maturesAt / 1e18;
 
@@ -382,15 +282,212 @@ contract SmartYield is
                 underlyingLiquidatedJuniors += jb.tokens * jBondsAt.price / 1e18;
                 _unaccountJuniorBond(jb);
             }
-            return redeemJuniorBond(juniorBondId);
+            return this.redeemJuniorBond(juniorBondId);
         }
     }
 
+    // Redeem a senior bond by it's id. Anyone can redeem but owner gets principal + gain
+    function redeemBond(
+      uint256 bondId_
+    )
+      external override
+    {
+        _beforeProviderOp();
+
+        require(
+            this.currentTime() >= seniorBonds[bondId_].maturesAt,
+            "SY: redeemBond not matured"
+        );
+
+        // bondToken.ownerOf will revert for burned tokens
+        address payTo = IBond(seniorBond).ownerOf(bondId_);
+        uint256 payAmnt = seniorBonds[bondId_].gain + seniorBonds[bondId_].principal;
+        uint256 fee = MathUtils.fractionOf(seniorBonds[bondId_].gain, IController(controller).FEE_REDEEM_SENIOR_BOND());
+        payAmnt -= fee;
+
+        // ---
+
+        if (seniorBonds[bondId_].liquidated == false) {
+            seniorBonds[bondId_].liquidated = true;
+            _unaccountBond(seniorBonds[bondId_]);
+        }
+
+        // bondToken.burn will revert for already burned tokens
+        IBond(seniorBond).burn(bondId_);
+        delete seniorBonds[bondId_];
+
+        IProvider(pool)._withdrawProvider(payAmnt, fee);
+        IProvider(pool)._sendUnderlying(payTo, payAmnt);
+    }
+
+    // once matured, redeem a jBond for underlying
+    function redeemJuniorBond(uint256 jBondId_)
+        external override
+    {
+        _beforeProviderOp();
+
+        JuniorBond memory jb = juniorBonds[jBondId_];
+        require(
+            jb.maturesAt <= this.currentTime(),
+            "SY: redeemJuniorBond maturesAt"
+        );
+
+        JuniorBondsAt memory jBondsAt = juniorBondsMaturingAt[jb.maturesAt];
+
+        // blows up if already burned
+        address payTo = IBond(juniorBond).ownerOf(jBondId_);
+        uint256 payAmnt = jBondsAt.price * jb.tokens / 1e18;
+
+        // ---
+
+        _burnJuniorBond(jBondId_);
+        IProvider(pool)._withdrawProvider(payAmnt, 0);
+        IProvider(pool)._sendUnderlying(payTo, payAmnt);
+        underlyingLiquidatedJuniors -= payAmnt;
+    }
 
 
-    // -------------------
+    function providerRatePerDay()
+      external view virtual override
+    returns (uint256)
+    {
+        return IYieldOracle(IController(controller).oracle()).consult(1 days);
+    }
 
-    function _mintBond(address _to, SeniorBond memory _bond)
+    // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
+    function bondGain(uint256 principalAmount_, uint16 forDays_)
+      external view override
+    returns (uint256)
+    {
+        return IBondModel(IController(controller).bondModel()).gain(address(this), principalAmount_, forDays_);
+    }
+
+  // /externals
+
+  // publics
+
+    function currentTime()
+      public view virtual override
+    returns (uint256)
+    {
+        // mockable
+        return block.timestamp;
+    }
+
+    // jToken price * 1e18
+    function price()
+      public view override
+    returns (uint256)
+    {
+        uint256 ts = totalSupply();
+        return (ts == 0) ? 1e18 : (this.underlyingJuniors() * 1e18) / ts;
+    }
+
+    function underlyingTotal()
+      public view virtual override
+    returns(uint256)
+    {
+      return IProvider(pool).underlyingBalance() - IProvider(pool).underlyingFees() - underlyingLiquidatedJuniors;
+    }
+
+    function underlyingJuniors()
+      public view virtual override
+    returns (uint256)
+    {
+        return this.underlyingTotal() - abond.principal - this.abondPaid();
+    }
+
+    function underlyingLoanable()
+      public view virtual override
+    returns (uint256)
+    {
+        // underlyingTotal - abond.principal - abond.gain - queued withdrawls
+        return this.underlyingTotal() - abond.principal - abond.gain - (tokensInJuniorBonds * this.price() / 1e18);
+    }
+
+    function abondGain()
+      public view override
+    returns (uint256)
+    {
+        return abond.gain;
+    }
+
+    function abondPaid()
+      public view override
+    returns (uint256)
+    {
+        uint256 ts = this.currentTime() * 1e18;
+        if (ts <= abond.issuedAt || (abond.maturesAt <= abond.issuedAt)) {
+          return 0;
+        }
+
+        uint256 d = abond.maturesAt - abond.issuedAt;
+        return (this.abondGain() * MathUtils.min(ts - abond.issuedAt, d)) / d;
+    }
+
+    function abondDebt()
+      public view override
+    returns (uint256)
+    {
+        return this.abondGain() - this.abondPaid();
+    }
+
+  // /publics
+
+  // internals
+
+    function _beforeProviderOp() internal {
+      // this modifier will be added to the begginging of all (write) functions.
+      // The first tx after a queued liquidation's timestamp will trigger the liquidation
+      // reducing the jToken supply, and setting aside owed_dai for withdrawals
+      for (uint256 i = juniorBondsMaturitiesPrev; i < juniorBondsMaturities.length; i++) {
+          if (this.currentTime() >= juniorBondsMaturities[i]) {
+              _liquidateJuniorsAt(juniorBondsMaturities[i]);
+              juniorBondsMaturitiesPrev = i + 1;
+          } else {
+              break;
+          }
+      }
+    }
+
+    function _liquidateJuniorsAt(uint256 timestamp_)
+      internal
+    {
+        JuniorBondsAt storage jBondsAt = juniorBondsMaturingAt[timestamp_];
+
+        require(
+          jBondsAt.tokens > 0,
+          "SY: nothing to liquidate"
+        );
+
+        require(
+          jBondsAt.price == 0,
+          "SY: already liquidated"
+        );
+
+        jBondsAt.price = this.price();
+
+        // ---
+
+        underlyingLiquidatedJuniors += jBondsAt.tokens * jBondsAt.price / 1e18;
+        _burn(address(this), jBondsAt.tokens); // burns Junior locked tokens reducing the jToken supply
+        tokensInJuniorBonds -= jBondsAt.tokens;
+    }
+
+    // removes matured seniorBonds from being accounted in abond
+    function unaccountBonds(uint256[] memory bondIds_) public override {
+      for (uint256 f = 0; f < bondIds_.length; f++) {
+        if (
+            this.currentTime() > seniorBonds[bondIds_[f]].maturesAt &&
+            seniorBonds[bondIds_[f]].liquidated == false
+        ) {
+            seniorBonds[bondIds_[f]].liquidated = true;
+            _unaccountBond(seniorBonds[bondIds_[f]]);
+        }
+      }
+    }
+
+    function _mintBond(address to_, SeniorBond memory bond_)
       internal
     {
         require(
@@ -399,29 +496,29 @@ contract SmartYield is
         );
 
         seniorBondId++;
-        seniorBonds[seniorBondId] = _bond;
-        _accountBond(_bond);
-        IBond(seniorBond).mint(_to, seniorBondId);
+        seniorBonds[seniorBondId] = bond_;
+        _accountBond(bond_);
+        IBond(seniorBond).mint(to_, seniorBondId);
     }
 
     // when a new bond is added to the pool, we want:
     // - to average abond.maturesAt (the earliest date at which juniors can fully exit), this shortens the junior exit date compared to the date of the last active bond
     // - to keep the price for jTokens before a bond is bought ~equal with the price for jTokens after a bond is bought
-    function _accountBond(SeniorBond memory b)
+    function _accountBond(SeniorBond memory b_)
       internal
     {
         uint256 _now = this.currentTime() * 1e18;
 
-        uint256 newDebt = this.abondDebt() + b.gain;
+        uint256 newDebt = this.abondDebt() + b_.gain;
         // for the very first bond or the first bond after abond maturity: this.abondDebt() = 0 => newMaturesAt = b.maturesAt
-        uint256 newMaturesAt = (abond.maturesAt * this.abondDebt() + b.maturesAt * 1e18 * b.gain) / newDebt;
+        uint256 newMaturesAt = (abond.maturesAt * this.abondDebt() + b_.maturesAt * 1e18 * b_.gain) / newDebt;
 
         // timestamp = timestamp - tokens * d / tokens
-        uint256 newIssuedAt = newMaturesAt.sub(uint256(1) + ((abond.gain + b.gain) * (newMaturesAt - _now)) / newDebt, "SY: liquidate some seniorBonds");
+        uint256 newIssuedAt = newMaturesAt.sub(uint256(1) + ((abond.gain + b_.gain) * (newMaturesAt - _now)) / newDebt, "SY: liquidate some seniorBonds");
 
         abond = SeniorBond(
-          abond.principal + b.principal,
-          abond.gain + b.gain,
+          abond.principal + b_.principal,
+          abond.gain + b_.gain,
           newIssuedAt,
           newMaturesAt,
           false
@@ -431,7 +528,7 @@ contract SmartYield is
     // when a bond is redeemed from the pool, we want:
     // - for abond.maturesAt (the earliest date at which juniors can fully exit) to remain the same as before the redeem
     // - to keep the price for jTokens before a bond is bought ~equal with the price for jTokens after a bond is bought
-    function _unaccountBond(SeniorBond memory b)
+    function _unaccountBond(SeniorBond memory b_)
       internal
     {
         uint256 now_ = this.currentTime() * 1e18;
@@ -440,8 +537,8 @@ contract SmartYield is
           // abond matured
           // this.abondDebt() == 0
           abond = SeniorBond(
-            abond.principal - b.principal,
-            abond.gain - b.gain,
+            abond.principal - b_.principal,
+            abond.gain - b_.gain,
             now_ - (abond.maturesAt - abond.issuedAt),
             now_,
             false
@@ -451,11 +548,11 @@ contract SmartYield is
         }
 
         // timestamp = timestamp - tokens * d / tokens
-        uint256 newIssuedAt = abond.maturesAt.sub(uint256(1) + (abond.gain - b.gain) * (abond.maturesAt - now_) / this.abondDebt(), "SY: liquidate some seniorBonds");
+        uint256 newIssuedAt = abond.maturesAt.sub(uint256(1) + (abond.gain - b_.gain) * (abond.maturesAt - now_) / this.abondDebt(), "SY: liquidate some seniorBonds");
 
         abond = SeniorBond(
-          abond.principal - b.principal,
-          abond.gain - b.gain,
+          abond.principal - b_.principal,
+          abond.gain - b_.gain,
           newIssuedAt,
           abond.maturesAt,
           false
@@ -514,84 +611,14 @@ contract SmartYield is
         jBondsAt.tokens -= jb_.tokens;
     }
 
-    function redeemJuniorBond(uint256 jBondId_)
-        public override
-        //accountYield
-    {
-        _beforeProviderOp();
-
-        JuniorBond memory jb = juniorBonds[jBondId_];
-        require(
-            jb.maturesAt <= this.currentTime(),
-            "SY: redeemJuniorBond maturesAt"
-        );
-
-        JuniorBondsAt memory jBondsAt = juniorBondsMaturingAt[jb.maturesAt];
-
-        // blows up if already burned
-        address payTo = IBond(juniorBond).ownerOf(jBondId_);
-        uint256 payAmnt = jBondsAt.price * jb.tokens / 1e18;
-
-        // ---
-
-        _burnJuniorBond(jBondId_);
-        IProvider(pool)._withdrawProvider(payAmnt, 0);
-        IProvider(pool)._sendUnderlying(payTo, payAmnt);
-        underlyingLiquidatedJuniors -= payAmnt;
-    }
-
-    // jToken price * 1e18
-    function price()
-      public view override
-    returns (uint256) {
-        uint256 ts = totalSupply();
-        return (ts == 0) ? 1e18 : (this.underlyingJuniors() * 1e18) / ts;
-    }
-
-    function underlyingTotal()
-      public view virtual override
-      returns(uint256)
-    {
-      return IProvider(pool).underlyingBalance() - IProvider(pool).underlyingFees() - underlyingLiquidatedJuniors;
-    }
-
-    function underlyingJuniors()
-      public view virtual override
-    returns (uint256) {
-        return
-            this.underlyingTotal() - abond.principal - this.abondPaid();
-    }
-
-    function underlyingLoanable()
-      public view virtual override
-    returns (uint256) {
-        // underlyingTotal - abond.principal - abond.gain - queued withdrawls
-        return this.underlyingTotal() - abond.principal - abond.gain - (tokensInJuniorBonds * this.price() / 1e18);
-    }
-
-    function abondGain() public view override returns (uint256) {
-        return abond.gain;
-    }
-
-    function abondPaid() public view override returns (uint256) {
-        uint256 ts = this.currentTime() * 1e18;
-        if (ts <= abond.issuedAt || (abond.maturesAt <= abond.issuedAt)) {
-          return 0;
-        }
-
-        uint256 d = abond.maturesAt - abond.issuedAt;
-        return (this.abondGain() * MathUtils.min(ts - abond.issuedAt, d)) / d;
-    }
-
-    function abondDebt() public view override returns (uint256) {
-        return this.abondGain() - this.abondPaid();
-    }
-
     function _takeTokens(address _from, uint256 _amount) internal {
+        // TODO: optimization, use _transfer() gas + no approve
         require(
             transferFrom(_from, address(this), _amount),
             "SY: _takeTokens transferFrom"
         );
     }
+
+  // /internals
 
 }

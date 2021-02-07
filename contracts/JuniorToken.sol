@@ -5,5 +5,12 @@ pragma abicoder v2;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 abstract contract JuniorToken is ERC20 {
-    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
+
+    constructor(
+      string memory name_,
+      string memory symbol_
+    )
+      ERC20(name_, symbol_)
+    { }
+
 }
