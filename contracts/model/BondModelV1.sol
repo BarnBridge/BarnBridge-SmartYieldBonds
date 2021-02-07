@@ -22,7 +22,10 @@ contract BondModelV1 is IBondModel {
         address pool_,
         uint256 principal_,
         uint16 forDays_
-    ) external view override returns (uint256) {
+    )
+      external view override
+    returns (uint256)
+    {
         uint256 loanable = ISmartYield(pool_).underlyingLoanable();
         uint256 total = ISmartYield(pool_).underlyingTotal();
         uint256 dailyRate = ISmartYield(pool_).providerRatePerDay();

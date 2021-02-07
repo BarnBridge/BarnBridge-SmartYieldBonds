@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./IBond.sol";
 
 contract SeniorBond is IBond, ERC721 {
+
     address public override smartYield;
 
     constructor(

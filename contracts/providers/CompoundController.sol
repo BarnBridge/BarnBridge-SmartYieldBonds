@@ -13,7 +13,9 @@ contract CompoundController is IController {
     constructor(
       address uniswap_,
       address[] memory uniswapPath_
-    ) IController() {
+    )
+      IController()
+    {
       setUniswap(uniswap_);
       setUniswapPath(uniswapPath_);
     }
