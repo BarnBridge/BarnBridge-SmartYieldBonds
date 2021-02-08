@@ -5,11 +5,8 @@ pragma abicoder v2;
 import "hardhat/console.sol";
 
 // TODO:
-// comp value + spot price + rate = min(MAX, oracle, spot)
-// tests
-
-// configurable:
-// MAX_YIELD allowed for sBONDS can be changed by guardian / dao
+// investigate comp value + spot price + rate = min(MAX, oracle, spot)
+// more tests
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
