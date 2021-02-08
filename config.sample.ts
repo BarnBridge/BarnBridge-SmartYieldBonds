@@ -13,7 +13,7 @@ const config: HardhatUserConfig = {
       url: 'https://rinkeby.infura.io/v3/API-KEY-HERE',
       chainId: 4,
       accounts: {
-        mnemonic: 'cost major because spoon bitter insect voyage ribbon between type provide thank',
+        mnemonic: '...',
         path: 'm/44\'/60\'/0\'/0',
         initialIndex: 0,
         count: 10,
@@ -28,7 +28,7 @@ const config: HardhatUserConfig = {
       url: 'https://mainnet.infura.io/v3/API-KEY-HERE',
       chainId: 1,
       accounts: {
-        mnemonic: 'cost major because spoon bitter insect voyage ribbon between type provide thank',
+        mnemonic: '...',
         path: 'm/44\'/60\'/0\'/0',
         initialIndex: 1,
         count: 10,
