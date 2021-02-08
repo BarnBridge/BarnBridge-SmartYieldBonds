@@ -198,7 +198,7 @@ contract CompoundProvider is IProvider {
         if (rewardGot > rewardExpected) {
           // moar present as COMP reward -> add it to the fees
           // throw event
-          uint256 rExtra = MathUtils.fractionOf(underlyingGot, (rewardGot - rewardExpected) * 1e18 / rewardExpected);
+          uint256 rExtra = MathUtils.fractionOf(underlyingGot, (rewardGot - rewardExpected) * 1e18 / rewardGot);
           extra += rExtra;
           underlyingGot -= rExtra;
         }
