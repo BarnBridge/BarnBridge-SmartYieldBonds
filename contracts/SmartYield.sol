@@ -5,11 +5,8 @@ pragma abicoder v2;
 import "hardhat/console.sol";
 
 // TODO:
-// comp value + spot price + rate = min(MAX, oracle, spot)
-// tests
-
-// configurable:
-// MAX_YIELD allowed for sBONDS can be changed by guardian / dao
+// investigate comp value + spot price + rate = min(MAX, oracle, spot)
+// more tests
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -351,7 +348,10 @@ contract SmartYield is
       external view virtual override
     returns (uint256)
     {
-        return IYieldOracle(IController(controller).oracle()).consult(1 days);
+        return MathUtils.min(
+          IController(controller).BOND_MAX_RATE_PER_DAY(),
+          IYieldOracle(IController(controller).oracle()).consult(1 days)
+        );
     }
 
     // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal

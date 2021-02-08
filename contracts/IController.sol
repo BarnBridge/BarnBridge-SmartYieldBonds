@@ -21,6 +21,10 @@ contract IController is Governed {
     // fee for redeeming a sBond
     uint256 public FEE_REDEEM_SENIOR_BOND = 3 * 1e16; // 3%
 
+    // max rate per day for sBonds
+    // k * supplyRatePerBlock * blocksPerDay
+    uint256 public BOND_MAX_RATE_PER_DAY = 3 * 49201150733 * 5760; // APY ~30% / year
+
     // max duration of a purchased sBond
     uint16 public BOND_LIFE_MAX = 90; // in days
 
@@ -35,6 +39,13 @@ contract IController is Governed {
       onlyDaoOrGuardian
     {
         HARVEST_REWARD = newValue_;
+    }
+
+    function setBondMaxRatePerDay(uint256 newVal_)
+      external
+      onlyDaoOrGuardian
+    {
+      BOND_MAX_RATE_PER_DAY = newVal_;
     }
 
     function setBondLifeMax(uint16 newVal_)
