@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
 
-import "hardhat/console.sol";
-
 import "./../Erc20Mock.sol";
 
 import "../../external-interfaces/compound-finance/IComptroller.sol";
@@ -56,8 +54,6 @@ contract ComptrollerMock is IComptroller {
       require(!borrowers, "ComptrollerMock: claimComp borrowers");
 
       Erc20Mock(compAddress).mintMock(holder, claimCompOut);
-
-      console.log("claimComp gave", Erc20Mock(compAddress).balanceOf(holder), holder);
 
       claimCompCalled++;
     }

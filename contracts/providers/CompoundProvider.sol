@@ -191,7 +191,7 @@ contract CompoundProvider is IProvider {
 
         if (underlyingBefore > 0) {
           // someone sent us a present as underlying -> add it to the fees
-          extra += underlyingBefore;
+          extra = underlyingBefore;
           underlyingGot -= extra;
         }
 

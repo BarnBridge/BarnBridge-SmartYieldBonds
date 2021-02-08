@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
 
-import "hardhat/console.sol";
-
 import "./../Erc20Mock.sol";
 
 import "./../../external-interfaces/uniswap/IUniswapV2Router.sol";
@@ -75,9 +73,6 @@ contract UniswapMock is IUniswapV2Router {
       Erc20Mock(tokenIn).transferFrom(msg.sender, address(this), amountIn_);
       Erc20Mock(tokenIn).burnMock(address(this), amountIn_);
       Erc20Mock(tokenOut).mintMock(to_, amountIn_ * price / 1e18);
-
-      console.log("swapExactTokensForTokens took", amountIn_);
-      console.log("swapExactTokensForTokens gave", Erc20Mock(tokenOut).balanceOf(to_));
 
       swapExactTokensForTokensCalled++;
     }

@@ -3,27 +3,52 @@ import 'tsconfig-paths/register';
 import { expect } from 'chai';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { bbFixtures, currentTime, deployClockMock, deployCompComptroller, deployCompCToken, deployCompoundController, deployCompoundProviderMockCompRewardExpected, deployCompToken, deployUnderlying, deployUniswapMock, deployYieldOracleMock, e18, moveTime, toBN } from '@testhelp/index';
-import { PRIORITY_LOW } from 'constants';
-import { UniswapMock } from '@typechain/UniswapMock';
 
 const decimals = 18;
 const exchangeRateStored = BN.from('210479247565052203200030081');
 const priceCompToUnderlying = e18(2 * 1);
 
-const compToCtoken = (compAmount: BN | number, priceCompToUnderlying: BN | number, exchangeRateStored: BN | number, harvestReward: BN | number): { cTokens: BN, reward: BN} => {
+const compToCtoken = (
+  compAmount: BN | number,
+  priceCompToUnderlying: BN | number,
+  exchangeRateStored: BN | number,
+  harvestReward: BN | number,
+  extraComp: BN | number = 0,
+  extraUnderlying: BN | number = 0,
+
+): { cTokens: BN, reward: BN, underlyingFees: BN } => {
   compAmount = toBN(compAmount);
   priceCompToUnderlying = toBN(priceCompToUnderlying);
   exchangeRateStored = toBN(exchangeRateStored);
   harvestReward = toBN(harvestReward);
+  extraComp = toBN(extraComp);
+  extraUnderlying = toBN(extraUnderlying);
 
-  let underlying = compAmount.mul(priceCompToUnderlying).div(e18(1));
-  const reward = underlying.mul(harvestReward).div(e18(1));
-  underlying = underlying.sub(reward);
+  let underlyingGot = extraUnderlying;
+  // uniswap
+  underlyingGot = underlyingGot.add(
+    (compAmount.add(extraComp)).mul(priceCompToUnderlying).div(e18(1))
+  );
 
-  const cTokens = underlying.mul(e18(1)).div(exchangeRateStored);
+  let underlyingFees = extraUnderlying;
+  underlyingGot = underlyingGot.sub(extraUnderlying);
+
+  if (extraComp.gt(0)) {
+    const extra = underlyingGot.mul(
+      extraComp.mul(e18(1)).div(compAmount.add(extraComp))
+    ).div(e18(1));
+
+    underlyingFees = underlyingFees.add(extra);
+    underlyingGot = underlyingGot.sub(extra);
+  }
+
+  const reward = underlyingGot.mul(harvestReward).div(e18(1));
+  const cTokens = underlyingGot.sub(reward).add(underlyingFees).mul(e18(1)).div(exchangeRateStored);
+
   return {
     cTokens,
     reward,
+    underlyingFees,
   };
 };
 
@@ -85,7 +110,7 @@ const fixture = () => {
 };
 
 
-describe('CompoundProvider', async function () {
+describe('CompoundProvider.harvest()', async function () {
 
   it('should deploy CompoundProvider correctly', async function () {
 
@@ -93,7 +118,6 @@ describe('CompoundProvider', async function () {
   });
 
   it('should reject second setup atempt', async function () {
-    return;
 
     const { pool, controller, underlying, cToken, compComptroller, compToken, deployerSign, smartYieldAddr } = await bbFixtures(fixture());
 
@@ -110,56 +134,168 @@ describe('CompoundProvider', async function () {
     await expect(pool.connect(deployerSign).setup(smartYieldAddr, controller.address, cToken.address), 'should throw if already _setup').revertedWith('PPC: already setup');
   });
 
-  describe('harvest()', async function () {
 
-    it('should harvest only once per block, revert otherwise', async function () {
+  it('should harvest only once per block, revert otherwise', async function () {
 
-      const { pool, controller, underlying, cToken, compComptroller, compToken, deployerSign, smartYieldAddr, moveTime } = await bbFixtures(fixture());
+    const { pool, controller, underlying, cToken, compComptroller, compToken, deployerSign, smartYieldAddr, moveTime } = await bbFixtures(fixture());
 
-      // should not fail
-      await pool.connect(deployerSign).harvest();
+    // should not fail
+    await pool.connect(deployerSign).harvest();
 
-      await expect(pool.connect(deployerSign).harvest(), 'should revert if on the same block/timestamp').revertedWith('PPC: harvest later');
+    await expect(pool.connect(deployerSign).harvest(), 'should revert if on the same block/timestamp').revertedWith('PPC: harvest later');
 
-      await moveTime(1);
+    await moveTime(1);
 
-      // should not fail
-      await pool.connect(deployerSign).harvest();
-    });
+    // should not fail
+    await pool.connect(deployerSign).harvest();
+  });
 
-    it('should sell reward and deposit it with compound, rewarding caller', async function () {
+  it('should sell reward and deposit it with compound, rewarding caller', async function () {
 
-      const harvestReward = BN.from(5).mul(e18(1)).div(100); // 5%
+    const harvestReward = BN.from(5).mul(e18(1)).div(100); // 5%
 
-      const { pool, controller, underlying, cToken, compComptroller, compToken, uniswap, deployerSign, smartYieldAddr, userSign, userAddr,  moveTime } = await bbFixtures(fixture());
+    const { pool, controller, underlying, cToken, compComptroller, compToken, uniswap, deployerSign, smartYieldAddr, userSign, userAddr,  moveTime } = await bbFixtures(fixture());
 
-      expect(await underlying.balanceOf(userAddr), 'caller starts with 0 underlying').deep.equal(0);
-      expect(await underlying.balanceOf(pool.address), 'pool starts with 0 underlying').deep.equal(0);
-      expect(await compToken.balanceOf(pool.address), 'pool starts with 0 COMP').deep.equal(0);
-      expect(await cToken.balanceOf(pool.address), 'pool starts with 0 cToken').deep.equal(0);
+    expect(await underlying.balanceOf(userAddr), 'caller starts with 0 underlying').deep.equal(0);
+    expect(await underlying.balanceOf(pool.address), 'pool starts with 0 underlying').deep.equal(0);
+    expect(await compToken.balanceOf(pool.address), 'pool starts with 0 COMP').deep.equal(0);
+    expect(await cToken.balanceOf(pool.address), 'pool starts with 0 cToken').deep.equal(0);
+    expect(await uniswap.swapExactTokensForTokensCalled(), 'no calls to swapExactTokensForTokens').deep.equal(0);
+    expect(await compComptroller.claimCompCalled(), 'no calls to claimComp').deep.equal(0);
 
-      // set reward
-      await controller.connect(deployerSign).setHarvestReward(harvestReward);
+    // set reward
+    await controller.connect(deployerSign).setHarvestReward(harvestReward);
 
-      // expected 8 COMP
-      await pool.connect(deployerSign).setCompRewardExpected(e18(8));
-      // get 8 COMP from claimComp
-      await compComptroller.connect(deployerSign).reset(pool.address, cToken.address, compToken.address, e18(8), 0);
+    // expected 8 COMP
+    await pool.connect(deployerSign).setCompRewardExpected(e18(8));
+    // get 8 COMP from claimComp
+    await compComptroller.connect(deployerSign).reset(pool.address, cToken.address, compToken.address, e18(8), 0);
 
-      await uniswap.connect(deployerSign).expectCallSwapExactTokensForTokens(e18(8), 0, [compToken.address, underlying.address], pool.address, currentTime().add(1800));
+    // expect a call
+    await uniswap.connect(deployerSign).expectCallSwapExactTokensForTokens(e18(8), 0, [compToken.address, underlying.address], pool.address, currentTime().add(1800));
 
-      await pool.connect(userSign).harvest();
+    const expected = compToCtoken(e18(8), priceCompToUnderlying, exchangeRateStored, harvestReward);
 
-      const expected = compToCtoken(e18(8), priceCompToUnderlying, exchangeRateStored, harvestReward);
+    // call
+    await pool.connect(userSign).harvest();
 
-      expect(await cToken.balanceOf(pool.address), 'pool should get correct cTokens').deep.equal(expected.cTokens);
-      expect(await underlying.balanceOf(userAddr), 'caller should get correct reward').deep.equal(expected.reward);
+    expect(await pool.cTokenBalance(), 'pool should see correct cToken balance').deep.equal(expected.cTokens);
+    expect(await cToken.balanceOf(pool.address), 'pool should get correct cTokens').deep.equal(expected.cTokens);
+    expect(await underlying.balanceOf(userAddr), 'caller should get correct reward').deep.equal(expected.reward);
 
-      expect(await underlying.balanceOf(pool.address), 'pool should not have underlying').deep.equal(0);
-      expect(await compToken.balanceOf(pool.address), 'pool should not have COMP').deep.equal(0);
-    });
+    expect(await underlying.balanceOf(pool.address), 'pool should not have underlying').deep.equal(0);
+    expect(await compToken.balanceOf(pool.address), 'pool should not have COMP').deep.equal(0);
+    expect(await uniswap.swapExactTokensForTokensCalled(), '1 call for swapExactTokensForTokens').deep.equal(BN.from(1));
+    expect(await compComptroller.claimCompCalled(), '1 call for claimComp').deep.equal(BN.from(1));
+  });
 
+  it('should sell reward and deposit it with compound, when someone calls claimComp on us, rewarding caller', async function () {
 
+    const harvestReward = BN.from(5).mul(e18(1)).div(100); // 5%
+
+    const { pool, controller, underlying, cToken, compComptroller, compToken, uniswap, deployerSign, smartYieldAddr, userSign, userAddr,  moveTime } = await bbFixtures(fixture());
+
+    expect(await underlying.balanceOf(userAddr), 'caller starts with 0 underlying').deep.equal(0);
+    expect(await underlying.balanceOf(pool.address), 'pool starts with 0 underlying').deep.equal(0);
+    expect(await compToken.balanceOf(pool.address), 'pool starts with 0 COMP').deep.equal(0);
+    expect(await cToken.balanceOf(pool.address), 'pool starts with 0 cToken').deep.equal(0);
+
+    expect(await uniswap.swapExactTokensForTokensCalled(), 'no calls to swapExactTokensForTokens').deep.equal(0);
+    expect(await compComptroller.claimCompCalled(), 'no calls to claimComp').deep.equal(0);
+
+    // set reward
+    await controller.connect(deployerSign).setHarvestReward(harvestReward);
+
+    // expected 8 COMP
+    await pool.connect(deployerSign).setCompRewardExpected(e18(8));
+
+    // get 3 COMP from claimComp
+    await compComptroller.connect(deployerSign).reset(pool.address, cToken.address, compToken.address, e18(3), 0);
+    // someone calls claimComp instead of us, gives pool 3 COMP
+    await compComptroller.connect(userSign).claimComp([pool.address], [cToken.address], false, true);
+
+    expect(await compToken.balanceOf(pool.address), 'pool has 3 COMP').deep.equal(e18(3));
+    expect(await uniswap.swapExactTokensForTokensCalled(), '0 calls for swapExactTokensForTokens').deep.equal(0);
+    expect(await compComptroller.claimCompCalled(), '1 call for claimComp').deep.equal(BN.from(1));
+
+    // pool gets only 5 COMP from claimComp on next call
+    await compComptroller.connect(deployerSign).reset(pool.address, cToken.address, compToken.address, e18(5), 0);
+
+    // expect a call
+    await uniswap.connect(deployerSign).expectCallSwapExactTokensForTokens(e18(8), 0, [compToken.address, underlying.address], pool.address, currentTime().add(1800));
+
+    // we expect to get 3 COMP from external call + 5 COMP from pool call
+    const expected = compToCtoken(e18(8), priceCompToUnderlying, exchangeRateStored, harvestReward);
+
+    // call
+    await pool.connect(userSign).harvest();
+
+    expect(await pool.cTokenBalance(), 'pool should see correct cToken balance').deep.equal(expected.cTokens);
+    expect(await cToken.balanceOf(pool.address), 'pool should get correct cTokens').deep.equal(expected.cTokens);
+    expect(await underlying.balanceOf(userAddr), 'caller should get correct reward').deep.equal(expected.reward);
+
+    expect(await underlying.balanceOf(pool.address), 'pool should not have underlying').deep.equal(0);
+    expect(await compToken.balanceOf(pool.address), 'pool should not have COMP').deep.equal(0);
+
+    expect(await uniswap.swapExactTokensForTokensCalled(), '1 call for swapExactTokensForTokens').deep.equal(BN.from(1));
+    expect(await compComptroller.claimCompCalled(), '1 call for claimComp').deep.equal(BN.from(1));
+  });
+
+  it('should sell reward and deposit it with compound, when someone calls claimComp on us and dumps COMP on the pool, rewarding caller', async function () {
+
+    const harvestReward = BN.from(5).mul(e18(1)).div(100); // 5%
+    const _exchangeRateStored = e18(1);
+
+    const { pool, controller, underlying, cToken, compComptroller, compToken, uniswap, deployerSign, smartYieldAddr, userSign, userAddr,  moveTime } = await bbFixtures(fixture());
+
+    await cToken.setup(underlying.address, compComptroller.address, _exchangeRateStored);
+
+    expect(await underlying.balanceOf(userAddr), 'caller starts with 0 underlying').deep.equal(0);
+    expect(await underlying.balanceOf(pool.address), 'pool starts with 0 underlying').deep.equal(0);
+    expect(await compToken.balanceOf(pool.address), 'pool starts with 0 COMP').deep.equal(0);
+    expect(await cToken.balanceOf(pool.address), 'pool starts with 0 cToken').deep.equal(0);
+
+    expect(await uniswap.swapExactTokensForTokensCalled(), 'no calls to swapExactTokensForTokens').deep.equal(0);
+    expect(await compComptroller.claimCompCalled(), 'no calls to claimComp').deep.equal(0);
+
+    // set reward
+    await controller.connect(deployerSign).setHarvestReward(harvestReward);
+
+    // expected 8 COMP
+    await pool.connect(deployerSign).setCompRewardExpected(e18(10));
+
+    // get 5 COMP from claimComp
+    await compComptroller.connect(deployerSign).reset(pool.address, cToken.address, compToken.address, e18(5), 0);
+    // someone calls claimComp instead of us, gives pool 3 COMP
+    await compComptroller.connect(userSign).claimComp([pool.address], [cToken.address], false, true);
+
+    expect(await compToken.balanceOf(pool.address), 'pool has 3 COMP').deep.equal(e18(5));
+    expect(await uniswap.swapExactTokensForTokensCalled(), '0 calls for swapExactTokensForTokens').deep.equal(0);
+    expect(await compComptroller.claimCompCalled(), '1 call for claimComp').deep.equal(BN.from(1));
+
+    await compToken.mintMock(pool.address, e18(5));
+
+    // pool gets only 5 COMP from claimComp on next call
+    await compComptroller.connect(deployerSign).reset(pool.address, cToken.address, compToken.address, e18(5), 0);
+
+    // expect a call to sell all COMP
+    await uniswap.connect(deployerSign).expectCallSwapExactTokensForTokens(e18(15), 0, [compToken.address, underlying.address], pool.address, currentTime().add(1800));
+
+    // reward only from the 8 COMP expected
+    const expected = compToCtoken(e18(10), priceCompToUnderlying, _exchangeRateStored, harvestReward, e18(5), 0);
+
+    // call
+    await pool.connect(userSign).harvest();
+
+    expect(await cToken.balanceOf(pool.address), 'pool should get correct cTokens').deep.equal(expected.cTokens);
+    expect(await underlying.balanceOf(userAddr), 'caller should get correct reward').deep.equal(expected.reward);
+    expect(await pool.underlyingFees(), 'fees should be correct').deep.equal(expected.underlyingFees);
+
+    expect(await underlying.balanceOf(pool.address), 'pool should not have underlying').deep.equal(0);
+    expect(await compToken.balanceOf(pool.address), 'pool should not have COMP').deep.equal(0);
+
+    expect(await uniswap.swapExactTokensForTokensCalled(), '1 call for swapExactTokensForTokens').deep.equal(BN.from(1));
+    expect(await compComptroller.claimCompCalled(), '1 call for claimComp').deep.equal(BN.from(1));
   });
 
 });
