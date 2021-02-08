@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "es2019",
+    "module": "commonjs",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "outDir": "dist",
+    "resolveJsonModule": true,
+    "baseUrl": "./",
+    "moduleResolution": "node",
+    "paths": {
+      "@typechain/*": [
+        "typechain/*"
+      ],
+      "@artifacts/*": [
+        "artifacts/*"
+      ],
+      "@testhelp/*": [
+        "test/helpers/*"
+      ],
+      "@migrations/*": [
+        "test/migrations/*"
+      ]
+    }
+  },
+  "include": [
+    "./scripts",
+    "./test",
+    "index.d.ts"
+  ],
+  "files": [
+    "./hardhat.config.ts",
+    "./types.d.ts"
+  ]
+}
