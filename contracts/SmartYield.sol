@@ -351,7 +351,10 @@ contract SmartYield is
       external view virtual override
     returns (uint256)
     {
-        return IYieldOracle(IController(controller).oracle()).consult(1 days);
+        return MathUtils.min(
+          IController(controller).BOND_MAX_RATE_PER_DAY(),
+          IYieldOracle(IController(controller).oracle()).consult(1 days)
+        );
     }
 
     // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
