@@ -137,7 +137,7 @@ describe('CompoundProvider.harvest()', async function () {
 
   it('should harvest only once per block, revert otherwise', async function () {
 
-    const { pool, controller, underlying, cToken, compComptroller, compToken, deployerSign, smartYieldAddr, moveTime } = await bbFixtures(fixture());
+    const { pool,deployerSign, moveTime } = await bbFixtures(fixture());
 
     // should not fail
     await pool.connect(deployerSign).harvest();
