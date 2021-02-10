@@ -109,7 +109,6 @@ const fixture = () => {
   };
 };
 
-
 describe('CompoundProvider.harvest()', async function () {
 
   it('pool should be in expected state', async function () {
