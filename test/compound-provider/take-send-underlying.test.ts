@@ -1,12 +1,11 @@
 import 'tsconfig-paths/register';
 
-const decimals = 18;
-const exchangeRateStored = BN.from('210479247565052203200030081');
-const priceCompToUnderlying = e18(2 * 1);
-
 import { expect } from 'chai';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { bbFixtures, currentTime, deployClockMock, deployCompComptroller, deployCompCToken, deployCompoundController, deployCompoundProviderMockCompRewardExpected, deployCompToken, deployUnderlying, deployUniswapMock, deployYieldOracleMock, e18, moveTime, toBN, u2cToken } from '@testhelp/index';
+
+const decimals = 18;
+const exchangeRateStored = BN.from('210479247565052203200030081');
 
 const fixture = () => {
   return async (wallets: Wallet[]) => {
@@ -15,8 +14,8 @@ const fixture = () => {
       deployerSign.getAddress(),
       daoSign.getAddress(),
       guardianSign.getAddress(),
-      smartYieldSign.getAddress(),
       feesOwnerSign.getAddress(),
+      smartYieldSign.getAddress(),
       userSign.getAddress(),
     ]);
 
@@ -40,7 +39,7 @@ const fixture = () => {
       controller.setUniswapPath([compToken.address, underlying.address]),
       compComptroller.reset(pool.address, cToken.address, compToken.address, 0, 0),
       cToken.setup(underlying.address, compComptroller.address, exchangeRateStored),
-      uniswap.setup(compToken.address, underlying.address, priceCompToUnderlying),
+      uniswap.setup(compToken.address, underlying.address, 0),
     ]);
 
     await Promise.all([
@@ -64,3 +63,30 @@ const fixture = () => {
     };
   };
 };
+
+describe('CompoundProvider._takeUnderlying() / CompoundProvider._sendUnderlying() ', async function () {
+
+  it('system should be in expected state', async function () {
+
+    const { pool, controller, underlying, cToken, compComptroller, compToken, uniswap, deployerSign, smartYieldAddr, userSign, userAddr,  moveTime } = await bbFixtures(fixture());
+
+    expect((await pool._setup()), 'should be _setup').equal(true);
+    expect((await pool.smartYield()), 'should be smartYield').equal(smartYieldAddr);
+    expect((await pool.controller()), 'should be controller').equal(controller.address);
+    expect((await pool.cToken()), 'should be cToken').equal(cToken.address);
+    expect((await pool.uToken()), 'should be uToken').equal(underlying.address);
+    expect((await pool.comptroller()), 'should be comptroller').equal(compComptroller.address);
+    expect((await pool.rewardCToken()), 'should be rewardCToken').equal(compToken.address);
+  });
+
+  it('only smartYield can call', async function () {
+
+    const { pool, controller, underlying, cToken, compComptroller, compToken, deployerSign, smartYieldSign, deployerAddr, smartYieldAddr } = await bbFixtures(fixture());
+
+    await expect(pool.connect(deployerSign)._takeUnderlying(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('IPP: only smartYield');
+    await expect(pool.connect(deployerSign)._sendUnderlying(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('IPP: only smartYield');
+    await expect(pool.connect(smartYieldSign)._takeUnderlying(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('IPP: only smartYield');
+    await expect(pool.connect(smartYieldSign)._sendUnderlying(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('IPP: only smartYield');
+  });
+
+});

@@ -59,8 +59,8 @@ const fixture = () => {
       deployerSign.getAddress(),
       daoSign.getAddress(),
       guardianSign.getAddress(),
-      smartYieldSign.getAddress(),
       feesOwnerSign.getAddress(),
+      smartYieldSign.getAddress(),
       userSign.getAddress(),
     ]);
 
