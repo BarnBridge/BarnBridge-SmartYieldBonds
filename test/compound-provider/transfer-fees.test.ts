@@ -67,9 +67,8 @@ const fixture = () => {
 
 describe('CompoundProvider.transferFees()', async function () {
 
-  it('should transfer fees to feesOwner', async function () {
+  it('system should be in expected state', async function () {
     const { pool, controller, underlying, cToken, compComptroller, compToken, uniswap, oracle, deployerSign, smartYieldAddr, userSign, userAddr, feesOwnerAddr,  moveTime } = await bbFixtures(fixture());
-
     expect(await cToken.balanceOf(feesOwnerAddr), 'initially no cTokens on feesOwnerAddr').deep.equal(BN.from(0));
     expect(await underlying.balanceOf(feesOwnerAddr), 'initially no underlying on feesOwnerAddr').deep.equal(BN.from(0));
     expect(await pool.underlyingBalanceLast(), 'initially underlyingBalanceLast is 0').deep.equal(BN.from(0));
@@ -77,6 +76,11 @@ describe('CompoundProvider.transferFees()', async function () {
     expect(await pool.cumulativeSecondlyYieldLast(), 'initially cumulativeSecondlyYieldLast is 0').deep.equal(BN.from(0));
     expect(await pool.cumulativeTimestampLast(), 'initially cumulativeTimestampLast is 0').deep.equal(BN.from(0));
     expect(await oracle.updateCalled(), 'initially oracle update not called').deep.equal(BN.from(0));
+
+  });
+
+  it('should transfer fees to feesOwner', async function () {
+    const { pool, controller, underlying, cToken, compComptroller, compToken, uniswap, oracle, deployerSign, smartYieldAddr, userSign, userAddr, feesOwnerAddr,  moveTime } = await bbFixtures(fixture());
 
     // pool has 10 cToken, 0.3 underlying in fees
     await cToken.connect(deployerSign).mintMock(pool.address, e18(10));
@@ -89,6 +93,42 @@ describe('CompoundProvider.transferFees()', async function () {
     expect(await cToken.balanceOf(feesOwnerAddr), 'no cTokens on feesOwnerAddr after reward').deep.equal(BN.from(0));
 
     const expectedFees = c2uToken(u2cToken(e18(0.3), exchangeRateStored), exchangeRateStored);
+    const expectedCtokenBalance = e18(10).sub(u2cToken(e18(0.3), exchangeRateStored));
+    const expectedUnderlyingBalanceLast = c2uToken(expectedCtokenBalance, exchangeRateStored);
+
+    expect(await underlying.balanceOf(feesOwnerAddr), 'correct fees in underlying on feesOwnerAddr').deep.equal(expectedFees);
+    expect(await cToken.balanceOf(pool.address), 'cTokens - fees on feesOwnerAddr after reward').deep.equal(expectedCtokenBalance);
+    expect(await pool.cTokenBalance(), 'pool tracks cToken balance').deep.equal(expectedCtokenBalance);
+    expect(await pool.underlyingFees(), 'no fees left on pool').deep.equal(BN.from(0));
+    expect(await pool.underlyingBalanceLast(), 'correct underlyingBalanceLast').deep.equal(expectedUnderlyingBalanceLast);
+
+    const expectedUnderlyingBalancePrev = c2uToken(e18(10), exchangeRateStored);
+    const expectedCumulativeUnderlyingBalanceLast = expectedUnderlyingBalancePrev.mul(currentTime().mod(BN.from(2).pow(32)));
+
+    expect(await pool.cumulativeUnderlyingBalanceLast(), 'cumulativeUnderlyingBalanceLast is 0').deep.equal(expectedCumulativeUnderlyingBalanceLast);
+    expect(await pool.cumulativeSecondlyYieldLast(), 'cumulativeSecondlyYieldLast is 0').deep.equal(BN.from(0));
+    const expectedCumulativeTimestampLast = currentTime().mod(BN.from(2).pow(32));
+    expect(await pool.cumulativeTimestampLast(), 'cumulativeTimestampLast is now').deep.equal(expectedCumulativeTimestampLast);
+    expect(await oracle.updateCalled(), 'oracle updated').deep.equal(BN.from(1));
+  });
+
+  it('should transfer fees to feesOwner, ignoring cToken dumped on pool', async function () {
+    const { pool, controller, underlying, cToken, compComptroller, compToken, uniswap, oracle, deployerSign, smartYieldAddr, userSign, userAddr, feesOwnerAddr,  moveTime } = await bbFixtures(fixture());
+
+    // pool has 10 cToken, 0.3 underlying in fees
+    await pool.connect(deployerSign).setInputsTransferFees(e18(10), e18(0.3));
+    // extra 10 cTokens dumped on pool
+    await cToken.connect(deployerSign).mintMock(pool.address, e18(20));
+
+    expect(await cToken.balanceOf(pool.address), 'pool has cTokens').deep.equal(e18(20));
+
+    await pool.connect(userSign).transferFees();
+
+    expect(await cToken.balanceOf(feesOwnerAddr), 'no cTokens on feesOwnerAddr after reward').deep.equal(BN.from(0));
+
+    // fees include 0.3 underlying + 10 cTokens
+    const expectedFees = c2uToken(u2cToken(e18(0.3), exchangeRateStored), exchangeRateStored).add(c2uToken(e18(10), exchangeRateStored));
+    // balance does not include the extra 10 cTokens
     const expectedCtokenBalance = e18(10).sub(u2cToken(e18(0.3), exchangeRateStored));
     const expectedUnderlyingBalanceLast = c2uToken(expectedCtokenBalance, exchangeRateStored);
 
