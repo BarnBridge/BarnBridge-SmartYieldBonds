@@ -110,6 +110,7 @@ contract CompoundProvider is IProvider {
     function _depositProvider(uint256 underlyingAmount_, uint256 takeFees_)
       external override
       onlySmartYield
+      accountYield
     {
         _depositProviderInternal(underlyingAmount_, takeFees_);
     }
@@ -314,7 +315,6 @@ contract CompoundProvider is IProvider {
 
     function _depositProviderInternal(uint256 underlyingAmount_, uint256 takeFees_)
       internal
-      accountYield
     {
         if (0 == cTokenBalance && 0 == compSupplierIndexLast) {
           // this will be called once only for the first comp deposit after pool deploy
