@@ -107,3 +107,4 @@ export * from './jbonds';
 export * from './tokens';
 export * from './deploy';
 export * from './time';
+export * from './prices';
