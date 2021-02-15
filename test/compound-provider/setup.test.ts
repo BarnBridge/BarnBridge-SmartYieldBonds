@@ -64,7 +64,6 @@ const fixture = () => {
   };
 };
 
-
 describe('CompoundProvider.setup()', async function () {
 
   it('sets currect values', async function () {

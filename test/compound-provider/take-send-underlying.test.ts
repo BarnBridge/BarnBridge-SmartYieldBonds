@@ -79,7 +79,7 @@ describe('CompoundProvider._takeUnderlying() / CompoundProvider._sendUnderlying(
     expect((await pool.rewardCToken()), 'should be rewardCToken').equal(compToken.address);
   });
 
-  it('only smartYield can call', async function () {
+  it('only smartYield can call _takeUnderlying/_sendUnderlying', async function () {
 
     const { pool, controller, underlying, cToken, compComptroller, compToken, deployerSign, smartYieldSign, deployerAddr, smartYieldAddr } = await bbFixtures(fixture());
 
@@ -87,6 +87,41 @@ describe('CompoundProvider._takeUnderlying() / CompoundProvider._sendUnderlying(
     await expect(pool.connect(deployerSign)._sendUnderlying(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('IPP: only smartYield');
     await expect(pool.connect(smartYieldSign)._takeUnderlying(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('IPP: only smartYield');
     await expect(pool.connect(smartYieldSign)._sendUnderlying(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('IPP: only smartYield');
+  });
+
+  it('_takeUnderlying takes underlying & checks for allowance', async function () {
+
+    const { pool, controller, underlying, cToken, compComptroller, compToken, deployerSign, smartYieldSign, deployerAddr, smartYieldAddr, userSign, userAddr } = await bbFixtures(fixture());
+
+    await underlying.mintMock(userAddr, e18(1));
+    expect(await underlying.balanceOf(userAddr), 'should have 1 underlying').deep.equal(e18(1));
+    expect(await underlying.balanceOf(pool.address), 'should have 0 underlying').deep.equal(BN.from(0));
+
+    await expect(pool.connect(smartYieldSign)._takeUnderlying(userAddr, e18(1)), 'revert with no allowance').revertedWith('PPC: _takeUnderlying allowance');
+
+    await underlying.connect(userSign).approve(pool.address, e18(0.5));
+
+    await expect(pool.connect(smartYieldSign)._takeUnderlying(userAddr, e18(1)), 'revert with not enought allowance').revertedWith('PPC: _takeUnderlying allowance');
+
+    await underlying.connect(userSign).approve(pool.address, e18(1));
+
+    await pool.connect(smartYieldSign)._takeUnderlying(userAddr, e18(1));
+    expect(await underlying.balanceOf(userAddr), 'should have 0 underlying').deep.equal(BN.from(0));
+    expect(await underlying.balanceOf(pool.address), 'should have 1 underlying').deep.equal(e18(1));
+  });
+
+  it('_sendUnderlying sends underlying', async function () {
+
+    const { pool, controller, underlying, cToken, compComptroller, compToken, deployerSign, smartYieldSign, deployerAddr, smartYieldAddr, userSign, userAddr } = await bbFixtures(fixture());
+
+    await underlying.mintMock(pool.address, e18(1));
+    expect(await underlying.balanceOf(userAddr), 'should have 0 underlying').deep.equal(BN.from(0));
+    expect(await underlying.balanceOf(pool.address), 'should have 1 underlying').deep.equal(e18(1));
+
+    await pool.connect(smartYieldSign)._sendUnderlying(userAddr, e18(1));
+
+    expect(await underlying.balanceOf(userAddr), 'should have 1 underlying').deep.equal(e18(1));
+    expect(await underlying.balanceOf(pool.address), 'should have 0 underlying').deep.equal(BN.from(0));
   });
 
 });
