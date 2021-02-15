@@ -38,16 +38,23 @@ contract CompoundProvider is IProvider {
     uint256 public compSupplierIndexLast;
 
     // cumulative balanceOf @ last harvest
-    uint256 public cumulativeUnderlyingBalanceHarvestedLast;
+    uint256 public cumulativeCtokenBalanceHarvestedLast;
 
     // when we last harvested
     uint256 public harvestedLast;
     // --- /COMP reward checkpoint
 
+    // cummulates cToken balance time weighted
+    uint256 public cumulativeCtokenBalanceLast;
+
+    // last time cumulativeCtokenBalanceLast was cumulated
+    uint32 public cumulativeCtokenTimestampLast;
+
     bool public _setup;
 
-    modifier accountYield {
-        _accountYieldInternal();
+    modifier cumulateYield {
+        _cumulateYieldInternal();
+        _cumulateCtokenInternal();
         IYieldOracle(IController(this.controller()).oracle()).update();
 
         _;
@@ -110,7 +117,7 @@ contract CompoundProvider is IProvider {
     function _depositProvider(uint256 underlyingAmount_, uint256 takeFees_)
       external override
       onlySmartYield
-      accountYield
+      cumulateYield
     {
         _depositProviderInternal(underlyingAmount_, takeFees_);
     }
@@ -119,7 +126,7 @@ contract CompoundProvider is IProvider {
     function _withdrawProvider(uint256 underlyingAmount_, uint256 takeFees_)
       external override
       onlySmartYield
-      accountYield
+      cumulateYield
     {
         underlyingFees += takeFees_;
 
@@ -206,6 +213,9 @@ contract CompoundProvider is IProvider {
 
         uint256 toCaller = MathUtils.fractionOf(underlyingGot, CompoundController(controller).HARVEST_REWARD());
 
+        // cumulate cToken balance
+        _cumulateCtokenInternal();
+
         // deposit pool reward to compound - harvest reward + any goodies we received
         // any extra goodies go to fees
         _depositProviderInternal(underlyingGot - toCaller + extra, extra);
@@ -217,7 +227,7 @@ contract CompoundProvider is IProvider {
     function transferFees()
       external
       override
-      accountYield
+      cumulateYield
     {
       // cleanup any cTokens dust or cTokens that may have been dumped on the pool
       if (ICTokenErc20(cToken).balanceOf(address(this)) > cTokenBalance) {
@@ -237,21 +247,22 @@ contract CompoundProvider is IProvider {
     // oracle should call this when updating
     function cumulatives()
       external override
-    returns(uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance) {
-        _accountYieldInternal();
+    returns(uint256 cumulativeSecondlyYield, uint256 cumulativeCtokenBalance) {
+        _cumulateYieldInternal();
+        _cumulateCtokenInternal();
         underlyingBalanceLast = this.underlyingBalance();
-        return (cumulativeSecondlyYieldLast, cumulativeUnderlyingBalanceLast);
+        return (cumulativeSecondlyYieldLast, cumulativeCtokenBalanceLast);
     }
 
     // returns cumulated yield per 1 underlying coin (ie 1 DAI, 1 ETH) times 1e18
     // per https://github.com/Uniswap/uniswap-v2-periphery/blob/master/contracts/libraries/UniswapV2OracleLibrary.sol#L16
     function currentCumulatives()
       external view override
-    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeUnderlyingBalance)
+    returns (uint256 cumulativeSecondlyYield, uint256 cumulativeCtokenBalance)
     {
         uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
         cumulativeSecondlyYield = cumulativeSecondlyYieldLast;
-        cumulativeUnderlyingBalance = cumulativeUnderlyingBalanceLast;
+        cumulativeCtokenBalance = cumulativeCtokenBalanceLast;
 
         uint32 timeElapsed = blockTimestamp - cumulativeTimestampLast; // overflow is desired
         if (timeElapsed > 0) {
@@ -265,9 +276,14 @@ contract CompoundProvider is IProvider {
                   // (this.underlyingBalance() - underlyingBalanceLast) never underflows
                   ((this.underlyingBalance() - underlyingBalanceLast) * 1e18) / underlyingBalanceLast;
             }
-            cumulativeUnderlyingBalance += this.underlyingBalance() * timeElapsed;
         }
-        return (cumulativeSecondlyYield, cumulativeUnderlyingBalance);
+
+        timeElapsed = blockTimestamp - cumulativeCtokenTimestampLast;
+        if (timeElapsed > 0) {
+            cumulativeCtokenBalance += cTokenBalance * timeElapsed;
+        }
+
+        return (cumulativeSecondlyYield, cumulativeCtokenBalance);
     }
 
     // current total underlying balance, as measured by pool
@@ -302,12 +318,12 @@ contract CompoundProvider is IProvider {
         uint256 supplierIndex = compSupplierIndexLast;
 
         uint256 deltaIndex = (supplyIndex).sub(supplierIndex); // a - b
-        (, uint256 cumulativeUnderlyingBalanceNow) = this.currentCumulatives();
+        (, uint256 cumulativeCtokenBalanceNow) = this.currentCumulatives();
         uint256 timeElapsed = this.currentTime() - harvestedLast; // harvest() has require
 
-        uint256 waUnderlyingTotal = ((cumulativeUnderlyingBalanceNow - cumulativeUnderlyingBalanceHarvestedLast) * 1e18 / timeElapsed);
         // uint256 supplierTokens = ICTokenErc20(cToken).balanceOf(address(this))
-        uint256 supplierTokens = waUnderlyingTotal / ICToken(cToken).exchangeRateStored();
+        uint256 supplierTokens = ((cumulativeCtokenBalanceNow - cumulativeCtokenBalanceHarvestedLast) * 1e18 / timeElapsed);
+
         return (supplierTokens).mul(deltaIndex).div(1e36); // a * b / doubleScale => uint
     }
 
@@ -330,7 +346,7 @@ contract CompoundProvider is IProvider {
         cTokenBalance += ICTokenErc20(cToken).balanceOf(address(this)) - cTokensBefore;
     }
 
-    function _accountYieldInternal()
+    function _cumulateYieldInternal()
       internal
     {
         uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
@@ -349,9 +365,21 @@ contract CompoundProvider is IProvider {
                   ((this.underlyingBalance() - underlyingBalanceLast) * 1e18) / underlyingBalanceLast;
             }
 
-            cumulativeUnderlyingBalanceLast += this.underlyingBalance() * timeElapsed;
-
             cumulativeTimestampLast = blockTimestamp;
+        }
+    }
+
+    function _cumulateCtokenInternal()
+      internal
+    {
+        uint32 blockTimestamp = uint32(this.currentTime() % 2**32);
+        uint32 timeElapsed = blockTimestamp - cumulativeCtokenTimestampLast; // overflow is desired
+        // only for the first time in the block
+        if (timeElapsed > 0) {
+            // eventually overflows
+            cumulativeCtokenBalanceLast += cTokenBalance * timeElapsed;
+
+            cumulativeCtokenTimestampLast = blockTimestamp;
         }
     }
 
@@ -374,7 +402,7 @@ contract CompoundProvider is IProvider {
     {
         (uint224 supplyStateIndex, ) = IComptroller(comptroller).compSupplyState(cToken);
         compSupplierIndexLast = uint256(supplyStateIndex);
-        (, cumulativeUnderlyingBalanceHarvestedLast) = this.currentCumulatives();
+        (, cumulativeCtokenBalanceHarvestedLast) = this.currentCumulatives();
         harvestedLast = this.currentTime();
     }
 
