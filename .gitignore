@@ -6,5 +6,6 @@ artifacts
 typechain
 coverage
 coverage.json
+abi
 
 config.ts
