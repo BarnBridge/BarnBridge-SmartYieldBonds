@@ -19,8 +19,6 @@ abstract contract IProvider is IYieldOraclelizable {
     // CUMULATIVE
     // cumulates (new yield per second) * (seconds since last cumulation)
     uint256 public cumulativeSecondlyYieldLast;
-    // cummulates balanceOf underlying
-    uint256 public cumulativeUnderlyingBalanceLast;
     // timestamp of the last cumulation
     uint32 public cumulativeTimestampLast;
     // /CUMULATIVE

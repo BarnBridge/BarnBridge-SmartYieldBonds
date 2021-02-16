@@ -78,6 +78,19 @@ contract SmartYield is
 
     bool public _setup;
 
+    // emitted when user buys junior ERC20 tokens
+    event BuyTokens(address indexed buyer, uint256 underlyingIn, uint256 tokensOut, uint256 fee);
+    // emitted when user sells junior ERC20 tokens and forfeits their share of the debt
+    event SellTokens(address indexed seller, uint256 tokensIn, uint256 underlyingOut, uint256 forfeits);
+
+    event BuySeniorBond(address indexed buyer, uint256 indexed seniorBondId, uint256 underlyingIn, uint256 gain, uint256 forDays);
+
+    event RedeemSeniorBond(address indexed owner, uint256 indexed seniorBondId, uint256 fee);
+
+    event BuyJuniorBond(address indexed buyer, uint256 indexed juniorBondId, uint256 tokensIn, uint256 maturesAt);
+
+    event RedeemJuniorBond(address indexed owner, uint256 indexed juniorBondId, uint256 underlyingOut);
+
     constructor(
       string memory name_,
       string memory symbol_
@@ -138,9 +151,13 @@ contract SmartYield is
 
         // ---
 
-        IProvider(pool)._takeUnderlying(msg.sender, underlyingAmount_);
+        address buyer = msg.sender;
+
+        IProvider(pool)._takeUnderlying(buyer, underlyingAmount_);
         IProvider(pool)._depositProvider(underlyingAmount_, fee);
-        _mint(msg.sender, getsTokens);
+        _mint(buyer, getsTokens);
+
+        emit BuyTokens(buyer, underlyingAmount_, getsTokens, fee);
     }
 
     // sell _tokens for at least _minUnderlying, before _deadline and forfeit potential future gains
@@ -160,8 +177,9 @@ contract SmartYield is
 
         // share of these tokens in the debt
         uint256 debtShare = tokenAmount_ * 1e18 / totalSupply();
+        uint256 forfeits = (this.abondDebt() * debtShare) / 1e18;
         // debt share is forfeit, and only diff is returned to user
-        uint256 toPay = (tokenAmount_ * this.price() - this.abondDebt() * debtShare) / 1e18;
+        uint256 toPay = (tokenAmount_ * this.price()) / 1e18 - forfeits;
 
         require(
           toPay >= minUnderlying_,
@@ -170,9 +188,13 @@ contract SmartYield is
 
         // ---
 
-        _burn(msg.sender, tokenAmount_);
+        address seller = msg.sender;
+
+        _burn(seller, tokenAmount_);
         IProvider(pool)._withdrawProvider(toPay, 0);
-        IProvider(pool)._sendUnderlying(msg.sender, toPay);
+        IProvider(pool)._sendUnderlying(seller, toPay);
+
+        emit SellTokens(seller, tokenAmount_, toPay, forfeits);
     }
 
     // Purchase a senior bond with principalAmount_ underlying for forDays_, buyer gets a bond with gain >= minGain_ or revert. deadline_ is timestamp before which tx is not rejected.
@@ -222,7 +244,9 @@ contract SmartYield is
 
         // ---
 
-        IProvider(pool)._takeUnderlying(msg.sender, principalAmount_);
+        address buyer = msg.sender;
+
+        IProvider(pool)._takeUnderlying(buyer, principalAmount_);
         IProvider(pool)._depositProvider(principalAmount_, 0);
 
         SeniorBond memory b =
@@ -234,7 +258,9 @@ contract SmartYield is
                 false
             );
 
-        _mintBond(msg.sender, b);
+        _mintBond(buyer, b);
+
+        emit BuySeniorBond(buyer, seniorBondId, principalAmount_, gain, forDays_);
     }
 
     // buy an nft with tokenAmount_ jTokens, that matures at abond maturesAt
@@ -264,8 +290,12 @@ contract SmartYield is
 
         // ---
 
-        _takeTokens(msg.sender, tokenAmount_);
-        _mintJuniorBond(msg.sender, jb);
+        address buyer = msg.sender;
+
+        _takeTokens(buyer, tokenAmount_);
+        _mintJuniorBond(buyer, jb);
+
+        emit BuyJuniorBond(buyer, juniorBondId, tokenAmount_, maturesAt);
 
         // if abond.maturesAt is past we can liquidate, but juniorBondsMaturingAt might have already been liquidated
         if (this.currentTime() >= maturesAt) {
@@ -311,10 +341,12 @@ contract SmartYield is
 
         // bondToken.burn will revert for already burned tokens
         IBond(seniorBond).burn(bondId_);
-        delete seniorBonds[bondId_];
+        //delete seniorBonds[bondId_];
 
         IProvider(pool)._withdrawProvider(payAmnt, fee);
         IProvider(pool)._sendUnderlying(payTo, payAmnt);
+
+        emit RedeemSeniorBond(payTo, seniorBondId, fee);
     }
 
     // once matured, redeem a jBond for underlying
@@ -341,6 +373,8 @@ contract SmartYield is
         IProvider(pool)._withdrawProvider(payAmnt, 0);
         IProvider(pool)._sendUnderlying(payTo, payAmnt);
         underlyingLiquidatedJuniors -= payAmnt;
+
+        emit RedeemJuniorBond(payTo, jBondId_, payAmnt);
     }
 
 

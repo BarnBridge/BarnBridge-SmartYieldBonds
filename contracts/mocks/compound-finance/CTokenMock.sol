@@ -82,4 +82,17 @@ contract CTokenMock is ICToken, ERC20 {
     function comptroller() external view override returns (address) {
       return _comptroller;
     }
+
+    function mintMock(address to_, uint256 amount_) external {
+      _mint(to_, amount_);
+    }
+
+    function burnMock(address to_, uint256 amount_) external {
+      _burn(to_, amount_);
+    }
+
+    function setExchangeRateStored(uint256 exchangeRateStored_) external {
+      _exchangeRateStored = exchangeRateStored_;
+    }
+
 }
