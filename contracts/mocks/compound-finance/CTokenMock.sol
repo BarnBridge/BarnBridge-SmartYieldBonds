@@ -91,4 +91,8 @@ contract CTokenMock is ICToken, ERC20 {
       _burn(to_, amount_);
     }
 
+    function setExchangeRateStored(uint256 exchangeRateStored_) external {
+      _exchangeRateStored = exchangeRateStored_;
+    }
+
 }
