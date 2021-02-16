@@ -52,9 +52,14 @@ contract CompoundProvider is IProvider {
 
     bool public _setup;
 
+    event Harvest(address indexed caller, uint256 underlyingGot, uint256 rewardExpected, uint256 underlyingDeposited, uint256 fees, uint256 reward);
+
+    event TransferFees(address indexed caller, address indexed feesOwner, uint256 fees);
+
     modifier cumulateYield {
         _cumulateYieldInternal();
         _cumulateCtokenInternal();
+
         IYieldOracle(IController(this.controller()).oracle()).update();
 
         _;
@@ -145,6 +150,8 @@ contract CompoundProvider is IProvider {
           "PPC: harvest later"
         );
 
+        address caller = msg.sender;
+
         // this is 0 unless someone transfers underlying to the contract
         uint256 underlyingBefore = IERC20(uToken).balanceOf(address(this));
 
@@ -220,8 +227,12 @@ contract CompoundProvider is IProvider {
         // any extra goodies go to fees
         _depositProviderInternal(underlyingGot - toCaller + extra, extra);
 
+        uint256 reward = IERC20(uToken).balanceOf(address(this));
+
         // pay this man
-        IERC20(uToken).transfer(msg.sender, IERC20(uToken).balanceOf(address(this)));
+        IERC20(uToken).transfer(caller, reward);
+
+        emit Harvest(caller, rewardGot, rewardExpected, underlyingGot - toCaller + extra, extra, reward);
     }
 
     function transferFees()
@@ -237,10 +248,18 @@ contract CompoundProvider is IProvider {
       uint256 err = ICToken(cToken).redeem(
           MathUtils.min(ctokensToPay, ICTokenErc20(cToken).balanceOf(address(this)))
       );
+
       require(0 == err, "PPC: transferFees redeem");
+
       underlyingFees = 0;
       cTokenBalance = ICTokenErc20(cToken).balanceOf(address(this));
-      IERC20(uToken).transfer(IController(controller).feesOwner(), IERC20(uToken).balanceOf(address(this)));
+
+      uint256 fees = IERC20(uToken).balanceOf(address(this));
+      address to = IController(controller).feesOwner();
+
+      IERC20(uToken).transfer(to, fees);
+
+      emit TransferFees(msg.sender, to, fees);
     }
 
     // returns cumulatives and accumulates/updates internal state
