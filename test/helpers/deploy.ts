@@ -5,6 +5,7 @@ import { toBN } from './misc';
 import ClockMockArtifact from '../../artifacts/contracts/mocks/ClockMock.sol/ClockMock.json';
 import { ClockMock } from '@typechain/ClockMock';
 
+import SmartYieldArtifact from '../../artifacts/contracts/SmartYield.sol/SmartYield.json';
 import { SmartYield } from '@typechain/SmartYield';
 
 import Erc20MockArtifact from '../../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
@@ -59,6 +60,10 @@ import { BondModelV1 } from '@typechain/BondModelV1';
 import UniswapMockArtifact from './../../artifacts/contracts/mocks/uniswap/UniswapMock.sol/UniswapMock.json';
 import { UniswapMock } from '@typechain/UniswapMock';
 
+import CompoundProviderArtifact from './../../artifacts/contracts/providers/CompoundProvider.sol/CompoundProvider.json';
+import { CompoundProvider } from '@typechain/CompoundProvider';
+
+
 export const deployClockMock = (deployerSign: Wallet): Promise<ClockMock> => {
   return (deployContract(deployerSign, ClockMockArtifact, [])) as Promise<ClockMock>;
 };
@@ -100,15 +105,15 @@ export const deployCompoundController = (deployerSign: Wallet, uniswapAddress = 
   return (deployContract(deployerSign, CompoundControllerArtifact, [uniswapAddress, uniswapPath])) as Promise<CompoundController>;
 };
 
-export const deployJuniorBond = (deployerSign: Wallet, smartYield: SmartYield): Promise<JuniorBond> => {
+export const deployJuniorBondMock = (deployerSign: Wallet, smartYield: SmartYield): Promise<JuniorBond> => {
   return (deployContract(deployerSign, JuniorBondArtifact, [smartYield.address, 'jBOND mock', 'jBOND'])) as Promise<JuniorBond>;
 };
 
-export const deploySeniorBond = (deployerSign: Wallet, smartYield: SmartYield): Promise<SeniorBond> => {
+export const deploySeniorBondMock = (deployerSign: Wallet, smartYield: SmartYield): Promise<SeniorBond> => {
   return (deployContract(deployerSign, SeniorBondArtifact, [smartYield.address, 'sBOND mock', 'sBOND'])) as Promise<SeniorBond>;
 };
 
-export const deploySmartYield = (deployerSign: Wallet, clock: ClockMock): Promise<SmartYieldMock> => {
+export const deploySmartYieldMock = (deployerSign: Wallet, clock: ClockMock): Promise<SmartYieldMock> => {
   return (deployContract(deployerSign, SmartYieldMockArtifact, [clock.address])) as Promise<SmartYieldMock>;
 };
 
@@ -124,7 +129,7 @@ export const deployBondModel = (deployerSign: Wallet): Promise<BondModelV1> => {
   return (deployContract(deployerSign, BondModelV1Artifact, [])) as Promise<BondModelV1>;
 };
 
-export const deployCompoundProvider = (deployerSign: Wallet, clock: ClockMock): Promise<CompoundProviderMock> => {
+export const deployCompoundProviderMock = (deployerSign: Wallet, clock: ClockMock): Promise<CompoundProviderMock> => {
   return (deployContract(deployerSign, CompoundProviderMockArtifact, [clock.address])) as Promise<CompoundProviderMock>;
 };
 
@@ -134,4 +139,20 @@ export const deployCompoundProviderMockCompRewardExpected = (deployerSign: Walle
 
 export const deployUniswapMock = (deployerSign: Wallet): Promise<UniswapMock> => {
   return (deployContract(deployerSign, UniswapMockArtifact, [])) as Promise<UniswapMock>;
+};
+
+export const deployCompoundProvider = (deployerSign: Wallet): Promise<CompoundProvider> => {
+  return (deployContract(deployerSign, CompoundProviderArtifact, [])) as Promise<CompoundProvider>;
+};
+
+export const deploySmartYield = (deployerSign: Wallet, name: string, symbol: string): Promise<SmartYield> => {
+  return (deployContract(deployerSign, SmartYieldArtifact, [name, symbol])) as Promise<SmartYield>;
+};
+
+export const deploySeniorBond = (deployerSign: Wallet, smartYield: SmartYield, name: string, symbol: string): Promise<SeniorBond> => {
+  return (deployContract(deployerSign, SeniorBondArtifact, [smartYield.address, name, symbol])) as Promise<SeniorBond>;
+};
+
+export const deployJuniorBond = (deployerSign: Wallet, smartYield: SmartYield, name: string, symbol: string): Promise<JuniorBond> => {
+  return (deployContract(deployerSign, JuniorBondArtifact, [smartYield.address, name, symbol])) as Promise<JuniorBond>;
 };

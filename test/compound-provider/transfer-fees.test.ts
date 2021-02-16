@@ -2,7 +2,7 @@ import 'tsconfig-paths/register';
 
 import { expect } from 'chai';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
-import { deployClockMock, deployCompComptroller, deployCompCToken, deployCompToken, deployUnderlying, deployUniswapMock, deployYieldOracleMock, deployCompoundController, deployCompoundProvider, moveTime, e18, bbFixtures, u2cToken, c2uToken, currentTime } from '@testhelp/index';
+import { deployClockMock, deployCompComptroller, deployCompCToken, deployCompToken, deployUnderlying, deployUniswapMock, deployYieldOracleMock, deployCompoundController, deployCompoundProviderMock, moveTime, e18, bbFixtures, u2cToken, c2uToken, currentTime } from '@testhelp/index';
 
 const decimals = 18;
 const exchangeRateStored = BN.from('210556403624870043031797183');
@@ -30,7 +30,7 @@ const fixture = () => {
       deployUniswapMock(deployerSign),
       deployYieldOracleMock(deployerSign),
       deployCompoundController(deployerSign),
-      deployCompoundProvider(deployerSign, clock),
+      deployCompoundProviderMock(deployerSign, clock),
     ]);
 
     await Promise.all([
