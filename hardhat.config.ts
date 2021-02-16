@@ -7,6 +7,7 @@ import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import 'hardhat-typechain';
 import 'hardhat-contract-sizer';
+import 'hardhat-abi-exporter';
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -38,6 +39,17 @@ const config: HardhatUserConfig = {
     currency: 'USD',
     enabled: false,
   },
+
+  abiExporter: {
+    path: './abi',
+    clear: true,
+    flat: false,
+    only: [
+      'SmartYield', 'SeniorBond', 'JuniorBond', 'YieldOracle', 'BondModelV1',
+      'CompoundProvider', 'CompoundController',
+    ],
+  },
+
 };
 
 export default config;
