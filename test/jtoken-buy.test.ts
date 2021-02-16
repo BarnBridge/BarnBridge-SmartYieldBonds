@@ -6,33 +6,6 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 
 import { bbFixtures, e18, MAX_UINT256, A_DAY, BLOCKS_PER_DAY, ERROR_MARGIN_PREFERED, e, compFiApy, toBN, deployClockMock, deployBondModel, deployUnderlying, deployCompComptroller, deployCompoundController, deployCompoundProvider, deploySmartYield, deployYieldOracle, deploySeniorBond, deployCompCTokenYielding, deployJuniorBond, moveTime, buyTokens, sellTokens, buyBond, redeemBond } from '@testhelp/index';
 
-// import BondModelArtifact from './../artifacts/contracts/model/BondModelV1.sol/BondModelV1.json';
-// import { BondModelV1 } from '@typechain/BondModelV1';
-
-// import Erc20MockArtifact from './../artifacts/contracts/mocks/Erc20Mock.sol/Erc20Mock.json';
-// import { Erc20Mock } from '@typechain/Erc20Mock';
-
-// import ComptrollerMockArtifact from './../artifacts/contracts/mocks/compound-finance/ComptrollerMock.sol/ComptrollerMock.json';
-// import { ComptrollerMock } from '@typechain/ComptrollerMock';
-
-// import CTokenMockArtifact from './../artifacts/contracts/mocks/compound-finance/CTokenYieldingMock.sol/CTokenYieldingMock.json';
-// import { CTokenYieldingMock } from '@typechain/CTokenYieldingMock';
-
-// import SmartYieldMockArtifact from './../artifacts/contracts/mocks/barnbridge/SmartYieldMock.sol/SmartYieldMock.json';
-// import { SmartYieldMock } from '@typechain/SmartYieldMock';
-
-// import CompoundControllerArtifact from './../artifacts/contracts/providers/CompoundController.sol/CompoundController.json';
-// import { CompoundController } from '@typechain/CompoundController';
-
-// import YieldOracleArtifact from './../artifacts/contracts/oracle/YieldOracle.sol/YieldOracle.json';
-// import { YieldOracle } from '@typechain/YieldOracle';
-
-// import JuniorBondArtifact from './../artifacts/contracts/JuniorBond.sol/JuniorBond.json';
-// import { JuniorBond } from '@typechain/JuniorBond';
-
-// import SeniorBondArtifact from './../artifacts/contracts/SeniorBond.sol/SeniorBond.json';
-// import { SeniorBond } from '@typechain/SeniorBond';
-
 const decimals = 18;
 const supplyRatePerBlock = BN.from('40749278849'); // 8.94% // 89437198474492656
 const exchangeRateStored = BN.from('209682627301038234646967647');
@@ -70,34 +43,6 @@ const fixture = (decimals: number) => {
       controller.setFeeBuyJuniorToken(e18(0).div(100)),
       (moveTime(clock))(0),
     ]);
-
-    // const [bondModel, underlying, comptroller, pool, controller] = await Promise.all([
-    //   (deployContract(deployerSign, BondModelArtifact, [])) as Promise<BondModelV1>,
-    //   (deployContract(deployerSign, Erc20MockArtifact, ['DAI mock', 'DAI', decimals])) as Promise<Erc20Mock>,
-    //   (deployContract(deployerSign, ComptrollerMockArtifact, [])) as Promise<ComptrollerMock>,
-    //   (deployContract(deployerSign, SmartYieldMockArtifact, [])) as Promise<SmartYieldMock>,
-    //   (deployContract(deployerSign, CompoundControllerArtifact, [])) as Promise<CompoundController>,
-    // ]);
-
-    // const [cToken, oracle, seniorBond, juniorBond, juniorToken] = await Promise.all([
-    //   (deployContract(deployerSign, CTokenMockArtifact, [underlying.address, comptroller.address, pool.address, exchangeRateStored])) as Promise<CTokenYieldingMock>,
-    //   (deployContract(deployerSign, YieldOracleArtifact, [pool.address, 4 * A_DAY, 4])) as Promise<YieldOracle>,
-    //   (deployContract(deployerSign, SeniorBondArtifact, ['sBOND mock', 'sBOND mock', pool.address])) as Promise<SeniorBond>,
-    //   (deployContract(deployerSign, JuniorBondArtifact, ['jBOND mock', 'jBOND mock', pool.address])) as Promise<JuniorBond>,
-    //   (deployContract(deployerSign, JuniorTokenArtifact, ['bbDAI mock', 'bbDAI', pool.address])) as Promise<JuniorToken>,
-    // ]);
-
-    // await Promise.all([
-    //   controller.setOracle(oracle.address),
-    //   controller.setBondModel(bondModel.address),
-    //   comptroller.setHolder(pool.address),
-    //   comptroller.setMarket(cToken.address),
-    //   pool.setup(controller.address, seniorBond.address, juniorBond.address, juniorToken.address, cToken.address),
-    //   cToken.setYieldPerDay(supplyRatePerBlock.mul(BLOCKS_PER_DAY)),
-    //   controller.setFeeBuyJuniorToken(e18(0).div(100)),
-    // ]);
-
-    // await (moveTime(pool))(0);
 
     return {
       oracle, pool, smartYield, cToken, bondModel, seniorBond, juniorBond, underlying, controller,
@@ -180,7 +125,7 @@ describe('tokens: buyTokens()', async function () {
       console.log('diff >', underlyingBefore1.sub(underlyingGot1).toString());
       console.log('debt >', underlyingDebt.mul(100).div(1000).toString());
 
-      expect(underlyingBefore1.sub(underlyingGot1), 'user got too much').deep.equal(underlyingDebt.mul(100).div(1000));
+      expect(underlyingBefore1.sub(underlyingGot1), 'user got too much').deep.equal(underlyingDebt.mul(100).div(1000).sub(1));
     });
   });
 
