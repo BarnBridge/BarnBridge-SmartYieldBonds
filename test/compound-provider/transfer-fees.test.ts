@@ -72,7 +72,7 @@ describe('CompoundProvider.transferFees()', async function () {
     expect(await cToken.balanceOf(feesOwnerAddr), 'initially no cTokens on feesOwnerAddr').deep.equal(BN.from(0));
     expect(await underlying.balanceOf(feesOwnerAddr), 'initially no underlying on feesOwnerAddr').deep.equal(BN.from(0));
     expect(await pool.underlyingBalanceLast(), 'initially underlyingBalanceLast is 0').deep.equal(BN.from(0));
-    expect(await pool.cumulativeUnderlyingBalanceLast(), 'initially cumulativeUnderlyingBalanceLast is 0').deep.equal(BN.from(0));
+    expect(await pool.cumulativeCtokenBalanceLast(), 'initially cumulativeCtokenBalanceLast is 0').deep.equal(BN.from(0));
     expect(await pool.cumulativeSecondlyYieldLast(), 'initially cumulativeSecondlyYieldLast is 0').deep.equal(BN.from(0));
     expect(await pool.cumulativeTimestampLast(), 'initially cumulativeTimestampLast is 0').deep.equal(BN.from(0));
     expect(await oracle.updateCalled(), 'initially oracle update not called').deep.equal(BN.from(0));
@@ -102,10 +102,10 @@ describe('CompoundProvider.transferFees()', async function () {
     expect(await pool.underlyingFees(), 'no fees left on pool').deep.equal(BN.from(0));
     expect(await pool.underlyingBalanceLast(), 'correct underlyingBalanceLast').deep.equal(expectedUnderlyingBalanceLast);
 
-    const expectedUnderlyingBalancePrev = c2uToken(e18(10), exchangeRateStored);
-    const expectedCumulativeUnderlyingBalanceLast = expectedUnderlyingBalancePrev.mul(currentTime().mod(BN.from(2).pow(32)));
+    const expectedCtokenBalancePrev = e18(10);
+    const expectedCumulativeCtokenBalanceLast = expectedCtokenBalancePrev.mul(currentTime().mod(BN.from(2).pow(32)));
 
-    expect(await pool.cumulativeUnderlyingBalanceLast(), 'cumulativeUnderlyingBalanceLast is 0').deep.equal(expectedCumulativeUnderlyingBalanceLast);
+    expect(await pool.cumulativeCtokenBalanceLast(), 'cumulativeCtokenBalanceLast is 0').deep.equal(expectedCumulativeCtokenBalanceLast);
     expect(await pool.cumulativeSecondlyYieldLast(), 'cumulativeSecondlyYieldLast is 0').deep.equal(BN.from(0));
     const expectedCumulativeTimestampLast = currentTime().mod(BN.from(2).pow(32));
     expect(await pool.cumulativeTimestampLast(), 'cumulativeTimestampLast is now').deep.equal(expectedCumulativeTimestampLast);
@@ -138,10 +138,10 @@ describe('CompoundProvider.transferFees()', async function () {
     expect(await pool.underlyingFees(), 'no fees left on pool').deep.equal(BN.from(0));
     expect(await pool.underlyingBalanceLast(), 'correct underlyingBalanceLast').deep.equal(expectedUnderlyingBalanceLast);
 
-    const expectedUnderlyingBalancePrev = c2uToken(e18(10), exchangeRateStored);
-    const expectedCumulativeUnderlyingBalanceLast = expectedUnderlyingBalancePrev.mul(currentTime().mod(BN.from(2).pow(32)));
+    const expectedCtokenBalancePrev = e18(10);
+    const expectedCumulativeCtokenBalanceLast = expectedCtokenBalancePrev.mul(currentTime().mod(BN.from(2).pow(32)));
 
-    expect(await pool.cumulativeUnderlyingBalanceLast(), 'cumulativeUnderlyingBalanceLast is 0').deep.equal(expectedCumulativeUnderlyingBalanceLast);
+    expect(await pool.cumulativeCtokenBalanceLast(), 'cumulativeCtokenBalanceLast is 0').deep.equal(expectedCumulativeCtokenBalanceLast);
     expect(await pool.cumulativeSecondlyYieldLast(), 'cumulativeSecondlyYieldLast is 0').deep.equal(BN.from(0));
     const expectedCumulativeTimestampLast = currentTime().mod(BN.from(2).pow(32));
     expect(await pool.cumulativeTimestampLast(), 'cumulativeTimestampLast is now').deep.equal(expectedCumulativeTimestampLast);
