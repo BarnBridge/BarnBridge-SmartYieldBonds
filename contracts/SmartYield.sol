@@ -2,12 +2,6 @@
 pragma solidity ^0.7.6;
 pragma abicoder v2;
 
-import "hardhat/console.sol";
-
-// TODO:
-// investigate comp value + spot price + rate = min(MAX, oracle, spot)
-// more tests
-
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -341,7 +335,6 @@ contract SmartYield is
 
         // bondToken.burn will revert for already burned tokens
         IBond(seniorBond).burn(bondId_);
-        //delete seniorBonds[bondId_];
 
         IProvider(pool)._withdrawProvider(payAmnt, fee);
         IProvider(pool)._sendUnderlying(payTo, payAmnt);
@@ -632,9 +625,7 @@ contract SmartYield is
     }
 
     function _burnJuniorBond(uint256 bondId_) internal {
-        //JuniorBond memory jb = juniorBonds[bondId_];
 
-        //_unaccountJuniorBond(jb);
         // blows up if already burned
         IBond(juniorBond).burn(bondId_);
     }
@@ -645,12 +636,8 @@ contract SmartYield is
         jBondsAt.tokens -= jb_.tokens;
     }
 
-    function _takeTokens(address _from, uint256 _amount) internal {
-        // TODO: optimization, use _transfer() gas + no approve
-        require(
-            transferFrom(_from, address(this), _amount),
-            "SY: _takeTokens transferFrom"
-        );
+    function _takeTokens(address from_, uint256 amount_) internal {
+        _transfer(from_, address(this), amount_);
     }
 
   // /internals
