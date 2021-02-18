@@ -79,4 +79,6 @@ interface ISmartYield {
     function providerRatePerDay() external view returns (uint256);
 
     function bondGain(uint256 principalAmount_, uint16 forDays_) external view returns (uint256);
+
+    function maxBondDailyRate() external view returns (uint256);
 }
