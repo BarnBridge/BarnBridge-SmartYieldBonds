@@ -396,6 +396,15 @@ contract SmartYield is
         return IBondModel(IController(controller).bondModel()).gain(address(this), principalAmount_, forDays_);
     }
 
+    // returns the maximum theoretically possible daily rate for senior bonds,
+    // in reality the actual rate given to a bond will always be lower due to slippage
+    function maxBondDailyRate()
+      external view override
+    returns (uint256)
+    {
+        return IBondModel(IController(controller).bondModel()).maxDailyRate(address(this));
+    }
+
   // /externals
 
   // publics

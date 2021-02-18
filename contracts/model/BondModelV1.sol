@@ -44,4 +44,16 @@ contract BondModelV1 is IBondModel {
         return MathUtils.compound2(principal_, rate, forDays_).sub(principal_);
     }
 
+    function maxDailyRate(
+      address pool_
+    )
+      external view override
+    returns (uint256)
+    {
+      uint256 loanable = ISmartYield(pool_).underlyingLoanable();
+      uint256 total = ISmartYield(pool_).underlyingTotal();
+      uint256 dailyRate = ISmartYield(pool_).providerRatePerDay();
+      return uint256(1e18).mul(dailyRate).mul(loanable) / (total) / 1e18;
+    }
+
 }
