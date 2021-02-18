@@ -18,6 +18,10 @@ contract BondModelMock is IBondModel {
         return MathUtils.compound(principal, ratePerDay, forDays) - principal;
     }
 
+    function maxDailyRate(address pool_ ) external view override returns (uint256) {
+      return ratePerDay;
+    }
+
     function compoundingTest(
         uint256 principal_,
         uint256 ratePerDay_,
