@@ -24,6 +24,7 @@
     "eslint": "^7.11.0",
     "ethereum-waffle": "^3.1.1",
     "ethers": "^5.0.19",
+    "globstar": "^1.0.0",
     "hardhat": "^2.0.1",
     "hardhat-abi-exporter": "^2.0.8",
     "hardhat-contract-sizer": "^2.0.2",
@@ -42,6 +43,7 @@
   },
   "scripts": {
     "test": "hardhat test",
+    "test-mainnet": "globstar --node -- hardhat test --network hardhat \"test-mainnet/*.test.ts\"",
     "coverage": "hardhat coverage",
     "compile": "hardhat clean && hardhat compile",
     "compile-and-test": "hardhat clean && hardhat compile && hardhat test",

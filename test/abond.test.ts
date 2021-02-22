@@ -151,7 +151,7 @@ describe('abond value computations', async function () {
       const paidAfter3 = await smartYield.abondPaid();
       const abondAfter3 = await smartYield.abond();
       expectPaidEqualsWithinPayRate1Sec(paidBefore3, paidAfter3, abondAfter3, 'abondPaid3 changed');
-    });
+    }).timeout(100 * 1000);
 
     it('last bond, is abond', async function () {
       const { smartYield, oracle, bondModel, cToken, underlying, moveTime, buyTokens, buyBond, redeemBond, junior1, senior1, senior2 } = await bbFixtures(fixture(decimals));

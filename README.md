@@ -11,6 +11,21 @@ $ npm run compile
 $ npm run test
 $ npm run coverage
 ```
+
+To run mainnet fork tests, add a forking section to `config.ts`:
+```
+    hardhat: {
+      forking: {
+        url: 'https://eth-mainnet.alchemyapi.io/v2/[KEY]',
+      },
+    },
+```
+
+and run the tests:
+```
+$ npm run test-mainnet
+```
+
 # Project Structure
 
 ## Tests

@@ -51,6 +51,9 @@ import { BondModelMock } from '@typechain/BondModelMock';
 import CompoundProviderMockCompRewardExpectedArtifact from './../../artifacts/contracts/mocks/barnbridge/CompoundProviderMockCompRewardExpected.sol/CompoundProviderMockCompRewardExpected.json';
 import { CompoundProviderMockCompRewardExpected } from '@typechain/CompoundProviderMockCompRewardExpected';
 
+import CompoundProviderMockCompHarvestExpectedArtifact from './../../artifacts/contracts/mocks/barnbridge/harvest/CompoundProviderMockCompHarvestExpected.sol/CompoundProviderMockCompHarvestExpected.json';
+import { CompoundProviderMockCompHarvestExpected } from '@typechain/CompoundProviderMockCompHarvestExpected';
+
 import CompoundProviderMockArtifact from './../../artifacts/contracts/mocks/barnbridge/CompoundProviderMock.sol/CompoundProviderMock.json';
 import { CompoundProviderMock } from '@typechain/CompoundProviderMock';
 
@@ -62,7 +65,6 @@ import { UniswapMock } from '@typechain/UniswapMock';
 
 import CompoundProviderArtifact from './../../artifacts/contracts/providers/CompoundProvider.sol/CompoundProvider.json';
 import { CompoundProvider } from '@typechain/CompoundProvider';
-
 
 export const deployClockMock = (deployerSign: Wallet): Promise<ClockMock> => {
   return (deployContract(deployerSign, ClockMockArtifact, [])) as Promise<ClockMock>;
@@ -143,6 +145,10 @@ export const deployUniswapMock = (deployerSign: Wallet): Promise<UniswapMock> =>
 
 export const deployCompoundProvider = (deployerSign: Wallet): Promise<CompoundProvider> => {
   return (deployContract(deployerSign, CompoundProviderArtifact, [])) as Promise<CompoundProvider>;
+};
+
+export const deployCompoundProviderMockCompHarvestExpected = (deployerSign: Wallet): Promise<CompoundProviderMockCompHarvestExpected> => {
+  return (deployContract(deployerSign, CompoundProviderMockCompHarvestExpectedArtifact, [])) as Promise<CompoundProviderMockCompHarvestExpected>;
 };
 
 export const deploySmartYield = (deployerSign: Wallet, name: string, symbol: string): Promise<SmartYield> => {

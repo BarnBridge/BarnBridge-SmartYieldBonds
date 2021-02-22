@@ -11,6 +11,7 @@ interface ICToken {
 }
 
 interface ICTokenErc20 {
+   function totalSupply() external view returns (uint256);
    function balanceOf(address to) external view returns (uint256);
    function transfer(address recipient, uint256 amount) external returns (bool);
 }
