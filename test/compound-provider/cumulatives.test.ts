@@ -130,7 +130,6 @@ describe('CompoundProvider cumulatives', async function () {
     expect(await cToken.balanceOf(feesOwnerAddr), 'initially no cTokens on feesOwnerAddr').deep.equal(BN.from(0));
     expect(await underlying.balanceOf(feesOwnerAddr), 'initially no underlying on feesOwnerAddr').deep.equal(BN.from(0));
     expect(await pool.underlyingBalanceLast(), 'initially underlyingBalanceLast is 0').deep.equal(BN.from(0));
-    expect(await pool.cumulativeCtokenBalanceLast(), 'initially cumulativeCtokenBalanceLast is 0').deep.equal(BN.from(0));
     expect(await pool.cumulativeSecondlyYieldLast(), 'initially cumulativeSecondlyYieldLast is 0').deep.equal(BN.from(0));
     expect(await pool.cumulativeTimestampLast(), 'initially cumulativeTimestampLast is 0').deep.equal(BN.from(0));
     expect(await oracle.updateCalled(), 'initially oracle update not called').deep.equal(BN.from(0));
@@ -138,8 +137,6 @@ describe('CompoundProvider cumulatives', async function () {
   });
 
   it('state is expected after first deposit' , async function () {
-
-    return;
 
     const { pool, controller, underlying, cToken, compComptroller, compToken, uniswap, oracle, deployerSign, smartYieldAddr, userSign, userAddr, feesOwnerAddr, moveTime, depositProvider, yieldCompound } = await bbFixtures(fixture());
 

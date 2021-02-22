@@ -79,5 +79,15 @@ contract ComptrollerMock is IComptroller {
       return compAddress;
     }
 
+    function compSupplierIndex(address, address)
+      public view override
+    returns (uint256) {
+      return 0;
+    }
 
+    function compSpeeds(address)
+      public view override
+    returns (uint256) {
+      return 0;
+    }
 }

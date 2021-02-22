@@ -28,6 +28,7 @@
   "include": [
     "./scripts",
     "./test",
+    "./test-mainnet",
     "index.d.ts"
   ],
   "files": [

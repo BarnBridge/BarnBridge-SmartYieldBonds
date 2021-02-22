@@ -30,6 +30,10 @@ export const e18 = (n: number | BN | BNj | string): BN => {
   return e(n, 18);
 };
 
+export const e6 = (n: number | BN | BNj | string): BN => {
+  return e(n, 6);
+};
+
 export const e18j = (n: number | BN | BNj | string): BNj => {
   if (n instanceof BN) {
     return new BNj(n.mul(BN.from(10).pow(18)).toString());

@@ -26,4 +26,12 @@ abstract contract IComptroller {
     function enterMarkets(address[] memory cTokens)
       public virtual
     returns (uint256[] memory);
+
+    function compSupplierIndex(address, address)
+      public view virtual
+    returns (uint256);
+
+    function compSpeeds(address)
+      public view virtual
+    returns (uint256);
 }
