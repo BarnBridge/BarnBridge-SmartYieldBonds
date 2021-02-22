@@ -154,7 +154,7 @@ Steps:
 - burn the jBOND NFT
 
 
-The 2-step process allows a user to first signal the intention of exiting the pool. In return they receive a non-transferrable NFT that can be redeemed after the current ABOND ends. The first tx after ABOND.maturesAt triggers the liquidation for all jTokens scheduled for liquidation. The user can come anytime after ABOND.maturesAt to withdraw their part of the liquidation.
+The 2-step process allows a user to first signal the intention of exiting the pool. In return they receive an NFT that can be redeemed after the current ABOND ends. The first tx after ABOND.maturesAt triggers the liquidation for all jTokens scheduled for liquidation. The user can come anytime after ABOND.maturesAt to withdraw their part of the liquidation.
 
 All jTokens locked after the 1st step are excluded from the junior pool when calculating new sBOND rates (`junior_loanable_liquidity`), but they will be subject to profit and losses of the pool until the maturity date.
 
