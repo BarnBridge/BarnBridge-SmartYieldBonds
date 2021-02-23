@@ -10,7 +10,7 @@ contract SmartYieldMock is HasClock, SmartYield {
 
     constructor(address clockProvider_)
         HasClock(clockProvider_)
-        SmartYield("bbDAI mock", "bbDAI")
+        SmartYield("bbDAI mock", "bbDAI", 18)
     {}
 
     function currentTime() public view virtual override returns (uint256) {
