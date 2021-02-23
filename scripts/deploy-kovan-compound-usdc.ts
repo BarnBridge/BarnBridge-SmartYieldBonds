@@ -1,7 +1,7 @@
 import 'tsconfig-paths/register';
 
 import { deployBondModel, deployCompoundController, deployCompoundProvider, deployJuniorBond, deploySeniorBond, deploySmartYield, deployYieldOracle } from '@testhelp/index';
-import { Wallet } from 'ethers';
+import { Wallet, BigNumber as BN } from 'ethers';
 import { run, ethers } from 'hardhat';
 
 const A_HOUR = 60 * 60;
@@ -11,6 +11,11 @@ const juniorBondCONF = { name: 'BarnBridge cUSDC jBOND', symbol: 'bbjcUSDC' };
 const juniorTokenCONF = { name: 'BarnBridge cUSDC', symbol: 'bbcUSDC' };
 
 const oracleCONF = { windowSize: A_HOUR, granularity: 4 };
+
+// barnbridge
+const decimals = 6; // same as USDC
+const dao = '0x930e52B96320d7dBbfb6be458e5EE0Cd3E5E5Dac';
+const feesOwner = dao;
 
 // externals ---
 
@@ -34,7 +39,7 @@ async function main() {
   const controller = await deployCompoundController(deployerSign, uniswapRouter, uniswapPath);
   const bondModel = await deployBondModel(deployerSign);
   const pool = await deployCompoundProvider(deployerSign);
-  const smartYield = await deploySmartYield(deployerSign, juniorTokenCONF.name, juniorTokenCONF.symbol);
+  const smartYield = await deploySmartYield(deployerSign, juniorTokenCONF.name, juniorTokenCONF.symbol, BN.from(decimals));
 
   const seniorBond = await deploySeniorBond(deployerSign, smartYield, seniorBondCONF.name, seniorBondCONF.symbol);
   const juniorBond = await deployJuniorBond(deployerSign, smartYield, juniorBondCONF.name, juniorBondCONF.symbol);
@@ -42,10 +47,14 @@ async function main() {
 
   await controller.setBondModel(bondModel.address);
   await controller.setOracle(oracle.address);
+  await controller.setDao(dao);
+  await controller.setFeesOwner(feesOwner);
+  //await controller.setGuardian();
   await smartYield.setup(controller.address, pool.address, seniorBond.address, juniorBond.address);
   await pool.setup(smartYield.address, controller.address, cUSDC);
 
   console.log('CONF --------');
+  console.log('DAO:', dao);
   console.log('cUSDC:', cUSDC);
   console.log('COMP:', COMP);
   console.log('USDC:', USDC);
@@ -61,7 +70,6 @@ async function main() {
   console.log('seniorBond:', seniorBond.address);
   console.log('juniorBond:', juniorBond.address);
   console.log('oracle:', oracle.address);
-
 }
 
 main()

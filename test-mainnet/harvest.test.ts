@@ -26,6 +26,9 @@ const juniorTokenCONF = { name: 'BarnBridge cUSDC', symbol: 'bbcUSDC' };
 
 const oracleCONF = { windowSize: A_HOUR, granularity: 4 };
 
+// barnbridge
+const decimals = 6; // same as USDC
+
 // externals ---
 
 // compound
@@ -113,7 +116,7 @@ export const redeemCtoken = (cToken: IcToken, whale: Wallet) => {
       deployCompoundController(deployerSign, uniswapRouter, uniswapPath),
       deployBondModel(deployerSign),
       deployCompoundProviderMockCompHarvestExpected(deployerSign),
-      deploySmartYield(deployerSign, juniorTokenCONF.name, juniorTokenCONF.symbol),
+      deploySmartYield(deployerSign, juniorTokenCONF.name, juniorTokenCONF.symbol, BN.from(decimals)),
     ]);
 
     const [seniorBond, juniorBond, oracle] = await Promise.all([
