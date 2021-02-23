@@ -151,8 +151,8 @@ export const deployCompoundProviderMockCompHarvestExpected = (deployerSign: Wall
   return (deployContract(deployerSign, CompoundProviderMockCompHarvestExpectedArtifact, [])) as Promise<CompoundProviderMockCompHarvestExpected>;
 };
 
-export const deploySmartYield = (deployerSign: Wallet, name: string, symbol: string): Promise<SmartYield> => {
-  return (deployContract(deployerSign, SmartYieldArtifact, [name, symbol])) as Promise<SmartYield>;
+export const deploySmartYield = (deployerSign: Wallet, name: string, symbol: string, decimals: BN): Promise<SmartYield> => {
+  return (deployContract(deployerSign, SmartYieldArtifact, [name, symbol, decimals])) as Promise<SmartYield>;
 };
 
 export const deploySeniorBond = (deployerSign: Wallet, smartYield: SmartYield, name: string, symbol: string): Promise<SeniorBond> => {
