@@ -13,13 +13,13 @@ contract IController is Governed {
     address public feesOwner; // fees are sent here
 
     // reward for calling harvest 3%
-    uint256 public HARVEST_REWARD = 3 * 1e16; // 3%
+    uint256 public HARVEST_REWARD = 30 * 1e15; // 3%
 
     // fee for buying jTokens
-    uint256 public FEE_BUY_JUNIOR_TOKEN = 3 * 1e16; // 3%
+    uint256 public FEE_BUY_JUNIOR_TOKEN = 3 * 1e15; // 0.3%
 
     // fee for redeeming a sBond
-    uint256 public FEE_REDEEM_SENIOR_BOND = 3 * 1e16; // 3%
+    uint256 public FEE_REDEEM_SENIOR_BOND = 100 * 1e15; // 10%
 
     // max rate per day for sBonds
     // k * supplyRatePerBlock * blocksPerDay
