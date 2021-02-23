@@ -87,9 +87,10 @@ contract SmartYield is
 
     constructor(
       string memory name_,
-      string memory symbol_
+      string memory symbol_,
+      uint8 decimals_
     )
-      JuniorToken(name_, symbol_)
+      JuniorToken(name_, symbol_, decimals_)
     {}
 
     function setup(
