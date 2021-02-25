@@ -7,13 +7,13 @@ import { ethers } from 'hardhat';
 
 import { bbFixtures, e18, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, currentTime, START_TIME, deploySmartYield, deployBondModel, deployCompoundProvider, A_DAY, toBN, deployCompoundProviderMockCompHarvestExpected } from '@testhelp/index';
 
-import { Erc20Factory } from '@typechain/Erc20Factory';
-import { IcTokenFactory } from '@typechain/IcTokenFactory';
-import { IcToken } from '@typechain/IcToken';
+import { ERC20Factory } from '@typechain/Erc20Factory';
+import { ICTokenFactory } from '@typechain/IcTokenFactory';
+import { ICToken } from '@typechain/ICToken';
 import { IComptrollerFactory } from '@typechain/IComptrollerFactory';
 import { SmartYield } from '@typechain/SmartYield';
 import { CompoundProvider } from '@typechain/CompoundProvider';
-import { Erc20 } from '@typechain/Erc20';
+import { ERC20 } from '@typechain/ERC20';
 
 const BLOCKS_A_HOUR = 4 * 60;
 const BLOCKS_A_DAY = 24 * BLOCKS_A_HOUR;
@@ -44,7 +44,7 @@ const uniswapPath = [COMP, WETH, USDC];
 
 const USDCwhale = '0x55FE002aefF02F77364de339a1292923A15844B8';
 
-const moveTime = (cToken: IcToken, whale: Wallet) => {
+const moveTime = (cToken: ICToken, whale: Wallet) => {
   return async (seconds: number | BN | BNj): Promise<void> => {
     seconds = BN.from(seconds.toString());
     await ethers.provider.send('evm_increaseTime', [seconds.toNumber()]);
@@ -52,7 +52,7 @@ const moveTime = (cToken: IcToken, whale: Wallet) => {
   };
 };
 
-const mineBlocks = (cToken: IcToken, whale: Wallet) => {
+const mineBlocks = (cToken: ICToken, whale: Wallet) => {
   return async (blocks: number): Promise<void> => {
     const calls = Array(Math.floor(blocks)).fill(0).map(i => {
       return ethers.provider.send('evm_mine', []);
@@ -79,7 +79,7 @@ const impersonate = (ethWallet: Signer) => {
   };
 };
 
-export const buyTokens = (smartYield: SmartYield, pool: CompoundProvider, underlying: Erc20) => {
+export const buyTokens = (smartYield: SmartYield, pool: CompoundProvider, underlying: ERC20) => {
   return async (user: Wallet, amountUnderlying: number | BN): Promise<void> => {
     amountUnderlying = toBN(amountUnderlying);
     await underlying.connect(user).approve(pool.address, amountUnderlying);
@@ -87,13 +87,13 @@ export const buyTokens = (smartYield: SmartYield, pool: CompoundProvider, underl
   };
 };
 
-export const mintCtoken = (cToken: IcToken, whale: Wallet) => {
+export const mintCtoken = (cToken: ICToken, whale: Wallet) => {
   return async (underlyingAmount_: BN): Promise<void> => {
     await cToken.connect(whale).mint(underlyingAmount_);
   };
 };
 
-export const redeemCtoken = (cToken: IcToken, whale: Wallet) => {
+export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
   return async (underlyingAmount_: BN): Promise<void> => {
     await cToken.connect(whale).redeemUnderlying(underlyingAmount_);
   };
@@ -105,9 +105,9 @@ export const redeemCtoken = (cToken: IcToken, whale: Wallet) => {
 
     const whaleSign = await impersonate(deployerSign)(USDCwhale);
 
-    const underlying = Erc20Factory.connect(USDC, deployerSign);
-    const cToken = IcTokenFactory.connect(cUSDC, deployerSign);
-    const comp = Erc20Factory.connect(COMP, deployerSign);
+    const underlying = ERC20Factory.connect(USDC, deployerSign);
+    const cToken = ICTokenFactory.connect(cUSDC, deployerSign);
+    const comp = ERC20Factory.connect(COMP, deployerSign);
     const compoundComptroller = IComptrollerFactory.connect(cComptroller, deployerSign);
 
     await underlying.connect(whaleSign).approve(cToken.address, BN.from(e18(e18(e18(1)))));
