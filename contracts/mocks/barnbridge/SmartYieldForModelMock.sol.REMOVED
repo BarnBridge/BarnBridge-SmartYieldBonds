@@ -36,7 +36,7 @@ contract SmartYieldForModelMock is HasClock, SmartYield {
     }
 
     function checkGas(uint256 principal, uint16 forDays) public {
-      _lastCheckGas = IBondModel(IController(controller).bondModel()).gain(address(this), principal, forDays);
+      //_lastCheckGas = IBondModel(IController(controller).bondModel()).gain(address(this), principal, forDays);
     }
 
     function setMockValues(uint256 underlyingLoanable_, uint256 underlyingTotal_, uint256 providerRatePerDay_) public {

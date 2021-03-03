@@ -5,5 +5,5 @@ pragma abicoder v2;
 interface IYieldOracle {
     function update() external;
 
-    function consult(uint256 forInterval) external view returns (uint256 amountOut);
+    function consult(uint256 forInterval) external returns (uint256 amountOut);
 }

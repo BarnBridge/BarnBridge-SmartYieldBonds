@@ -176,12 +176,11 @@ contract CompoundProvider is IProvider {
 
     // current total underlying balance, as measured by pool
     function underlyingBalance()
-      external view virtual override
+      external virtual override
     returns (uint256)
     {
         // https://compound.finance/docs#protocol-math
-        return
-            cTokenBalance * ICToken(cToken).exchangeRateStored() / 1e18;
+        return cTokenBalance * ICToken(cToken).exchangeRateCurrent() / 1e18;
     }
 
   // /externals

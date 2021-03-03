@@ -4,7 +4,7 @@ pragma abicoder v2;
 
 import "./Governed.sol";
 
-contract IController is Governed {
+abstract contract IController is Governed {
 
     address public oracle; // IYieldOracle
 
@@ -99,4 +99,6 @@ contract IController is Governed {
     {
       feesOwner = newVal_;
     }
+
+    function providerRatePerDay() external virtual returns (uint256);
 }

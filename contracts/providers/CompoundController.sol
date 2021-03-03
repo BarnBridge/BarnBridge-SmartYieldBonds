@@ -20,8 +20,9 @@ import "./CompoundProvider.sol";
 
 import "./../IController.sol";
 import "./ICompoundCumulator.sol";
+import "./../oracle/IYieldOraclelizable.sol";
 
-contract CompoundController is IController, ICompoundCumulator {
+contract CompoundController is IController, ICompoundCumulator, IYieldOraclelizable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -206,6 +207,34 @@ contract CompoundController is IController, ICompoundCumulator {
     {
       // at this point compound.finance state is updated since the pool did a deposit or withdrawl just before, so no need to ping
       updateCumulativesInternal(prevCTokenBalance_, false);
+      IYieldOracle(oracle).update();
+    }
+
+    function providerRatePerDay()
+      external override
+    returns (uint256)
+    {
+      return MathUtils.min(
+        MathUtils.min(BOND_MAX_RATE_PER_DAY, spotDailyRate()),
+        IYieldOracle(oracle).consult(1 days)
+      );
+    }
+
+    function cumulatives()
+      external override
+      returns (uint256)
+    {
+      uint256 timeElapsed = prevCumulationTime - block.timestamp;
+
+      // only cumulate once per block
+      if (0 == timeElapsed) {
+        return (cumulativeSupplyRate + cumulativeDistributionRate);
+      }
+
+      uint256 cTokenBalance = CompoundProvider(pool).cTokenBalance();
+      updateCumulativesInternal(cTokenBalance, true);
+
+      return (cumulativeSupplyRate + cumulativeDistributionRate);
     }
 
     function updateCumulativesInternal(uint256 prevCTokenBalance_, bool pingCompound_) private {
@@ -318,8 +347,8 @@ contract CompoundController is IController, ICompoundCumulator {
       uint256 compIn_
     ) public view returns (uint256) {
       ICToken cToken = ICToken(CompoundProvider(pool).cToken());
-      IUniswapAnchoredOracle oracle = IUniswapAnchoredOracle(IComptroller(cToken.comptroller()).oracle());
-      return compIn_.mul(oracle.price("COMP")).div(oracle.getUnderlyingPrice(address(cToken)));
+      IUniswapAnchoredOracle compOracle = IUniswapAnchoredOracle(IComptroller(cToken.comptroller()).oracle());
+      return compIn_.mul(compOracle.price("COMP")).div(compOracle.getUnderlyingPrice(address(cToken)));
     }
 
     function uniswapAmountOut(
@@ -344,12 +373,12 @@ contract CompoundController is IController, ICompoundCumulator {
     {
       ICToken cToken = ICToken(CompoundProvider(pool).cToken());
       IComptroller comptroller = IComptroller(cToken.comptroller());
-      IUniswapAnchoredOracle oracle = IUniswapAnchoredOracle(comptroller.oracle());
+      IUniswapAnchoredOracle compOracle = IUniswapAnchoredOracle(comptroller.oracle());
 
       // compSpeeds(cToken) * price("COMP") * BLOCKS_PER_DAY
-      uint256 compDollarsPerDay = comptroller.compSpeeds(address(cToken)).mul(oracle.price("COMP")).mul(BLOCKS_PER_DAY);
+      uint256 compDollarsPerDay = comptroller.compSpeeds(address(cToken)).mul(compOracle.price("COMP")).mul(BLOCKS_PER_DAY);
       // (totalBorrows() + getCash()) * getUnderlyingPrice(cToken)
-      uint256 totalSuppliedDollars = cToken.totalBorrows().add(cToken.getCash()).mul(oracle.getUnderlyingPrice(address(cToken)));
+      uint256 totalSuppliedDollars = cToken.totalBorrows().add(cToken.getCash()).mul(compOracle.getUnderlyingPrice(address(cToken)));
       // (compDollarsPerDay / totalSuppliedDollars)
       return compDollarsPerDay.div(totalSuppliedDollars);
     }
