@@ -5,9 +5,14 @@ interface ICToken {
     function mint(uint mintAmount) external returns (uint256);
     function redeem(uint redeemTokens) external returns (uint256);
     function redeemUnderlying(uint redeemAmount) external returns (uint256);
+    function accrueInterest() external returns (uint256);
     function exchangeRateStored() external view returns (uint256);
+    function supplyRatePerBlock() external view returns (uint256);
+    function totalBorrows() external view returns (uint256);
+    function getCash() external view returns (uint256);
     function underlying() external view returns (address);
     function comptroller() external view returns (address);
+    function oracle() external view returns (address);
 }
 
 interface ICTokenErc20 {

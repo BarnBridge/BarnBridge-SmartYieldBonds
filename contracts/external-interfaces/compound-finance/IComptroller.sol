@@ -1,37 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
 
-abstract contract IComptroller {
+interface IComptroller {
     struct CompMarketState {
-      uint224 index;
-      uint32 block;
+        uint224 index;
+        uint32 block;
     }
 
-    function getCompAddress()
-      public view virtual
-    returns(address);
+    function enterMarkets(address[] memory cTokens) external returns (uint256[] memory);
+    function claimComp(address[] memory holders, address[] memory cTokens, bool borrowers, bool suppliers) external;
+    function mintAllowed(address cToken, address minter, uint256 mintAmount) external returns (uint256);
 
-    function compSupplyState(address market)
-      public view virtual
-    returns (uint224 index, uint32 blk);
-
-    function claimComp(
-      address[] memory holders,
-      address[] memory cTokens,
-      bool borrowers,
-      bool suppliers
-    )
-    public virtual;
-
-    function enterMarkets(address[] memory cTokens)
-      public virtual
-    returns (uint256[] memory);
-
-    function compSupplierIndex(address, address)
-      public view virtual
-    returns (uint256);
-
-    function compSpeeds(address)
-      public view virtual
-    returns (uint256);
+    function getCompAddress() external view returns(address);
+    function compSupplyState(address cToken) external view returns (uint224, uint32);
+    function compSupplierIndex(address cToken, address supplier) external view returns (uint256);
+    function compSpeeds(address cToken) external view returns (uint256);
+    function oracle() external view returns (uint256);
 }

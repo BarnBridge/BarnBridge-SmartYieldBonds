@@ -12,8 +12,10 @@ contract IController is Governed {
 
     address public feesOwner; // fees are sent here
 
-    // reward for calling harvest 3%
-    uint256 public HARVEST_REWARD = 30 * 1e15; // 3%
+    // max accepted cost of harvest when converting COMP -> underlying,
+    // if harvest gets less than (COMP to underlying at spot price) - HARVEST_COST%, it will revert.
+    // if it gets more, the difference goes to the harvest caller
+    uint256 public HARVEST_COST = 50 * 1e15; // 5%
 
     // fee for buying jTokens
     uint256 public FEE_BUY_JUNIOR_TOKEN = 3 * 1e15; // 0.3%
@@ -34,11 +36,11 @@ contract IController is Governed {
 
     constructor() Governed() { }
 
-    function setHarvestReward(uint256 newValue_)
+    function setHarvestCost(uint256 newValue_)
       public
       onlyDaoOrGuardian
     {
-        HARVEST_REWARD = newValue_;
+        HARVEST_COST = newValue_;
     }
 
     function setBondMaxRatePerDay(uint256 newVal_)
