@@ -340,7 +340,7 @@ contract SmartYield is
         IProvider(pool)._withdrawProvider(payAmnt, fee);
         IProvider(pool)._sendUnderlying(payTo, payAmnt);
 
-        emit RedeemSeniorBond(payTo, seniorBondId, fee);
+        emit RedeemSeniorBond(payTo, bondId_, fee);
     }
 
     // once matured, redeem a jBond for underlying
