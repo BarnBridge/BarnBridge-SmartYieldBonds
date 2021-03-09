@@ -2,20 +2,13 @@
 pragma solidity ^0.7.6;
 pragma abicoder v2;
 
-import "../HasClock.sol";
-
 import "../../SmartYield.sol";
 
-contract SmartYieldMock is HasClock, SmartYield {
+contract SmartYieldMock is SmartYield {
 
-    constructor(address clockProvider_)
-        HasClock(clockProvider_)
-        SmartYield("bbDAI mock", "bbDAI", 18)
+    constructor(uint8 underlyingDecimals_)
+        SmartYield("bbDAI mock", "bbDAI", underlyingDecimals_)
     {}
-
-    function currentTime() public view virtual override returns (uint256) {
-        return this.clockCurrentTime();
-    }
 
     function juniorBondsMaturitiesAll() public view returns(uint256[] memory) {
       return juniorBondsMaturities;

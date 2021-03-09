@@ -34,7 +34,9 @@ interface ISmartYield {
         uint256 price;
     }
 
-    function currentTime() external view returns(uint256);
+    function controller() external view returns (address);
+
+    function currentTime() external view returns (uint256);
 
     function buyBond(uint256 principalAmount_, uint256 minGain_, uint256 deadline_, uint16 forDays_) external returns (uint256);
 
@@ -79,4 +81,6 @@ interface ISmartYield {
     function bondGain(uint256 principalAmount_, uint16 forDays_) external returns (uint256);
 
     function maxBondDailyRate() external returns (uint256);
+
+    function setController(address newController_) external;
 }

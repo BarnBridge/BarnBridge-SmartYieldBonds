@@ -13,7 +13,7 @@ import "./IYieldOracle.sol";
 contract YieldOracle is IYieldOracle {
     using SafeMath for uint256;
 
-    IYieldOraclelizable public pool;
+    IYieldOraclelizable public cumulator;
 
     struct Observation {
         uint256 timestamp;
@@ -39,7 +39,7 @@ contract YieldOracle is IYieldOracle {
     Observation[] public yieldObservations;
 
     constructor(
-        address pool_,
+        address cumulator_,
         uint256 windowSize_,
         uint8 granularity_
     ) {
@@ -51,7 +51,7 @@ contract YieldOracle is IYieldOracle {
         );
         windowSize = windowSize_;
         granularity = granularity_;
-        pool = IYieldOraclelizable(pool_);
+        cumulator = IYieldOraclelizable(cumulator_);
 
         for (uint256 i = yieldObservations.length; i < granularity_; i++) {
             yieldObservations.push();
@@ -90,7 +90,7 @@ contract YieldOracle is IYieldOracle {
         // we only want to commit updates once per period (i.e. windowSize / granularity)
         uint256 timeElapsed = block.timestamp - observation.timestamp;
         if (timeElapsed > periodSize) {
-            (uint256 yieldCumulative) = pool.cumulatives();
+            (uint256 yieldCumulative) = cumulator.cumulatives();
             observation.timestamp = block.timestamp;
             observation.yieldCumulative = yieldCumulative;
         }
@@ -104,8 +104,8 @@ contract YieldOracle is IYieldOracle {
         uint256 timeElapsed_,
         uint256 forInterval_
     ) private pure returns (uint256 yieldAverage) {
-        return
-            ((yieldCumulativeEnd_ - yieldCumulativeStart_) * forInterval_) / timeElapsed_;
+        // ((yieldCumulativeEnd_ - yieldCumulativeStart_) * forInterval_) / timeElapsed_;
+        return yieldCumulativeEnd_.sub(yieldCumulativeStart_).mul(forInterval_).div(timeElapsed_);
     }
 
     // returns the amount out corresponding to the amount in for a given token using the moving average over the time
@@ -142,7 +142,7 @@ contract YieldOracle is IYieldOracle {
             return 0;
         }
 
-        (uint256 yieldCumulative) = pool.cumulatives();
+        (uint256 yieldCumulative) = cumulator.cumulatives();
 
         return
             computeAmountOut(

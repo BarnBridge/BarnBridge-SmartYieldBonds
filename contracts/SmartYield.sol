@@ -26,7 +26,7 @@ contract SmartYield is
     using SafeMath for uint256;
 
     // controller address
-    address public controller;
+    address public override controller;
 
     // address of IProviderPool
     address public pool;
@@ -85,6 +85,14 @@ contract SmartYield is
 
     event RedeemJuniorBond(address indexed owner, uint256 indexed juniorBondId, uint256 underlyingOut);
 
+    modifier onlyControllerOrDao {
+      require(
+        msg.sender == controller || msg.sender == IController(controller).dao(),
+        "PPC: only controller/DAO"
+      );
+      _;
+    }
+
     constructor(
       string memory name_,
       string memory symbol_,
@@ -115,6 +123,14 @@ contract SmartYield is
     }
 
     // externals
+
+    // change the controller, only callable by old controller or dao
+    function setController(address newController_)
+      external override
+      onlyControllerOrDao
+    {
+      controller = newController_;
+    }
 
     // buy at least _minTokens with _underlyingAmount, before _deadline passes
     function buyTokens(
@@ -220,15 +236,6 @@ contract SmartYield is
             "SY: buyBond forDays"
         );
 
-        uint256 issuedAt = this.currentTime();
-
-        // ---
-
-        address buyer = msg.sender;
-
-        IProvider(pool)._takeUnderlying(buyer, principalAmount_);
-        IProvider(pool)._depositProvider(principalAmount_, 0);
-
         uint256 gain = this.bondGain(principalAmount_, forDays_);
 
         require(
@@ -245,6 +252,15 @@ contract SmartYield is
           gain < this.underlyingLoanable(),
           "SY: buyBond underlyingLoanable"
         );
+
+        uint256 issuedAt = this.currentTime();
+
+        // ---
+
+        address buyer = msg.sender;
+
+        IProvider(pool)._takeUnderlying(buyer, principalAmount_);
+        IProvider(pool)._depositProvider(principalAmount_, 0);
 
         SeniorBond memory b =
             SeniorBond(
@@ -427,7 +443,7 @@ contract SmartYield is
       public virtual override
     returns(uint256)
     {
-      return IProvider(pool).underlyingBalance() - IProvider(pool).underlyingFees() - underlyingLiquidatedJuniors;
+      return IProvider(pool).underlyingBalance() - underlyingLiquidatedJuniors;
     }
 
     function underlyingJuniors()

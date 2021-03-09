@@ -1,17 +1,17 @@
-import { CompoundProviderMock } from '@typechain/CompoundProviderMock';
+import { CompoundProvider } from '@typechain/CompoundProvider';
 import { SmartYield } from '@typechain/SmartYield';
 
 import { BigNumber as BN, Signer, Wallet } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { e18, toBN, toBNj } from './misc';
-import { currentTime } from './time';
+import { TIME_IN_FUTURE } from './time';
 
-export const buyJuniorBond = (smartYield: SmartYield, pool: CompoundProviderMock) => {
+export const buyJuniorBond = (smartYield: SmartYield, pool: CompoundProvider) => {
   return async (user: Wallet, tokenAmount: number | BN, maxMaturesAt: number | BN): Promise<void> => {
     tokenAmount = toBN(tokenAmount);
     maxMaturesAt = toBN(maxMaturesAt);
     await smartYield.connect(user).approve(user.address, tokenAmount);
-    await smartYield.connect(user).buyJuniorBond(tokenAmount, maxMaturesAt, currentTime().add(1));
+    await smartYield.connect(user).buyJuniorBond(tokenAmount, maxMaturesAt, TIME_IN_FUTURE);
   };
 };
 

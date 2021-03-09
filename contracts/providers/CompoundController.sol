@@ -3,6 +3,7 @@ pragma solidity ^0.7.6;
 pragma abicoder v2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./../lib/uniswap/UniswapV2Library.sol";
@@ -26,17 +27,14 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
+    address public constant UNISWAP_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+    address public constant UNISWAP_ROUTER_V2 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+
     uint256 public constant MAX_UINT256 = uint256(-1);
     uint256 public constant EXP_SCALE = 1e18;
     uint256 public constant DOUBLE_SCALE = 1e36;
 
     uint256 public constant BLOCKS_PER_DAY = 5760; // 4 * 60 * 24 (assuming 4 blocks per minute)
-
-    // compound provider pool
-    address public pool;
-
-    // uniswap factory
-    address public uniswap;
 
     uint256 public harvestedLast;
 
@@ -44,7 +42,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     uint256 public prevCumulationTime;
 
     // exchnageRateStored last time we cumulated
-    uint256 public prevExchnageRateStored;
+    uint256 public prevExchnageRateCurrent;
 
     // cumulative supply rate += ((new underlying) / underlying)
     uint256 public cumulativeSupplyRate;
@@ -55,20 +53,22 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     // compound.finance comptroller.compSupplyState right after the previous deposit/withdraw
     IComptroller.CompMarketState public prevCompSupplyState;
 
+    uint256 public underlyingDecimals;
+
     // uniswap path for COMP to underlying
     address[] public uniswapPath;
 
     // uniswap pairs for COMP to underlying
     address[] public uniswapPairs;
 
-    // uniswap cumulative prices for COMP to underlying
+    // uniswap cumulative prices needed for COMP to underlying
     uint256[] public uniswapPriceCumulatives;
 
-    // uniswap cumulativePrice{0 | 1}
+    // keys for uniswap cumulativePrice{0 | 1}
     uint8[] public uniswapPriceKeys;
 
 
-    event Harvest(address indexed caller, uint256 rewardTokenGot, uint256 underlyingPoolShare, uint256 underlyingReward, uint256 harvestCost);
+    event Harvest(address indexed caller, uint256 compRewardTotal, uint256 compRewardSold, uint256 underlyingPoolShare, uint256 underlyingReward, uint256 harvestCost);
 
 
     modifier onlyPool {
@@ -80,20 +80,36 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     }
 
     constructor(
-      address uniswap_,
+      address pool_,
+      address smartYield_,
+      address bondModel_,
       address[] memory uniswapPath_
     )
       IController()
     {
-      setUniswap(uniswap_);
+      pool = pool_;
+      smartYield = smartYield_;
+      underlyingDecimals = ERC20(ICToken(CompoundProvider(pool).cToken()).underlying()).decimals();
+      setBondModel(bondModel_);
       setUniswapPath(uniswapPath_);
+
+      updateAllowances();
     }
 
-    function setUniswap(address newValue_)
+    function updateAllowances()
       public
-      onlyDaoOrGuardian
     {
-      uniswap = newValue_;
+
+      ICToken cToken = ICToken(CompoundProvider(pool).cToken());
+      IComptroller comptroller = IComptroller(cToken.comptroller());
+      IERC20 rewardToken = IERC20(comptroller.getCompAddress());
+      IERC20 uToken = IERC20(CompoundProvider(pool).uToken());
+
+      uint256 routerRewardAllowance = rewardToken.allowance(address(this), uniswapRouter());
+      rewardToken.safeIncreaseAllowance(uniswapRouter(), MAX_UINT256.sub(routerRewardAllowance));
+
+      uint256 poolUnderlyingAllowance = uToken.allowance(address(this), address(pool));
+      uToken.safeIncreaseAllowance(address(pool), MAX_UINT256.sub(poolUnderlyingAllowance));
     }
 
     // should start with rewardCToken and with uToken, and have intermediary hops if needed
@@ -101,22 +117,21 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     // path[1] = address(wethToken);
     // path[2] = address(uToken);
     function setUniswapPath(address[] memory newUniswapPath_)
-      public
+      public virtual
       onlyDaoOrGuardian
     {
         require(
-          2 <= uniswapPath.length,
+          2 <= newUniswapPath_.length,
           "CC: setUniswapPath length"
         );
 
         uniswapPath = newUniswapPath_;
 
         address[] memory newUniswapPairs = new address[](newUniswapPath_.length - 1);
-        //uint256[] memory newUniswapPriceCumulatives = new uint256[](newUniswapPath_.length - 1);
         uint8[] memory newUniswapPriceKeys = new uint8[](newUniswapPath_.length - 1);
 
         for (uint256 f = 0; f < newUniswapPath_.length - 1; f++) {
-          newUniswapPairs[f] = UniswapV2Library.pairFor(uniswap, newUniswapPath_[f], newUniswapPath_[f + 1]);
+          newUniswapPairs[f] = UniswapV2Library.pairFor(UNISWAP_FACTORY, newUniswapPath_[f], newUniswapPath_[f + 1]);
           (address token0, ) = UniswapV2Library.sortTokens(newUniswapPath_[f], newUniswapPath_[f + 1]);
           newUniswapPriceKeys[f] = token0 == newUniswapPath_[f] ? 0 : 1;
         }
@@ -126,16 +141,17 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
         uniswapPriceCumulatives = uniswapPriceCumulativesNow();
     }
 
-    function getUniswapPath()
-      public view
-    returns (address[] memory)
+    function uniswapRouter()
+      public view virtual returns(address)
     {
-      return uniswapPath;
+      // mockable
+      return UNISWAP_ROUTER_V2;
     }
 
-    function harvest()
+    // claims and sells COMP on uniswap, returns total received comp and caller reward
+    function harvest(uint256 maxCompAmount_)
       public
-    returns (uint256)
+    returns (uint256 compGot, uint256 underlyingHarvestReward)
     {
         require(
           harvestedLast < block.timestamp,
@@ -149,25 +165,35 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
 
         address caller = msg.sender;
 
+        // claim pool comp
         address[] memory holders = new address[](1);
         holders[0] = pool;
         address[] memory markets = new address[](1);
         markets[0] = address(cToken);
         comptroller.claimComp(holders, markets, false, true);
 
+        // transfer all comp from pool to self
         rewardToken.safeTransferFrom(pool, address(this), rewardToken.balanceOf(pool));
-        uint256 rewardGot = rewardToken.balanceOf(address(this)); // COMP
+        uint256 compRewardTotal = rewardToken.balanceOf(address(this)); // COMP
 
-        if (rewardGot == 0) {
-          return 0;
-        }
+        // only sell upmost maxCompAmount_, if maxCompAmount_ sell all
+        maxCompAmount_ = (maxCompAmount_ == 0) ? compRewardTotal : maxCompAmount_;
+        uint256 compRewardSold = MathUtils.min(maxCompAmount_, compRewardTotal);
 
-        uint256 poolShare = MathUtils.fractionOf(quoteSpotCompToUnderlying(rewardGot), EXP_SCALE - HARVEST_COST);
+        require(
+          compRewardSold > 0,
+          "PPC: harvested nothing"
+        );
 
-        // TODO: optimize pre-approve uniswap, gas
-        rewardToken.safeApprove(address(uniswap), rewardGot);
-        IUniswapV2Router(uniswap).swapExactTokensForTokens(
-            rewardGot,
+        // pool share is (comp to underlying) - (harvest cost percent)
+        uint256 poolShare = MathUtils.fractionOf(
+          quoteSpotCompToUnderlying(compRewardSold),
+          EXP_SCALE - HARVEST_COST
+        );
+
+        // make sure we get at least the poolShare
+        IUniswapV2Router(uniswapRouter()).swapExactTokensForTokens(
+            compRewardSold,
             poolShare,
             uniswapPath,
             address(this),
@@ -182,18 +208,18 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
         );
 
         // deposit pool reward share with liquidity provider
+        CompoundProvider(pool)._takeUnderlying(address(this), poolShare);
         CompoundProvider(pool)._depositProvider(poolShare, 0);
 
-        uint256 reward = uToken.balanceOf(address(this));
-
         // pay caller
-        uToken.safeTransfer(caller, reward);
+        uint256 callerReward = uToken.balanceOf(address(this));
+        uToken.safeTransfer(caller, callerReward);
 
         harvestedLast = block.timestamp;
 
-        emit Harvest(caller, rewardGot, poolShare, reward, HARVEST_COST);
+        emit Harvest(caller, compRewardTotal, compRewardSold, poolShare, callerReward, HARVEST_COST);
 
-        return reward;
+        return (compRewardTotal, callerReward);
     }
 
     function _beforeCTokenBalanceChange()
@@ -211,7 +237,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     }
 
     function providerRatePerDay()
-      external override
+      public override virtual
     returns (uint256)
     {
       return MathUtils.min(
@@ -224,7 +250,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
       external override
       returns (uint256)
     {
-      uint256 timeElapsed = prevCumulationTime - block.timestamp;
+      uint256 timeElapsed = block.timestamp - prevCumulationTime;
 
       // only cumulate once per block
       if (0 == timeElapsed) {
@@ -237,8 +263,10 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
       return (cumulativeSupplyRate + cumulativeDistributionRate);
     }
 
-    function updateCumulativesInternal(uint256 prevCTokenBalance_, bool pingCompound_) private {
-      uint256 timeElapsed = prevCumulationTime - block.timestamp;
+    function updateCumulativesInternal(uint256 prevCTokenBalance_, bool pingCompound_)
+      private
+    {
+      uint256 timeElapsed = block.timestamp - prevCumulationTime;
 
       // only cumulate once per block
       if (0 == timeElapsed) {
@@ -257,16 +285,18 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
         comptroller.mintAllowed(address(cToken), address(this), 0);
       }
 
+      uint256 exchangeRateStoredNow = cToken.exchangeRateStored();
       (uint224 nowSupplyStateIndex, uint32 blk) = comptroller.compSupplyState(address(cToken));
 
-      if (prevExchnageRateStored > 0) {
-        // cumulate a new supplyRate delta: cumulativeSupplyRate += (cToken.exchangeRateStored() - prevExchnageRateStored) / prevExchnageRateStored
+      if (prevExchnageRateCurrent > 0) {
+        // cumulate a new supplyRate delta: cumulativeSupplyRate += (cToken.exchangeRateCurrent() - prevExchnageRateCurrent) / prevExchnageRateCurrent
         // cumulativeSupplyRate eventually overflows, but that's ok due to the way it's used in the oracle
-        cumulativeSupplyRate += cToken.exchangeRateStored().sub(prevExchnageRateStored).div(prevExchnageRateStored);
+        cumulativeSupplyRate += exchangeRateStoredNow.sub(prevExchnageRateCurrent).mul(EXP_SCALE).div(prevExchnageRateCurrent);
 
         if (prevCTokenBalance_ > 0) {
+          uint256 expectedComp = expectedDistributeSupplierComp(prevCTokenBalance_, nowSupplyStateIndex, prevCompSupplyState.index);
           uint256 expectedCompInUnderlying = quoteCompToUnderlying(
-            expectedDistributeSupplierComp(prevCTokenBalance_, nowSupplyStateIndex, prevCompSupplyState.index),
+            expectedComp,
             timeElapsed,
             uniswapPriceCumulatives,
             currentUniswapPriceCumulatives
@@ -275,7 +305,8 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
           uint256 poolShare = MathUtils.fractionOf(expectedCompInUnderlying, 1e18 - HARVEST_COST);
           // cumulate a new distributionRate delta: cumulativeDistributionRate += (expectedDistributeSupplierComp in underlying - harvest cost) / prevUnderlyingBalance
           // cumulativeDistributionRate eventually overflows, but that's ok due to the way it's used in the oracle
-          cumulativeDistributionRate += poolShare.div(cTokensToUnderlying(prevCTokenBalance_, prevExchnageRateStored));
+
+          cumulativeDistributionRate += poolShare.mul(EXP_SCALE).div(cTokensToUnderlying(prevCTokenBalance_, prevExchnageRateCurrent));
         }
       }
 
@@ -288,7 +319,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
       prevCompSupplyState = IComptroller.CompMarketState(nowSupplyStateIndex, blk);
 
       // exchangeRateStored can increase multiple times per block
-      prevExchnageRateStored = cToken.exchangeRateStored();
+      prevExchnageRateCurrent = exchangeRateStoredNow;
     }
 
     // computes how much COMP tokens compound.finance will have given us after a mint/redeem/redeemUnderlying
@@ -316,21 +347,13 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     }
 
     function uniswapPriceCumulativesNow()
-      public view returns (uint256[] memory)
+      public view virtual returns (uint256[] memory)
     {
-      uint256[] memory newUniswapPriceCumulatives = new uint256[](uniswapPath.length - 1);
-      for (uint256 f = 0; f < uniswapPath.length - 1; f++) {
+      uint256[] memory newUniswapPriceCumulatives = new uint256[](uniswapPairs.length);
+      for (uint256 f = 0; f < uniswapPairs.length; f++) {
         newUniswapPriceCumulatives[f] = uniswapPriceCumulativeNow(uniswapPairs[f], uniswapPriceKeys[f]);
       }
       return newUniswapPriceCumulatives;
-    }
-
-    function _storeUniswapPriceCumulatives()
-      private
-    {
-      for (uint256 f = 0; f < uniswapPairs.length; f++) {
-        uniswapPriceCumulatives[f] = uniswapPriceCumulativeNow(uniswapPairs[f], uniswapPriceKeys[f]);
-      }
     }
 
     function quoteCompToUnderlying(
@@ -345,10 +368,13 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
 
     function quoteSpotCompToUnderlying(
       uint256 compIn_
-    ) public view returns (uint256) {
+    ) public view virtual returns (uint256) {
+
       ICToken cToken = ICToken(CompoundProvider(pool).cToken());
       IUniswapAnchoredOracle compOracle = IUniswapAnchoredOracle(IComptroller(cToken.comptroller()).oracle());
-      return compIn_.mul(compOracle.price("COMP")).div(compOracle.getUnderlyingPrice(address(cToken)));
+      uint256 underlyingOut = compIn_.mul(compOracle.price("COMP")).mul(10**24).div(compOracle.getUnderlyingPrice(address(cToken))).div(10**(2 * underlyingDecimals));
+
+      return underlyingOut;
     }
 
     function uniswapAmountOut(
@@ -361,14 +387,16 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
       return FixedPoint.decode144(FixedPoint.mul(priceAverage, amountIn_));
     }
 
-    function spotDailySupplyRate()
+    // compound spot supply rate per day
+    function spotDailySupplyRateProvider()
       public view returns (uint256)
     {
       // supplyRatePerBlock() * BLOCKS_PER_DAY
       return ICToken(CompoundProvider(pool).cToken()).supplyRatePerBlock().mul(BLOCKS_PER_DAY);
     }
 
-    function spotDailyDistributionRate()
+    // compound spot distribution rate per day
+    function spotDailyDistributionRateProvider()
       public view returns (uint256)
     {
       ICToken cToken = ICToken(CompoundProvider(pool).cToken());
@@ -377,15 +405,20 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
 
       // compSpeeds(cToken) * price("COMP") * BLOCKS_PER_DAY
       uint256 compDollarsPerDay = comptroller.compSpeeds(address(cToken)).mul(compOracle.price("COMP")).mul(BLOCKS_PER_DAY);
+
       // (totalBorrows() + getCash()) * getUnderlyingPrice(cToken)
       uint256 totalSuppliedDollars = cToken.totalBorrows().add(cToken.getCash()).mul(compOracle.getUnderlyingPrice(address(cToken)));
+
       // (compDollarsPerDay / totalSuppliedDollars)
-      return compDollarsPerDay.div(totalSuppliedDollars);
+      return compDollarsPerDay.mul(10**42).div(totalSuppliedDollars).div(10**(2 * underlyingDecimals));
     }
 
+    // smart yield spot daily rate includes: spot supply + spot distribution
     function spotDailyRate()
       public view returns (uint256)
     {
-      return spotDailySupplyRate().add(spotDailyDistributionRate());
+      uint256 expectedSpotDailyDistributionRate = MathUtils.fractionOf(spotDailyDistributionRateProvider(), EXP_SCALE - HARVEST_COST);
+      // spotDailySupplyRateProvider() + (spotDailyDistributionRateProvider() - fraction lost to harvest)
+      return spotDailySupplyRateProvider().add(expectedSpotDailyDistributionRate);
     }
 }

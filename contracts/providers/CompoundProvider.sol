@@ -4,6 +4,7 @@ pragma abicoder v2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./../external-interfaces/compound-finance/ICToken.sol";
 import "./../external-interfaces/compound-finance/IComptroller.sol";
@@ -12,13 +13,15 @@ import "./../lib/math/MathUtils.sol";
 
 import "./CompoundController.sol";
 
-import "./../IController.sol";
 import "./ICompoundCumulator.sol";
 import "./../oracle/IYieldOracle.sol";
 import "./../IProvider.sol";
 
 contract CompoundProvider is IProvider {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
+
+    uint256 public constant MAX_UINT256 = uint256(-1);
 
     address public override smartYield;
 
@@ -36,6 +39,9 @@ contract CompoundProvider is IProvider {
     // cToken.balanceOf(this) measuring only deposits by users (excludes direct cToken transfers to pool)
     uint256 public cTokenBalance;
 
+    uint256 public exchangeRateCurrentCached;
+    uint256 public exchangeRateCurrentCachedAt;
+
     bool public _setup;
 
     event TransferFees(address indexed caller, address indexed feesOwner, uint256 fees);
@@ -43,14 +49,6 @@ contract CompoundProvider is IProvider {
     modifier onlySmartYield {
       require(
         msg.sender == smartYield,
-        "PPC: only smartYield"
-      );
-      _;
-    }
-
-    modifier onlySmartYieldOrController {
-      require(
-        msg.sender == smartYield || msg.sender == controller,
         "PPC: only smartYield"
       );
       _;
@@ -64,10 +62,31 @@ contract CompoundProvider is IProvider {
       _;
     }
 
+    modifier onlySmartYieldOrController {
+      require(
+        msg.sender == smartYield || msg.sender == controller,
+        "PPC: only smartYield/controller"
+      );
+      _;
+    }
+
+    modifier onlyControllerOrDao {
+      require(
+        msg.sender == controller || msg.sender == CompoundController(controller).dao(),
+        "PPC: only controller/DAO"
+      );
+      _;
+    }
+
+    constructor(address cToken_)
+    {
+        cToken = cToken_;
+        uToken = ICToken(cToken_).underlying();
+    }
+
     function setup(
         address smartYield_,
-        address controller_,
-        address cToken_
+        address controller_
     )
       external
     {
@@ -78,12 +97,35 @@ contract CompoundProvider is IProvider {
 
         smartYield = smartYield_;
         controller = controller_;
-        cToken = cToken_;
-        uToken = ICToken(cToken_).underlying();
 
         _enterMarket();
 
+        updateAllowances();
+
         _setup = true;
+    }
+
+    function setController(address newController_)
+      external override
+      onlyControllerOrDao
+    {
+      // remove allowance on old controller
+      IERC20 rewardToken = IERC20(IComptroller(ICToken(cToken).comptroller()).getCompAddress());
+      rewardToken.safeApprove(controller, 0);
+
+      controller = newController_;
+
+      // give allowance to new controler
+      updateAllowances();
+    }
+
+    function updateAllowances()
+      public
+    {
+        IERC20 rewardToken = IERC20(IComptroller(ICToken(cToken).comptroller()).getCompAddress());
+
+        uint256 controllerRewardAllowance = rewardToken.allowance(address(this), controller);
+        rewardToken.safeIncreaseAllowance(controller, MAX_UINT256.sub(controllerRewardAllowance));
     }
 
   // externals
@@ -91,7 +133,7 @@ contract CompoundProvider is IProvider {
     // take underlyingAmount_ from from_
     function _takeUnderlying(address from_, uint256 underlyingAmount_)
       external override
-      onlySmartYield
+      onlySmartYieldOrController
     {
         require(
             underlyingAmount_ <= IERC20(uToken).allowance(from_, address(this)),
@@ -167,23 +209,39 @@ contract CompoundProvider is IProvider {
       underlyingFees = 0;
 
       uint256 fees = IERC20(uToken).balanceOf(address(this));
-      address to = IController(controller).feesOwner();
+      address to = CompoundController(controller).feesOwner();
 
       IERC20(uToken).transfer(to, fees);
 
       emit TransferFees(msg.sender, to, fees);
     }
 
-    // current total underlying balance, as measured by pool
+    // current total underlying balance, as measured by pool, without fees
     function underlyingBalance()
       external virtual override
     returns (uint256)
     {
         // https://compound.finance/docs#protocol-math
-        return cTokenBalance * ICToken(cToken).exchangeRateCurrent() / 1e18;
+        // (total balance in underlying) - underlyingFees
+        // cTokenBalance * exchangeRateCurrent() / 1e18 - underlyingFees;
+        return cTokenBalance.mul(exchangeRateCurrent()).div(1e18).sub(underlyingFees);
     }
-
   // /externals
+
+  // public
+    // get exchangeRateCurrent from compound and cache it for the current block
+    function exchangeRateCurrent()
+      public virtual
+    returns (uint256)
+    {
+      // only once per block
+      if (block.timestamp > exchangeRateCurrentCachedAt) {
+        exchangeRateCurrentCachedAt = block.timestamp;
+        exchangeRateCurrentCached = ICToken(cToken).exchangeRateCurrent();
+      }
+      return exchangeRateCurrentCached;
+    }
+  // /public
 
   // internals
 

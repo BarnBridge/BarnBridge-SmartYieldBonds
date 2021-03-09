@@ -13,7 +13,6 @@ interface IComptroller {
 
     function getCompAddress() external view returns(address);
     function compSupplyState(address cToken) external view returns (uint224, uint32);
-    function compSupplierIndex(address cToken, address supplier) external view returns (uint256);
     function compSpeeds(address cToken) external view returns (uint256);
-    function oracle() external view returns (uint256);
+    function oracle() external view returns (address);
 }

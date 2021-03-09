@@ -1,5 +1,6 @@
 import { BigNumber as BNj } from 'bignumber.js';
 import { BigNumber as BN } from 'ethers';
+import { e18j } from './misc';
 export const DAYS_IN_YEAR = 365;
 
 export const withCompoundRate = (principal: BNj, rate: BNj, n: number): BNj => {
@@ -35,4 +36,15 @@ export const compFiApy = (ratePerBlock: number | BN): BN => {
   let bn = new BNj(ratePerBlock.toString()).div(ethMantissa).times(blocksPerDay).plus(1);
   bn = bn.pow(daysPerYear).minus(1).times(1e18);
   return BN.from(bn.toFixed(0));
+};
+
+export const apy2supplyRateBerBlock = (apy: number): BN => {
+  const r = Math.pow(1 + apy, 1/365) - 1;
+  return BN.from(new BNj(r).multipliedBy(1e18).toFixed(0));
+};
+
+
+export const dailyRate2APY = (dailyRate: BN): string => {
+  const dr = new BNj(dailyRate.toString()).div(e18j(1));
+  return dr.plus(1).pow(365).minus(1).toFixed(6);
 };

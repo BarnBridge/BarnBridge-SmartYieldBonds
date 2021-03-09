@@ -5,22 +5,10 @@ pragma abicoder v2;
 import "../../lib/math/MathUtils.sol";
 import "../../model/IBondModel.sol";
 
-contract BondModelMock is IBondModel {
+contract MathTests {
 
     uint256 public ratePerDay = 0;
     uint256 public compoundingTestLast = 0;
-
-    function gain(
-        address,
-        uint256 principal,
-        uint16 forDays
-    ) external view override returns (uint256) {
-        return MathUtils.compound(principal, ratePerDay, forDays) - principal;
-    }
-
-    function maxDailyRate(address) external view override returns (uint256) {
-      return ratePerDay;
-    }
 
     function compoundingTest(
         uint256 principal_,
@@ -36,9 +24,5 @@ contract BondModelMock is IBondModel {
         uint16 forDays_
     ) external {
         compoundingTestLast = MathUtils.compound2(principal_, ratePerDay_, forDays_) - principal_;
-    }
-
-    function setRatePerDay(uint256 ratePerDay_) external {
-        ratePerDay = ratePerDay_;
     }
 }

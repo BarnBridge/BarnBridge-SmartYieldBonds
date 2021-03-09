@@ -18,7 +18,7 @@ export const A_DAY = 60 * 60 * 24;
 export const DAYS_PER_YEAR = 365;
 // https://github.com/compound-finance/compound-protocol/blob/ca6bc76ffdc0fc4f52a2ff617200d1a16f65692a/contracts/JumpRateModel.sol#L18
 export const BLOCKS_PER_YEAR = 2_102_400;
-export const BLOCKS_PER_DAY = BLOCKS_PER_YEAR / DAYS_PER_YEAR;
+export const BLOCKS_PER_DAY = 60 * 24 * 4;
 
 let loadFixture: ReturnType<typeof createFixtureLoader>;
 

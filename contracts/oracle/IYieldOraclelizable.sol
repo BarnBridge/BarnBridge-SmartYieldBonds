@@ -3,7 +3,7 @@ pragma solidity ^0.7.6;
 pragma abicoder v2;
 
 interface IYieldOraclelizable {
-    // returns cumulatives and accumulates/updates internal state
+    // accumulates/updates internal state and returns cumulatives 
     // oracle should call this when updating
     function cumulatives()
       external

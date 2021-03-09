@@ -22,7 +22,8 @@ interface IProvider {
 
     function transferFees() external;
 
-    // current total underlying balance as measured by the provider pool
+    // current total underlying balance as measured by the provider pool, without fees
     function underlyingBalance() external returns (uint256);
 
+    function setController(address newController_) external;
 }

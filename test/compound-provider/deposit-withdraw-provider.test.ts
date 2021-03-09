@@ -2,10 +2,16 @@ import 'tsconfig-paths/register';
 
 import { expect } from 'chai';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
-import { bbFixtures, currentTime, deployClockMock, deployCompComptroller, deployCompCToken, deployCompoundController, deployCompoundProviderMockCompRewardExpected, deployCompToken, deployUnderlying, deployUniswapMock, deployYieldOracleMock, e18, moveTime, toBN, u2cToken } from '@testhelp/index';
+import { bbFixtures, buyBond, buyJuniorBond, buyTokens, currentTime, deployBondModel, deployCompoundController, deployCompoundControllerMock, deployCompoundProvider, deployCompToken, deployCTokenWorldMock, deploySmartYieldMock, deployUnderlying, deployUniswapMock, deployYieldOracle, deployYieldOracleMock, e18, redeemBond, redeemJuniorBond, sellTokens, toBN, u2cToken } from '@testhelp/index';
+import { A_DAY } from '@testhelp/time';
+import { Erc20MockFactory } from '@typechain/Erc20MockFactory';
+import { CompOracleMockFactory } from '@typechain/CompOracleMockFactory';
 
 const decimals = 18;
-const exchangeRateStored = BN.from('210479247565052203200030081');
+const supplyRatePerBlock = BN.from('40749278849'); // 8.94% // 89437198474492656
+const exchangeRateStored = BN.from('209682627301038234646967647');
+
+const oracleCONF = { windowSize: 4 * A_DAY, granularity: 4 };
 
 const fixture = () => {
   return async (wallets: Wallet[]) => {
@@ -19,47 +25,36 @@ const fixture = () => {
       userSign.getAddress(),
     ]);
 
-    const clock = await deployClockMock(deployerSign);
-
-    const [underlying, cToken, compToken, compComptroller, uniswap, oracle, controller, pool] = await Promise.all([
-      deployUnderlying(deployerSign, decimals),
-      deployCompCToken(deployerSign),
-      deployCompToken(deployerSign),
-      deployCompComptroller(deployerSign),
-      deployUniswapMock(deployerSign),
-      deployYieldOracleMock(deployerSign),
-      deployCompoundController(deployerSign),
-      deployCompoundProviderMockCompRewardExpected(deployerSign, clock),
+    const [ctokenWorld] = await Promise.all([
+      deployCTokenWorldMock(deployerSign, exchangeRateStored, supplyRatePerBlock, 0, decimals),
     ]);
+
+    const underlying = Erc20MockFactory.connect(await ctokenWorld.callStatic.underlying(), deployerSign);
+    const comp = Erc20MockFactory.connect(await ctokenWorld.callStatic.getCompAddress(), deployerSign);
+    const compOracle = CompOracleMockFactory.connect(await ctokenWorld.callStatic.oracle(), deployerSign);
+
+    const [pool, bondModel] = await Promise.all([
+      deployCompoundProvider(deployerSign, ctokenWorld.address),
+      deployBondModel(deployerSign),
+    ]);
+
+    const [controller ] = await Promise.all([
+      deployCompoundControllerMock(deployerSign, pool.address, smartYieldAddr, bondModel.address, [comp.address, underlying.address]),
+    ]);
+
+    const oracle = await deployYieldOracle(deployerSign, controller.address, oracleCONF.windowSize, oracleCONF.granularity);
 
     await Promise.all([
       controller.setOracle(oracle.address),
-      controller.setFeesOwner(feesOwnerAddr),
-      controller.setUniswap(uniswap.address),
-      controller.setUniswapPath([compToken.address, underlying.address]),
-      compComptroller.reset(pool.address, cToken.address, compToken.address, 0, 0),
-      cToken.setup(underlying.address, compComptroller.address, exchangeRateStored),
-      uniswap.setup(compToken.address, underlying.address, 0),
-    ]);
-
-    await Promise.all([
-      pool.setup(smartYieldAddr, controller.address, cToken.address),
-      (moveTime(clock))(0),
+      pool.setup(smartYieldAddr, controller.address),
+      controller.setFeeBuyJuniorToken(0),
     ]);
 
     return {
-      underlying, cToken, compToken, compComptroller, uniswap, oracle, controller, pool, clock,
-
-      deployerSign: deployerSign as Signer,
-      daoSign: daoSign as Signer,
-      guardianSign: guardianSign as Signer,
-      feesOwnerSign: feesOwnerSign as Signer,
-      smartYieldSign: smartYieldSign as Signer,
-      userSign: userSign as Signer,
-
+      controller, pool, bondModel, oracle, underlying, comp, compOracle, ctokenWorld,
       deployerAddr, daoAddr, guardianAddr, feesOwnerAddr, smartYieldAddr, userAddr,
-
-      moveTime: moveTime(clock),
+      deployerSign: deployerSign as Signer,
+      smartYieldSign,
     };
   };
 };
@@ -68,33 +63,31 @@ describe('CompoundProvider._depositProvider() / CompoundProvider._withdrawProvid
 
   it('system should be in expected state', async function () {
 
-    const { pool, controller, underlying, cToken, compComptroller, compToken, uniswap, deployerSign, smartYieldAddr, userSign, userAddr,  moveTime } = await bbFixtures(fixture());
+    const { pool, controller, underlying, ctokenWorld, deployerSign, smartYieldAddr, userAddr } = await bbFixtures(fixture());
 
     expect((await pool._setup()), 'should be _setup').equal(true);
     expect((await pool.smartYield()), 'should be smartYield').equal(smartYieldAddr);
     expect((await pool.controller()), 'should be controller').equal(controller.address);
-    expect((await pool.cToken()), 'should be cToken').equal(cToken.address);
+    expect((await pool.cToken()), 'should be cToken').equal(ctokenWorld.address);
     expect((await pool.uToken()), 'should be uToken').equal(underlying.address);
-    expect((await pool.comptroller()), 'should be comptroller').equal(compComptroller.address);
-    expect((await pool.rewardCToken()), 'should be rewardCToken').equal(compToken.address);
   });
 
   it('only smartYield can call _depositProvider/_withdrawProvider', async function () {
 
-    const { pool, controller, underlying, cToken, compComptroller, compToken, deployerSign, smartYieldSign, deployerAddr, smartYieldAddr } = await bbFixtures(fixture());
+    const { pool, controller, underlying,deployerSign, smartYieldSign, deployerAddr, smartYieldAddr } = await bbFixtures(fixture());
 
-    await expect(pool.connect(deployerSign)._depositProvider(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('IPP: only smartYield');
-    await expect(pool.connect(deployerSign)._withdrawProvider(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('IPP: only smartYield');
-    await expect(pool.connect(smartYieldSign)._depositProvider(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('IPP: only smartYield');
-    await expect(pool.connect(smartYieldSign)._withdrawProvider(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('IPP: only smartYield');
+    await expect(pool.connect(deployerSign)._depositProvider(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('PPC: only smartYield/controller');
+    await expect(pool.connect(deployerSign)._withdrawProvider(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('PPC: only smartYield');
+    await expect(pool.connect(smartYieldSign)._depositProvider(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('PPC: only smartYield/controller');
+    await expect(pool.connect(smartYieldSign)._withdrawProvider(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('PPC: only smartYield');
   });
 
   it('_depositProvider deposits to provider', async function () {
 
-    const { pool, controller, underlying, cToken, compComptroller, compToken, deployerSign, smartYieldSign, deployerAddr, smartYieldAddr } = await bbFixtures(fixture());
+    const { pool, controller, underlying, ctokenWorld, deployerSign, smartYieldSign, deployerAddr, smartYieldAddr } = await bbFixtures(fixture());
 
     expect(await underlying.balanceOf(pool.address), 'pool has 0 underlying').deep.equal(BN.from(0));
-    expect(await cToken.balanceOf(pool.address), 'pool has 0 cToken').deep.equal(BN.from(0));
+    expect(await ctokenWorld.balanceOf(pool.address), 'pool has 0 cToken').deep.equal(BN.from(0));
 
     await underlying.mintMock(pool.address, e18(1));
 
@@ -104,7 +97,7 @@ describe('CompoundProvider._depositProvider() / CompoundProvider._withdrawProvid
 
     expect(await underlying.balanceOf(pool.address), 'pool has 0 underlying').deep.equal(BN.from(0));
     const expectCtokens = u2cToken(e18(1), exchangeRateStored);
-    expect(await cToken.balanceOf(pool.address), 'pool has correct cToken').deep.equal(expectCtokens);
+    expect(await ctokenWorld.balanceOf(pool.address), 'pool has correct cToken').deep.equal(expectCtokens);
 
   });
 
