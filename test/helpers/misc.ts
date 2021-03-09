@@ -22,7 +22,7 @@ export const e = (n: number | BN | BNj | string, pow: number): BN => {
   }
   n = new BNj(n);
   return BN.from(
-    n.times(new BNj(10).pow(18)).toFixed(0)
+    n.times(new BNj(10).pow(pow)).toFixed(0)
   );
 };
 

@@ -34,9 +34,11 @@ interface ISmartYield {
         uint256 price;
     }
 
-    function currentTime() external view returns(uint256);
+    function controller() external view returns (address);
 
-    function buyBond(uint256 principalAmount_, uint256 minGain_, uint256 deadline_, uint16 forDays_) external;
+    function currentTime() external view returns (uint256);
+
+    function buyBond(uint256 principalAmount_, uint256 minGain_, uint256 deadline_, uint16 forDays_) external returns (uint256);
 
     function redeemBond(uint256 bondId_) external;
 
@@ -56,7 +58,7 @@ interface ISmartYield {
     /**
      * token purchase price
      */
-    function price() external view returns (uint256);
+    function price() external returns (uint256);
 
     function abondPaid() external view returns (uint256);
 
@@ -67,18 +69,18 @@ interface ISmartYield {
     /**
      * @notice current total underlying balance, without accruing interest
      */
-    function underlyingTotal() external view returns (uint256);
+    function underlyingTotal() external returns (uint256);
 
     /**
      * @notice current underlying loanable, without accruing interest
      */
-    function underlyingLoanable() external view returns (uint256);
+    function underlyingLoanable() external returns (uint256);
 
-    function underlyingJuniors() external view returns (uint256);
+    function underlyingJuniors() external returns (uint256);
 
-    function providerRatePerDay() external view returns (uint256);
+    function bondGain(uint256 principalAmount_, uint16 forDays_) external returns (uint256);
 
-    function bondGain(uint256 principalAmount_, uint16 forDays_) external view returns (uint256);
+    function maxBondDailyRate() external returns (uint256);
 
-    function maxBondDailyRate() external view returns (uint256);
+    function setController(address newController_) external;
 }

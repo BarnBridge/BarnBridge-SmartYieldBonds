@@ -13,7 +13,7 @@ import "./IYieldOracle.sol";
 contract YieldOracle is IYieldOracle {
     using SafeMath for uint256;
 
-    IYieldOraclelizable public pool;
+    IYieldOraclelizable public cumulator;
 
     struct Observation {
         uint256 timestamp;
@@ -39,7 +39,7 @@ contract YieldOracle is IYieldOracle {
     Observation[] public yieldObservations;
 
     constructor(
-        address pool_,
+        address cumulator_,
         uint256 windowSize_,
         uint8 granularity_
     ) {
@@ -51,7 +51,7 @@ contract YieldOracle is IYieldOracle {
         );
         windowSize = windowSize_;
         granularity = granularity_;
-        pool = IYieldOraclelizable(pool_);
+        cumulator = IYieldOraclelizable(cumulator_);
 
         for (uint256 i = yieldObservations.length; i < granularity_; i++) {
             yieldObservations.push();
@@ -74,7 +74,7 @@ contract YieldOracle is IYieldOracle {
         view
         returns (Observation storage firstObservation)
     {
-        uint8 observationIndex = observationIndexOf(pool.currentTime());
+        uint8 observationIndex = observationIndexOf(block.timestamp);
         // no overflow issue. if observationIndex + 1 overflows, result is still zero.
         uint8 firstObservationIndex = (observationIndex + 1) % granularity;
         firstObservation = yieldObservations[firstObservationIndex];
@@ -84,14 +84,14 @@ contract YieldOracle is IYieldOracle {
     // once per epoch period.
     function update() external virtual override {
         // get the observation for the current period
-        uint8 observationIndex = observationIndexOf(pool.currentTime());
+        uint8 observationIndex = observationIndexOf(block.timestamp);
         Observation storage observation = yieldObservations[observationIndex];
 
         // we only want to commit updates once per period (i.e. windowSize / granularity)
-        uint256 timeElapsed = pool.currentTime() - observation.timestamp;
+        uint256 timeElapsed = block.timestamp - observation.timestamp;
         if (timeElapsed > periodSize) {
-            (uint256 yieldCumulative) = pool.cumulatives();
-            observation.timestamp = pool.currentTime();
+            (uint256 yieldCumulative) = cumulator.cumulatives();
+            observation.timestamp = block.timestamp;
             observation.yieldCumulative = yieldCumulative;
         }
     }
@@ -104,8 +104,8 @@ contract YieldOracle is IYieldOracle {
         uint256 timeElapsed_,
         uint256 forInterval_
     ) private pure returns (uint256 yieldAverage) {
-        return
-            ((yieldCumulativeEnd_ - yieldCumulativeStart_) * forInterval_) / timeElapsed_;
+        // ((yieldCumulativeEnd_ - yieldCumulativeStart_) * forInterval_) / timeElapsed_;
+        return yieldCumulativeEnd_.sub(yieldCumulativeStart_).mul(forInterval_).div(timeElapsed_);
     }
 
     // returns the amount out corresponding to the amount in for a given token using the moving average over the time
@@ -113,14 +113,13 @@ contract YieldOracle is IYieldOracle {
     // update must have been called for the bucket corresponding to timestamp `now - windowSize`
     function consult(uint256 forInterval)
         external
-        view
         override
         virtual
         returns (uint256 yieldForInterval)
     {
         Observation storage firstObservation = getFirstObservationInWindow();
 
-        uint256 timeElapsed = pool.currentTime() - firstObservation.timestamp;
+        uint256 timeElapsed = block.timestamp - firstObservation.timestamp;
 
         if (!(timeElapsed <= windowSize)) {
             // originally:
@@ -143,7 +142,7 @@ contract YieldOracle is IYieldOracle {
             return 0;
         }
 
-        (uint256 yieldCumulative) = pool.currentCumulatives();
+        (uint256 yieldCumulative) = cumulator.cumulatives();
 
         return
             computeAmountOut(

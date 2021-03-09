@@ -3,9 +3,22 @@ import { HardhatUserConfig } from 'hardhat/config';
 const config: HardhatUserConfig = {
   // Your type-safe config goes here
   networks: {
+
     // Needed for `solidity-coverage`
     coverage: {
+      forking: {
+        url: 'https://eth-mainnet.alchemyapi.io/v2/yVzwGvPX6dd9TpUR4k4qWAk7ZliQcrWl',
+        blockNumber: 11966746, //
+      },
+      allowUnlimitedContractSize: true,
       url: 'http://localhost:8555',
+    },
+
+    hardhat: {
+      forking: {
+        url: 'https://eth-mainnet.alchemyapi.io/v2/yVzwGvPX6dd9TpUR4k4qWAk7ZliQcrWl',
+        blockNumber: 11966746, //
+      },
     },
 
     // Rinkeby

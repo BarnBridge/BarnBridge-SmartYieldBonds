@@ -3,8 +3,14 @@ pragma solidity ^0.7.6;
 pragma abicoder v2;
 
 import "./Governed.sol";
+import "./IProvider.sol";
+import "./ISmartYield.sol";
 
-contract IController is Governed {
+abstract contract IController is Governed {
+
+    address public pool; // compound provider pool
+
+    address public smartYield; // smartYield
 
     address public oracle; // IYieldOracle
 
@@ -12,8 +18,10 @@ contract IController is Governed {
 
     address public feesOwner; // fees are sent here
 
-    // reward for calling harvest 3%
-    uint256 public HARVEST_REWARD = 30 * 1e15; // 3%
+    // max accepted cost of harvest when converting COMP -> underlying,
+    // if harvest gets less than (COMP to underlying at spot price) - HARVEST_COST%, it will revert.
+    // if it gets more, the difference goes to the harvest caller
+    uint256 public HARVEST_COST = 40 * 1e15; // 4%
 
     // fee for buying jTokens
     uint256 public FEE_BUY_JUNIOR_TOKEN = 3 * 1e15; // 0.3%
@@ -22,8 +30,7 @@ contract IController is Governed {
     uint256 public FEE_REDEEM_SENIOR_BOND = 100 * 1e15; // 10%
 
     // max rate per day for sBonds
-    // k * supplyRatePerBlock * blocksPerDay
-    uint256 public BOND_MAX_RATE_PER_DAY = 3 * 49201150733 * 5760; // APY ~30% / year
+    uint256 public BOND_MAX_RATE_PER_DAY = 719065000000000; // APY 30% / year
 
     // max duration of a purchased sBond
     uint16 public BOND_LIFE_MAX = 90; // in days
@@ -32,45 +39,43 @@ contract IController is Governed {
 
     bool public PAUSED_BUY_SENIOR_BOND = false;
 
-    constructor() Governed() { }
-
-    function setHarvestReward(uint256 newValue_)
+    function setHarvestCost(uint256 newValue_)
       public
       onlyDaoOrGuardian
     {
-        HARVEST_REWARD = newValue_;
+        HARVEST_COST = newValue_;
     }
 
     function setBondMaxRatePerDay(uint256 newVal_)
-      external
+      public
       onlyDaoOrGuardian
     {
       BOND_MAX_RATE_PER_DAY = newVal_;
     }
 
     function setBondLifeMax(uint16 newVal_)
-      external
+      public
       onlyDaoOrGuardian
     {
       BOND_LIFE_MAX = newVal_;
     }
 
     function setFeeBuyJuniorToken(uint256 newVal_)
-      external
+      public
       onlyDaoOrGuardian
     {
       FEE_BUY_JUNIOR_TOKEN = newVal_;
     }
 
     function setFeeRedeemSeniorBond(uint256 newVal_)
-      external
+      public
       onlyDaoOrGuardian
     {
       FEE_REDEEM_SENIOR_BOND = newVal_;
     }
 
     function setPaused(bool buyJToken_, bool buySBond_)
-      external
+      public
       onlyDaoOrGuardian
     {
       PAUSED_BUY_JUNIOR_TOKEN = buyJToken_;
@@ -78,23 +83,33 @@ contract IController is Governed {
     }
 
     function setOracle(address newVal_)
-      external
+      public
       onlyDaoOrGuardian
     {
       oracle = newVal_;
     }
 
     function setBondModel(address newVal_)
-      external
+      public
       onlyDaoOrGuardian
     {
       bondModel = newVal_;
     }
 
     function setFeesOwner(address newVal_)
-      external
+      public
       onlyDaoOrGuardian
     {
       feesOwner = newVal_;
     }
+
+    function yieldControllTo(address newController_)
+      public
+      onlyDao
+    {
+      IProvider(pool).setController(newController_);
+      ISmartYield(smartYield).setController(newController_);
+    }
+
+    function providerRatePerDay() external virtual returns (uint256);
 }

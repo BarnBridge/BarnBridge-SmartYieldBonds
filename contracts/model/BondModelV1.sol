@@ -12,43 +12,39 @@ contract BondModelV1 is IBondModel {
     using SafeMath for uint256;
 
     function gain(
-        address pool_,
+        uint256 total_,
+        uint256 loanable_,
+        uint256 dailyRate_,
         uint256 principal_,
         uint16 forDays_
     )
-      external view override
+      external pure override
     returns (uint256)
     {
-        uint256 loanable = ISmartYield(pool_).underlyingLoanable();
-        uint256 total = ISmartYield(pool_).underlyingTotal();
-        uint256 dailyRate = ISmartYield(pool_).providerRatePerDay();
-
         uint256 aproxGain = MathUtils.compound2(
           principal_,
           //dailyRate * (loanable * 1e18 / (total + principal)) / 1e18,
-          uint256(1e18).mul(dailyRate).mul(loanable) / (total + principal_) / 1e18,
+          uint256(1e18).mul(dailyRate_).mul(loanable_) / (total_ + principal_) / 1e18,
           forDays_
         ).sub(principal_);
 
-        uint256 rate = uint256(1e18).mul(dailyRate).mul(loanable.sub(aproxGain, "BondModelV1: liquidity")) / (total + principal_) / 1e18;
+        uint256 rate = uint256(1e18).mul(dailyRate_).mul(loanable_.sub(aproxGain, "BondModelV1: liquidity")) / (total_ + principal_) / 1e18;
 
         return MathUtils.compound2(principal_, rate, forDays_).sub(principal_);
     }
 
     function maxDailyRate(
-      address pool_
+      uint256 total_,
+      uint256 loanable_,
+      uint256 dailyRate_
     )
-      external view override
+      external pure override
     returns (uint256)
     {
-      uint256 total = ISmartYield(pool_).underlyingTotal();
-      if (0 == total) {
+      if (0 == total_) {
         return 0;
       }
-
-      uint256 loanable = ISmartYield(pool_).underlyingLoanable();
-      uint256 dailyRate = ISmartYield(pool_).providerRatePerDay();
-      return uint256(1e18).mul(dailyRate).mul(loanable) / (total) / 1e18;
+      return uint256(1e18).mul(dailyRate_).mul(loanable_) / (total_) / 1e18;
     }
 
 }

@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./lib/math/MathUtils.sol";
 
-import "./Governed.sol";
 import "./IController.sol";
 import "./oracle/IYieldOraclelizable.sol";
 import "./ISmartYield.sol";
@@ -26,7 +25,7 @@ contract SmartYield is
     using SafeMath for uint256;
 
     // controller address
-    address public controller;
+    address public override controller;
 
     // address of IProviderPool
     address public pool;
@@ -85,6 +84,14 @@ contract SmartYield is
 
     event RedeemJuniorBond(address indexed owner, uint256 indexed juniorBondId, uint256 underlyingOut);
 
+    modifier onlyControllerOrDao {
+      require(
+        msg.sender == controller || msg.sender == IController(controller).dao(),
+        "PPC: only controller/DAO"
+      );
+      _;
+    }
+
     constructor(
       string memory name_,
       string memory symbol_,
@@ -115,6 +122,14 @@ contract SmartYield is
     }
 
     // externals
+
+    // change the controller, only callable by old controller or dao
+    function setController(address newController_)
+      external override
+      onlyControllerOrDao
+    {
+      controller = newController_;
+    }
 
     // buy at least _minTokens with _underlyingAmount, before _deadline passes
     function buyTokens(
@@ -193,6 +208,7 @@ contract SmartYield is
     }
 
     // Purchase a senior bond with principalAmount_ underlying for forDays_, buyer gets a bond with gain >= minGain_ or revert. deadline_ is timestamp before which tx is not rejected.
+    // returns gain
     function buyBond(
         uint256 principalAmount_,
         uint256 minGain_,
@@ -200,6 +216,7 @@ contract SmartYield is
         uint16 forDays_
     )
       external override
+      returns (uint256)
     {
         _beforeProviderOp();
 
@@ -256,6 +273,8 @@ contract SmartYield is
         _mintBond(buyer, b);
 
         emit BuySeniorBond(buyer, seniorBondId, principalAmount_, gain, forDays_);
+
+        return gain;
     }
 
     // buy an nft with tokenAmount_ jTokens, that matures at abond maturesAt
@@ -371,32 +390,31 @@ contract SmartYield is
         emit RedeemJuniorBond(payTo, jBondId_, payAmnt);
     }
 
-
-    function providerRatePerDay()
-      external view virtual override
-    returns (uint256)
-    {
-        return MathUtils.min(
-          IController(controller).BOND_MAX_RATE_PER_DAY(),
-          IYieldOracle(IController(controller).oracle()).consult(1 days)
-        );
-    }
-
     // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
     function bondGain(uint256 principalAmount_, uint16 forDays_)
-      external view override
+      external override
     returns (uint256)
     {
-        return IBondModel(IController(controller).bondModel()).gain(address(this), principalAmount_, forDays_);
+      return IBondModel(IController(controller).bondModel()).gain(
+        this.underlyingTotal(),
+        this.underlyingLoanable(),
+        IController(controller).providerRatePerDay(),
+        principalAmount_,
+        forDays_
+      );
     }
 
     // returns the maximum theoretically possible daily rate for senior bonds,
     // in reality the actual rate given to a bond will always be lower due to slippage
     function maxBondDailyRate()
-      external view override
+      external override
     returns (uint256)
     {
-        return IBondModel(IController(controller).bondModel()).maxDailyRate(address(this));
+      return IBondModel(IController(controller).bondModel()).maxDailyRate(
+        this.underlyingTotal(),
+        this.underlyingLoanable(),
+        IController(controller).providerRatePerDay()
+      );
     }
 
   // /externals
@@ -413,7 +431,7 @@ contract SmartYield is
 
     // jToken price * 1e18
     function price()
-      public view override
+      public override
     returns (uint256)
     {
         uint256 ts = totalSupply();
@@ -421,21 +439,21 @@ contract SmartYield is
     }
 
     function underlyingTotal()
-      public view virtual override
+      public virtual override
     returns(uint256)
     {
-      return IProvider(pool).underlyingBalance() - IProvider(pool).underlyingFees() - underlyingLiquidatedJuniors;
+      return IProvider(pool).underlyingBalance() - underlyingLiquidatedJuniors;
     }
 
     function underlyingJuniors()
-      public view virtual override
+      public virtual override
     returns (uint256)
     {
         return this.underlyingTotal() - abond.principal - this.abondPaid();
     }
 
     function underlyingLoanable()
-      public view virtual override
+      public virtual override
     returns (uint256)
     {
         // underlyingTotal - abond.principal - abond.gain - queued withdrawls

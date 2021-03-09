@@ -1,31 +1,31 @@
-import { CompoundProviderMock } from '@typechain/CompoundProviderMock';
+import { CompoundProvider } from '@typechain/CompoundProvider';
 import { SmartYield } from '@typechain/SmartYield';
 
-import { BigNumber as BN, Signer, Wallet } from 'ethers';
+import { BigNumber as BN, Overrides, Signer, Wallet } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { e18, toBN, toBNj } from './misc';
 import { HD, HT } from '.';
 import { Erc20Mock } from '@typechain/Erc20Mock';
-import { currentTime } from './time';
+import { TIME_IN_FUTURE } from './time';
 
 export type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 export type BondType = ThenArg<ReturnType<SmartYield['bonds']>>;
 
-export const buyBond = (smartYield: SmartYield, pool: CompoundProviderMock, underlying: Erc20Mock) => {
+export const buyBond = (smartYield: SmartYield, pool: CompoundProvider, underlying: Erc20Mock) => {
   return async (user: Wallet, amountUnderlying: number | BN, minGain: number | BN, forDays: number | BN): Promise<void> => {
     amountUnderlying = toBN(amountUnderlying);
     forDays = toBN(forDays);
     minGain = toBN(minGain);
     await underlying.mintMock(user.address, amountUnderlying);
     await underlying.connect(user).approve(pool.address, amountUnderlying);
-    await smartYield.connect(user).buyBond(amountUnderlying, minGain, currentTime().add(20), forDays);
+    await smartYield.connect(user).buyBond(amountUnderlying, minGain, TIME_IN_FUTURE, forDays, {gasLimit: 2_000_000});
   };
 };
 
 export const redeemBond = (smartYield: SmartYield) => {
   return async (user: Wallet, id: number | BN): Promise<void> => {
     id = toBN(id);
-    await smartYield.connect(user).redeemBond(id);
+    await smartYield.connect(user).redeemBond(id, { gasLimit: 2_000_000 });
   };
 };
 

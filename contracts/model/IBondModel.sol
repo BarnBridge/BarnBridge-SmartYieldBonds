@@ -4,8 +4,8 @@ pragma abicoder v2;
 
 interface IBondModel {
 
-    function gain(address pool_, uint256 principal_, uint16 forDays_) external view returns (uint256);
+    function gain(uint256 total_, uint256 loanable_, uint256 dailyRate_, uint256 principal_, uint16 forDays_) external pure returns (uint256);
 
-    function maxDailyRate(address pool_) external view returns (uint256);
+    function maxDailyRate(uint256 total_, uint256 loanable_, uint256 dailyRate_) external pure returns (uint256);
 
 }
