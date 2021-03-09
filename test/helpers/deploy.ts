@@ -10,7 +10,7 @@ import { Erc20Mock } from '@typechain/Erc20Mock';
 
 import YieldOracleArtifact from './../../artifacts/contracts/oracle/YieldOracle.sol/YieldOracle.json';
 import { YieldOracle } from '@typechain/YieldOracle';
-import { IYieldOraclelizable } from '@typechain/IYieldOraclelizable';
+import { IBondModel } from '@typechain/IBondModel';
 
 import YieldOracleMockArtifact from './../../artifacts/contracts/mocks/barnbridge/YieldOracleMock.sol/YieldOracleMock.json';
 import { YieldOracleMock } from '@typechain/YieldOracleMock';
@@ -72,8 +72,8 @@ export const deployYieldOracleMock = (deployerSign: Wallet): Promise<YieldOracle
   return (deployContract(deployerSign, YieldOracleMockArtifact, [])) as Promise<YieldOracleMock>;
 };
 
-export const deployCompoundController = (deployerSign: Wallet, pool: CompoundProvider, smartYield: SmartYield, uniswapPath: string[] = []): Promise<CompoundController> => {
-  return (deployContract(deployerSign, CompoundControllerArtifact, [pool.address, smartYield.address, uniswapPath])) as Promise<CompoundController>;
+export const deployCompoundController = (deployerSign: Wallet, poolAddress: string, smartYieldAddress: string, bondModelAddress: string, uniswapPath: string[] = []): Promise<CompoundController> => {
+  return (deployContract(deployerSign, CompoundControllerArtifact, [poolAddress, smartYieldAddress, bondModelAddress, uniswapPath])) as Promise<CompoundController>;
 };
 
 export const deployJuniorBondMock = (deployerSign: Wallet, smartYield: SmartYield): Promise<JuniorBond> => {
