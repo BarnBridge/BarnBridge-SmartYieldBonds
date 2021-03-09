@@ -22,11 +22,8 @@ import {
   redeemBond,
   currentTime, toBN, deployHarvestMockWorld, deployCompoundProvider, deploySmartYield, deploySeniorBond, deployJuniorBond, TIME_IN_FUTURE, A_HOUR
 } from '@testhelp/index';
-import { Erc20MockFactory } from '@typechain/Erc20MockFactory';
-import { UniswapMockFactory } from '@typechain/UniswapMockFactory';
-import { CompOracleMockFactory } from '@typechain/CompOracleMockFactory';
-import { ERC20Factory } from '@typechain/Erc20Factory';
-import { ICTokenFactory } from '@typechain/IcTokenFactory';
+import { ERC20Factory } from '@typechain/ERC20Factory';
+import { ICTokenFactory } from '@typechain/ICTokenFactory';
 import { IComptrollerFactory } from '@typechain/IComptrollerFactory';
 
 const supplyRatePerBlock = BN.from('40749278849'); // 8.94% // 89437198474492656

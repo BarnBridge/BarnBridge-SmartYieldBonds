@@ -7,8 +7,8 @@ import { ethers } from 'hardhat';
 
 import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY } from '@testhelp/index';
 
-import { ERC20Factory } from '@typechain/Erc20Factory';
-import { ICTokenFactory } from '@typechain/IcTokenFactory';
+import { ERC20Factory } from '@typechain/ERC20Factory';
+import { ICTokenFactory } from '@typechain/ICTokenFactory';
 import { ICToken } from '@typechain/ICToken';
 import { IComptrollerFactory } from '@typechain/IComptrollerFactory';
 import { SmartYield } from '@typechain/SmartYield';

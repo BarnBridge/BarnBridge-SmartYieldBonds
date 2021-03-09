@@ -7,14 +7,10 @@ import { ethers } from 'hardhat';
 
 import { bbFixtures, e18, e6, toBN, deployHarvestMockWorld, deployCompoundControllerHarvestMock, TIME_IN_FUTURE, deployBondModel } from '@testhelp/index';
 
-import { ERC20Factory } from '@typechain/Erc20Factory';
-import { ICTokenFactory } from '@typechain/IcTokenFactory';
 import { ICToken } from '@typechain/ICToken';
-import { IComptrollerFactory } from '@typechain/IComptrollerFactory';
 import { SmartYield } from '@typechain/SmartYield';
 import { CompoundProvider } from '@typechain/CompoundProvider';
 import { ERC20 } from '@typechain/ERC20';
-import { Erc20Mock } from '@typechain/Erc20Mock';
 import { Erc20MockFactory } from '@typechain/Erc20MockFactory';
 import { UniswapMockFactory } from '@typechain/UniswapMockFactory';
 import { CompOracleMockFactory } from '@typechain/CompOracleMockFactory';

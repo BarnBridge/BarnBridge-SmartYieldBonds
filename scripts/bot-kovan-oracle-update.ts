@@ -6,11 +6,11 @@ const smartYieldAddr = '0xD165c8CAE4D824E75588282821C57fB3b74c7f33';
 
 // -----
 import { Wallet, BigNumber as BN } from 'ethers';
-import { run, ethers } from 'hardhat';
+import { ethers } from 'hardhat';
 import { YieldOracleFactory } from '@typechain/YieldOracleFactory';
 import { YieldOracle } from '@typechain/YieldOracle';
 import { SmartYieldFactory } from '@typechain/SmartYieldFactory';
-import { ICTokenFactory } from '@typechain/IcTokenFactory';
+import { ICTokenFactory } from '@typechain/ICTokenFactory';
 import { CompoundProviderFactory } from '@typechain/CompoundProviderFactory';
 import { ICToken } from '@typechain/ICToken';
 
