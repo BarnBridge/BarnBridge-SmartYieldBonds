@@ -64,6 +64,47 @@ const fixture = (decimals: number) => {
 describe('junior bonds: buyJuniorBond()', async function () {
   describe('purchase junior bonds', async function () {
 
+    it('buyJuniorBond works if abond maturesAt is in the past', async function () {
+      const { pool, smartYield, oracle, bondModel, underlying, controller, seniorBond, juniorBond, buyTokens, buyBond, buyJuniorBond, redeemJuniorBond, junior1, junior2, junior3, senior1, senior2 } = await bbFixtures(fixture(decimals));
+      await controller.setProviderRatePerDay(true, supplyRatePerBlock.mul(BLOCKS_PER_DAY));
+
+      await buyTokens(junior1, e18(1000));
+      await buyTokens(junior2, e18(1500));
+
+      const junior1Tokens = await smartYield.callStatic.balanceOf(junior1.address);
+      const junior2Tokens = await smartYield.callStatic.balanceOf(junior2.address);
+
+      await forceTime(A_DAY * 3);
+
+      await buyBond(senior1, e18(2000), 0, 30);
+      await forceTime(A_DAY * 40);
+
+      const abond = await smartYield.callStatic.abond();
+      let juniorBondsMaturingAt = await smartYield.callStatic.juniorBondsMaturingAt(abond.maturesAt.div(e18(1)).add(1));
+      expect(juniorBondsMaturingAt.price, 'before liquidation price is 0').deep.equal(BN.from(0));
+
+      await buyJuniorBond(junior1, junior1Tokens, TIME_IN_FUTURE);
+      const junior1UnderlyingGot = await underlying.callStatic.balanceOf(junior1.address);
+
+      juniorBondsMaturingAt = await smartYield.callStatic.juniorBondsMaturingAt(abond.maturesAt.div(e18(1)).add(1));
+
+      expect(await smartYield.callStatic.underlyingLiquidatedJuniors(), 'underlyingLiquidatedJuniors is 0 (1)').deep.equal(BN.from(0));
+      expect(await smartYield.callStatic.tokensInJuniorBonds(), 'tokensInJuniorBonds is 0 (1)').deep.equal(BN.from(0));
+      expect(junior1Tokens.mul(juniorBondsMaturingAt.price).div(e18(1)), 'junior1 got correct underlying').deep.equal(junior1UnderlyingGot);
+
+      expect(juniorBondsMaturingAt.price.gt(0), 'liquidation price is gt than 0').equal(true);
+
+      await forceTime(A_DAY * 5);
+
+      await buyJuniorBond(junior2, junior2Tokens, TIME_IN_FUTURE);
+
+      const junior2UnderlyingGot = await underlying.callStatic.balanceOf(junior2.address);
+
+      expect(await smartYield.callStatic.underlyingLiquidatedJuniors(), 'underlyingLiquidatedJuniors is 0 (2)').deep.equal(BN.from(0));
+      expect(await smartYield.callStatic.tokensInJuniorBonds(), 'tokensInJuniorBonds is 0 (2)').deep.equal(BN.from(0));
+      expect(junior2Tokens.mul(juniorBondsMaturingAt.price).div(e18(1)), 'junior2 got correct underlying').deep.equal(junior2UnderlyingGot);
+    });
+
     it('barnbridge oz c01 example test', async function () {
       const { pool, smartYield, oracle, bondModel, underlying, controller, seniorBond, juniorBond, buyTokens, buyBond, buyJuniorBond, redeemJuniorBond, junior1, junior2, junior3, senior1, senior2 } = await bbFixtures(fixture(decimals));
       await controller.setProviderRatePerDay(true, supplyRatePerBlock.mul(BLOCKS_PER_DAY));
