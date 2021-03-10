@@ -8,13 +8,11 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./lib/math/MathUtils.sol";
 
 import "./IController.sol";
-import "./oracle/IYieldOraclelizable.sol";
 import "./ISmartYield.sol";
 
 import "./IProvider.sol";
 
 import "./model/IBondModel.sol";
-import "./oracle/IYieldOracle.sol";
 import "./IBond.sol";
 import "./JuniorToken.sol";
 

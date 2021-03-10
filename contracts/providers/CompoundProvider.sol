@@ -9,12 +9,9 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "./../external-interfaces/compound-finance/ICToken.sol";
 import "./../external-interfaces/compound-finance/IComptroller.sol";
 
-import "./../lib/math/MathUtils.sol";
-
 import "./CompoundController.sol";
 
 import "./ICompoundCumulator.sol";
-import "./../oracle/IYieldOracle.sol";
 import "./../IProvider.sol";
 
 contract CompoundProvider is IProvider {
