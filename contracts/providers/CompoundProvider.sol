@@ -132,7 +132,13 @@ contract CompoundProvider is IProvider {
       external override
       onlySmartYieldOrController
     {
+        uint256 balanceBefore = IERC20(uToken).balanceOf(address(this));
         IERC20(uToken).safeTransferFrom(from_, address(this), underlyingAmount_);
+        uint256 balanceAfter = IERC20(uToken).balanceOf(address(this));
+        require(
+          0 == (balanceAfter - balanceBefore - underlyingAmount_),
+          "PPC: _takeUnderlying amount"
+        );
     }
 
     // transfer away underlyingAmount_ to to_
@@ -140,7 +146,13 @@ contract CompoundProvider is IProvider {
       external override
       onlySmartYield
     {
+        uint256 balanceBefore = IERC20(uToken).balanceOf(to_);
         IERC20(uToken).safeTransfer(to_, underlyingAmount_);
+        uint256 balanceAfter = IERC20(uToken).balanceOf(to_);
+        require(
+          0 == (balanceAfter - balanceBefore - underlyingAmount_),
+          "PPC: _sendUnderlying amount"
+        );
     }
 
     // deposit underlyingAmount_ with the liquidity provider, callable by smartYield or controller
