@@ -23,12 +23,12 @@ contract BondModelV1 is IBondModel {
     {
         uint256 aproxGain = MathUtils.compound2(
           principal_,
-          //dailyRate * (loanable * 1e18 / (total + principal)) / 1e18,
-          uint256(1e18).mul(dailyRate_).mul(loanable_) / (total_ + principal_) / 1e18,
+          //dailyRate * (loanable / (total + principal)),
+          dailyRate_.mul(loanable_).div(total_.add(principal_)),
           forDays_
         ).sub(principal_);
 
-        uint256 rate = uint256(1e18).mul(dailyRate_).mul(loanable_.sub(aproxGain, "BondModelV1: liquidity")) / (total_ + principal_) / 1e18;
+        uint256 rate = dailyRate_.mul(loanable_.sub(aproxGain, "BondModelV1: liquidity")).div(total_.add(principal_));
 
         return MathUtils.compound2(principal_, rate, forDays_).sub(principal_);
     }
@@ -44,7 +44,7 @@ contract BondModelV1 is IBondModel {
       if (0 == total_) {
         return 0;
       }
-      return uint256(1e18).mul(dailyRate_).mul(loanable_) / (total_) / 1e18;
+      return dailyRate_.mul(loanable_).div(total_);
     }
 
 }
