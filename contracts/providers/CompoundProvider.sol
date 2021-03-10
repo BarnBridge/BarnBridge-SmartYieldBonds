@@ -166,7 +166,8 @@ contract CompoundProvider is IProvider {
     function _depositProviderInternal(uint256 underlyingAmount_, uint256 takeFees_)
       internal
     {
-        underlyingFees += takeFees_;
+        // underlyingFees += takeFees_
+        underlyingFees = underlyingFees.add(takeFees_);
 
         ICompoundCumulator(controller)._beforeCTokenBalanceChange();
         IERC20(uToken).approve(address(cToken), underlyingAmount_);
@@ -190,7 +191,8 @@ contract CompoundProvider is IProvider {
     function _withdrawProviderInternal(uint256 underlyingAmount_, uint256 takeFees_)
       internal
     {
-        underlyingFees += takeFees_;
+        // underlyingFees += takeFees_;
+        underlyingFees = underlyingFees.add(takeFees_);
 
         ICompoundCumulator(controller)._beforeCTokenBalanceChange();
         uint256 err = ICToken(cToken).redeemUnderlying(underlyingAmount_);
