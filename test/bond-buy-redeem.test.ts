@@ -103,7 +103,7 @@ describe('buyBond() / redeemBond()', async function () {
       await expect(smartYield.buyBond(e18(1), 0, TIME_IN_FUTURE, 101), 'should throw for > BOND_MAX_LIFE days bond (2)').revertedWith('SY: buyBond forDays');
       await expect(smartYield.buyBond(e18(1), 0, TIME_IN_FUTURE, 100), 'should not throw (2)').not.revertedWith('SY: buyBond forDays');
 
-      await expect(smartYield.buyBond(e18(1), 0, TIME_IN_FUTURE, 100), 'should throw if no allowance').revertedWith('PPC: _takeUnderlying allowance');
+      await expect(smartYield.buyBond(e18(1), 0, TIME_IN_FUTURE, 100), 'should throw if no allowance').reverted;
 
       const now = await currentTime();
       await expect(smartYield.buyBond(e18(1), 0, now, 10), 'should throw for deadline').revertedWith('SY: buyBond deadline');

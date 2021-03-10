@@ -91,11 +91,11 @@ describe('CompoundProvider._takeUnderlying() / CompoundProvider._sendUnderlying(
     expect(await underlying.balanceOf(userAddr), 'should have 1 underlying').deep.equal(e18(1));
     expect(await underlying.balanceOf(pool.address), 'should have 0 underlying').deep.equal(BN.from(0));
 
-    await expect(pool.connect(smartYieldSign)._takeUnderlying(userAddr, e18(1)), 'revert with no allowance').revertedWith('PPC: _takeUnderlying allowance');
+    await expect(pool.connect(smartYieldSign)._takeUnderlying(userAddr, e18(1)), 'revert with no allowance').reverted;
 
     await underlying.connect(userSign).approve(pool.address, e18(0.5));
 
-    await expect(pool.connect(smartYieldSign)._takeUnderlying(userAddr, e18(1)), 'revert with not enought allowance').revertedWith('PPC: _takeUnderlying allowance');
+    await expect(pool.connect(smartYieldSign)._takeUnderlying(userAddr, e18(1)), 'revert with not enought allowance').reverted;
 
     await underlying.connect(userSign).approve(pool.address, e18(1));
 
