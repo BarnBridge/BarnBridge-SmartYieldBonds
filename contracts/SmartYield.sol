@@ -147,12 +147,12 @@ contract SmartYield is
         );
 
         require(
-          this.currentTime() <= deadline_,
+          block.timestamp <= deadline_,
           "SY: buyTokens deadline"
         );
 
         uint256 fee = MathUtils.fractionOf(underlyingAmount_, IController(controller).FEE_BUY_JUNIOR_TOKEN());
-        uint256 getsTokens = (underlyingAmount_ - fee) * 1e18 / this.price();
+        uint256 getsTokens = (underlyingAmount_ - fee) * 1e18 / price();
 
         require(
           getsTokens >= minTokens_,
@@ -181,15 +181,15 @@ contract SmartYield is
         _beforeProviderOp();
 
         require(
-          this.currentTime() <= deadline_,
+          block.timestamp <= deadline_,
           "SY: sellTokens deadline"
         );
 
         // share of these tokens in the debt
         uint256 debtShare = tokenAmount_ * 1e18 / totalSupply();
-        uint256 forfeits = (this.abondDebt() * debtShare) / 1e18;
+        uint256 forfeits = (abondDebt() * debtShare) / 1e18;
         // debt share is forfeit, and only diff is returned to user
-        uint256 toPay = (tokenAmount_ * this.price()) / 1e18 - forfeits;
+        uint256 toPay = (tokenAmount_ * price()) / 1e18 - forfeits;
 
         require(
           toPay >= minUnderlying_,
@@ -226,7 +226,7 @@ contract SmartYield is
         );
 
         require(
-          this.currentTime() <= deadline_,
+          block.timestamp <= deadline_,
           "SY: buyBond deadline"
         );
 
@@ -235,7 +235,7 @@ contract SmartYield is
             "SY: buyBond forDays"
         );
 
-        uint256 gain = this.bondGain(principalAmount_, forDays_);
+        uint256 gain = bondGain(principalAmount_, forDays_);
 
         require(
           gain >= minGain_,
@@ -248,11 +248,11 @@ contract SmartYield is
         );
 
         require(
-          gain < this.underlyingLoanable(),
+          gain < underlyingLoanable(),
           "SY: buyBond underlyingLoanable"
         );
 
-        uint256 issuedAt = this.currentTime();
+        uint256 issuedAt = block.timestamp;
 
         // ---
 
@@ -288,7 +288,7 @@ contract SmartYield is
         uint256 maturesAt = 1 + abond.maturesAt / 1e18;
 
         require(
-          this.currentTime() <= deadline_,
+          block.timestamp <= deadline_,
           "SY: buyJuniorBond deadline"
         );
 
@@ -312,7 +312,7 @@ contract SmartYield is
         emit BuyJuniorBond(buyer, juniorBondId, tokenAmount_, maturesAt);
 
         // if abond.maturesAt is past we can liquidate, but juniorBondsMaturingAt might have already been liquidated
-        if (this.currentTime() >= maturesAt) {
+        if (block.timestamp >= maturesAt) {
             JuniorBondsAt memory jBondsAt = juniorBondsMaturingAt[jb.maturesAt];
 
             if (jBondsAt.price == 0) {
@@ -336,7 +336,7 @@ contract SmartYield is
         _beforeProviderOp();
 
         require(
-            this.currentTime() >= seniorBonds[bondId_].maturesAt,
+            block.timestamp >= seniorBonds[bondId_].maturesAt,
             "SY: redeemBond not matured"
         );
 
@@ -370,7 +370,7 @@ contract SmartYield is
 
         JuniorBond memory jb = juniorBonds[jBondId_];
         require(
-            jb.maturesAt <= this.currentTime(),
+            jb.maturesAt <= block.timestamp,
             "SY: redeemJuniorBond maturesAt"
         );
 
@@ -390,20 +390,6 @@ contract SmartYield is
         emit RedeemJuniorBond(payTo, jBondId_, payAmnt);
     }
 
-    // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
-    function bondGain(uint256 principalAmount_, uint16 forDays_)
-      external override
-    returns (uint256)
-    {
-      return IBondModel(IController(controller).bondModel()).gain(
-        this.underlyingTotal(),
-        this.underlyingLoanable(),
-        IController(controller).providerRatePerDay(),
-        principalAmount_,
-        forDays_
-      );
-    }
-
     // returns the maximum theoretically possible daily rate for senior bonds,
     // in reality the actual rate given to a bond will always be lower due to slippage
     function maxBondDailyRate()
@@ -411,8 +397,8 @@ contract SmartYield is
     returns (uint256)
     {
       return IBondModel(IController(controller).bondModel()).maxDailyRate(
-        this.underlyingTotal(),
-        this.underlyingLoanable(),
+        underlyingTotal(),
+        underlyingLoanable(),
         IController(controller).providerRatePerDay()
       );
     }
@@ -421,12 +407,18 @@ contract SmartYield is
 
   // publics
 
-    function currentTime()
-      public view virtual override
+    // given a principal amount and a number of days, compute the guaranteed bond gain, excluding principal
+    function bondGain(uint256 principalAmount_, uint16 forDays_)
+      public override
     returns (uint256)
     {
-        // mockable
-        return block.timestamp;
+      return IBondModel(IController(controller).bondModel()).gain(
+        underlyingTotal(),
+        underlyingLoanable(),
+        IController(controller).providerRatePerDay(),
+        principalAmount_,
+        forDays_
+      );
     }
 
     // jToken price * 1e18
@@ -435,7 +427,7 @@ contract SmartYield is
     returns (uint256)
     {
         uint256 ts = totalSupply();
-        return (ts == 0) ? 1e18 : (this.underlyingJuniors() * 1e18) / ts;
+        return (ts == 0) ? 1e18 : (underlyingJuniors() * 1e18) / ts;
     }
 
     function underlyingTotal()
@@ -449,7 +441,7 @@ contract SmartYield is
       public virtual override
     returns (uint256)
     {
-        return this.underlyingTotal() - abond.principal - this.abondPaid();
+        return underlyingTotal() - abond.principal - abondPaid();
     }
 
     function underlyingLoanable()
@@ -457,7 +449,7 @@ contract SmartYield is
     returns (uint256)
     {
         // underlyingTotal - abond.principal - abond.gain - queued withdrawls
-        return this.underlyingTotal() - abond.principal - abond.gain - (tokensInJuniorBonds * this.price() / 1e18);
+        return underlyingTotal() - abond.principal - abond.gain - (tokensInJuniorBonds * price() / 1e18);
     }
 
     function abondGain()
@@ -471,20 +463,20 @@ contract SmartYield is
       public view override
     returns (uint256)
     {
-        uint256 ts = this.currentTime() * 1e18;
+        uint256 ts = block.timestamp * 1e18;
         if (ts <= abond.issuedAt || (abond.maturesAt <= abond.issuedAt)) {
           return 0;
         }
 
         uint256 d = abond.maturesAt - abond.issuedAt;
-        return (this.abondGain() * MathUtils.min(ts - abond.issuedAt, d)) / d;
+        return (abondGain() * MathUtils.min(ts - abond.issuedAt, d)) / d;
     }
 
     function abondDebt()
       public view override
     returns (uint256)
     {
-        return this.abondGain() - this.abondPaid();
+        return abondGain() - abondPaid();
     }
 
   // /publics
@@ -492,11 +484,12 @@ contract SmartYield is
   // internals
 
     function _beforeProviderOp() internal {
+      uint256 currentTime = block.timestamp;
       // this modifier will be added to the begginging of all (write) functions.
       // The first tx after a queued liquidation's timestamp will trigger the liquidation
       // reducing the jToken supply, and setting aside owed_dai for withdrawals
       for (uint256 i = juniorBondsMaturitiesPrev; i < juniorBondsMaturities.length; i++) {
-          if (this.currentTime() >= juniorBondsMaturities[i]) {
+          if (currentTime >= juniorBondsMaturities[i]) {
               _liquidateJuniorsAt(juniorBondsMaturities[i]);
               juniorBondsMaturitiesPrev = i + 1;
           } else {
@@ -520,7 +513,7 @@ contract SmartYield is
           "SY: already liquidated"
         );
 
-        jBondsAt.price = this.price();
+        jBondsAt.price = price();
 
         // ---
 
@@ -531,9 +524,11 @@ contract SmartYield is
 
     // removes matured seniorBonds from being accounted in abond
     function unaccountBonds(uint256[] memory bondIds_) public override {
+      uint256 currentTime = block.timestamp;
+
       for (uint256 f = 0; f < bondIds_.length; f++) {
         if (
-            this.currentTime() > seniorBonds[bondIds_[f]].maturesAt &&
+            currentTime > seniorBonds[bondIds_[f]].maturesAt &&
             seniorBonds[bondIds_[f]].liquidated == false
         ) {
             seniorBonds[bondIds_[f]].liquidated = true;
@@ -562,11 +557,11 @@ contract SmartYield is
     function _accountBond(SeniorBond memory b_)
       internal
     {
-        uint256 _now = this.currentTime() * 1e18;
+        uint256 _now = block.timestamp * 1e18;
 
-        uint256 newDebt = this.abondDebt() + b_.gain;
-        // for the very first bond or the first bond after abond maturity: this.abondDebt() = 0 => newMaturesAt = b.maturesAt
-        uint256 newMaturesAt = (abond.maturesAt * this.abondDebt() + b_.maturesAt * 1e18 * b_.gain) / newDebt;
+        uint256 newDebt = abondDebt() + b_.gain;
+        // for the very first bond or the first bond after abond maturity: abondDebt() = 0 => newMaturesAt = b.maturesAt
+        uint256 newMaturesAt = (abond.maturesAt * abondDebt() + b_.maturesAt * 1e18 * b_.gain) / newDebt;
 
         // timestamp = timestamp - tokens * d / tokens
         uint256 newIssuedAt = newMaturesAt.sub(uint256(1) + ((abond.gain + b_.gain) * (newMaturesAt - _now)) / newDebt, "SY: liquidate some seniorBonds");
@@ -586,11 +581,11 @@ contract SmartYield is
     function _unaccountBond(SeniorBond memory b_)
       internal
     {
-        uint256 now_ = this.currentTime() * 1e18;
+        uint256 now_ = block.timestamp * 1e18;
 
         if ((now_ >= abond.maturesAt)) {
           // abond matured
-          // this.abondDebt() == 0
+          // abondDebt() == 0
           abond = SeniorBond(
             abond.principal - b_.principal,
             abond.gain - b_.gain,
@@ -603,7 +598,7 @@ contract SmartYield is
         }
 
         // timestamp = timestamp - tokens * d / tokens
-        uint256 newIssuedAt = abond.maturesAt.sub(uint256(1) + (abond.gain - b_.gain) * (abond.maturesAt - now_) / this.abondDebt(), "SY: liquidate some seniorBonds");
+        uint256 newIssuedAt = abond.maturesAt.sub(uint256(1) + (abond.gain - b_.gain) * (abond.maturesAt - now_) / abondDebt(), "SY: liquidate some seniorBonds");
 
         abond = SeniorBond(
           abond.principal - b_.principal,
@@ -637,7 +632,7 @@ contract SmartYield is
         JuniorBondsAt storage jBondsAt = juniorBondsMaturingAt[jb_.maturesAt];
         uint256 tmp;
 
-        if (jBondsAt.tokens == 0 && this.currentTime() < jb_.maturesAt) {
+        if (jBondsAt.tokens == 0 && block.timestamp < jb_.maturesAt) {
           juniorBondsMaturities.push(jb_.maturesAt);
           for (uint256 i = juniorBondsMaturities.length - 1; i >= MathUtils.max(1, juniorBondsMaturitiesPrev); i--) {
             if (juniorBondsMaturities[i] > juniorBondsMaturities[i - 1]) {

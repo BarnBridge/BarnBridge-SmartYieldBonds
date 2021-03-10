@@ -22,12 +22,17 @@ library MathUtils {
         uint256 ratePerPeriod,
         uint16 periods
     ) internal pure returns (uint256) {
-        while (periods > 0) {
-            // principal += principal * ratePerPeriod / 1e18;
-            principal = principal.add(principal.mul(ratePerPeriod).div(1e18));
-            periods -= 1;
-        }
+      if (0 == ratePerPeriod) {
         return principal;
+      }
+
+      while (periods > 0) {
+          // principal += principal * ratePerPeriod / 1e18;
+          principal = principal.add(principal.mul(ratePerPeriod).div(1e18));
+          periods -= 1;
+      }
+
+      return principal;
     }
 
     function compound2(
@@ -35,6 +40,10 @@ library MathUtils {
       uint256 ratePerPeriod,
       uint16 periods
     ) internal pure returns (uint256) {
+      if (0 == ratePerPeriod) {
+        return principal;
+      }
+
       while (periods > 0) {
         if (periods % 2 == 1) {
           //principal += principal * ratePerPeriod / 1e18;
@@ -46,6 +55,7 @@ library MathUtils {
           periods /= 2;
         }
       }
+
       return principal;
     }
 
