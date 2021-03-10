@@ -406,6 +406,10 @@ contract SmartYield is
     function liquidateJuniorBonds(uint256 upUntilTimestamp_)
       external override
     {
+      require(
+        upUntilTimestamp_ <= block.timestamp,
+        "SY: liquidateJuniorBonds in future"
+      );
       _beforeProviderOp(upUntilTimestamp_);
     }
 
