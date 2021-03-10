@@ -139,7 +139,7 @@ contract SmartYield is
     )
       external override
     {
-        _beforeProviderOp();
+        _beforeProviderOp(block.timestamp);
 
         require(
           false == IController(controller).PAUSED_BUY_JUNIOR_TOKEN(),
@@ -178,7 +178,7 @@ contract SmartYield is
     )
       external override
     {
-        _beforeProviderOp();
+        _beforeProviderOp(block.timestamp);
 
         require(
           block.timestamp <= deadline_,
@@ -218,7 +218,7 @@ contract SmartYield is
       external override
       returns (uint256)
     {
-        _beforeProviderOp();
+        _beforeProviderOp(block.timestamp);
 
         require(
           false == IController(controller).PAUSED_BUY_SENIOR_BOND(),
@@ -333,7 +333,7 @@ contract SmartYield is
     )
       external override
     {
-        _beforeProviderOp();
+        _beforeProviderOp(block.timestamp);
 
         require(
             block.timestamp >= seniorBonds[bondId_].maturesAt,
@@ -366,7 +366,7 @@ contract SmartYield is
     function redeemJuniorBond(uint256 jBondId_)
         external override
     {
-        _beforeProviderOp();
+        _beforeProviderOp(block.timestamp);
 
         JuniorBond memory jb = juniorBonds[jBondId_];
         require(
@@ -401,6 +401,16 @@ contract SmartYield is
         underlyingLoanable(),
         IController(controller).providerRatePerDay()
       );
+    }
+
+    function liquidateJuniorBonds(uint256 upUntilTimestamp_)
+      external override
+    {
+      require(
+        upUntilTimestamp_ <= block.timestamp,
+        "SY: liquidateJuniorBonds in future"
+      );
+      _beforeProviderOp(upUntilTimestamp_);
     }
 
   // /externals
@@ -483,13 +493,13 @@ contract SmartYield is
 
   // internals
 
-    function _beforeProviderOp() internal {
-      uint256 currentTime = block.timestamp;
+    // liquidates junior bonds up to upUntilTimestamp_ timestamp
+    function _beforeProviderOp(uint256 upUntilTimestamp_) internal {
       // this modifier will be added to the begginging of all (write) functions.
       // The first tx after a queued liquidation's timestamp will trigger the liquidation
       // reducing the jToken supply, and setting aside owed_dai for withdrawals
       for (uint256 i = juniorBondsMaturitiesPrev; i < juniorBondsMaturities.length; i++) {
-          if (currentTime >= juniorBondsMaturities[i]) {
+          if (upUntilTimestamp_ >= juniorBondsMaturities[i]) {
               _liquidateJuniorsAt(juniorBondsMaturities[i]);
               juniorBondsMaturitiesPrev = i + 1;
           } else {
@@ -523,7 +533,9 @@ contract SmartYield is
     }
 
     // removes matured seniorBonds from being accounted in abond
-    function unaccountBonds(uint256[] memory bondIds_) public override {
+    function unaccountBonds(uint256[] memory bondIds_)
+      external override
+    {
       uint256 currentTime = block.timestamp;
 
       for (uint256 f = 0; f < bondIds_.length; f++) {
