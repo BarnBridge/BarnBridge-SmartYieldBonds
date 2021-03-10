@@ -53,6 +53,8 @@ interface ISmartYield {
 
     function redeemJuniorBond(uint256 jBondId_) external;
 
+    function liquidateJuniorBonds(uint256 upUntilTimestamp_) external;
+
     /**
      * token purchase price
      */
