@@ -147,7 +147,7 @@ contract SmartYield is
         );
 
         require(
-          this.currentTime() <= deadline_,
+          block.timestamp <= deadline_,
           "SY: buyTokens deadline"
         );
 
@@ -181,7 +181,7 @@ contract SmartYield is
         _beforeProviderOp();
 
         require(
-          this.currentTime() <= deadline_,
+          block.timestamp <= deadline_,
           "SY: sellTokens deadline"
         );
 
@@ -226,7 +226,7 @@ contract SmartYield is
         );
 
         require(
-          this.currentTime() <= deadline_,
+          block.timestamp <= deadline_,
           "SY: buyBond deadline"
         );
 
@@ -252,7 +252,7 @@ contract SmartYield is
           "SY: buyBond underlyingLoanable"
         );
 
-        uint256 issuedAt = this.currentTime();
+        uint256 issuedAt = block.timestamp;
 
         // ---
 
@@ -288,7 +288,7 @@ contract SmartYield is
         uint256 maturesAt = 1 + abond.maturesAt / 1e18;
 
         require(
-          this.currentTime() <= deadline_,
+          block.timestamp <= deadline_,
           "SY: buyJuniorBond deadline"
         );
 
@@ -312,7 +312,7 @@ contract SmartYield is
         emit BuyJuniorBond(buyer, juniorBondId, tokenAmount_, maturesAt);
 
         // if abond.maturesAt is past we can liquidate, but juniorBondsMaturingAt might have already been liquidated
-        if (this.currentTime() >= maturesAt) {
+        if (block.timestamp >= maturesAt) {
             JuniorBondsAt memory jBondsAt = juniorBondsMaturingAt[jb.maturesAt];
 
             if (jBondsAt.price == 0) {
@@ -336,7 +336,7 @@ contract SmartYield is
         _beforeProviderOp();
 
         require(
-            this.currentTime() >= seniorBonds[bondId_].maturesAt,
+            block.timestamp >= seniorBonds[bondId_].maturesAt,
             "SY: redeemBond not matured"
         );
 
@@ -370,7 +370,7 @@ contract SmartYield is
 
         JuniorBond memory jb = juniorBonds[jBondId_];
         require(
-            jb.maturesAt <= this.currentTime(),
+            jb.maturesAt <= block.timestamp,
             "SY: redeemJuniorBond maturesAt"
         );
 
@@ -421,14 +421,6 @@ contract SmartYield is
 
   // publics
 
-    function currentTime()
-      public view virtual override
-    returns (uint256)
-    {
-        // mockable
-        return block.timestamp;
-    }
-
     // jToken price * 1e18
     function price()
       public override
@@ -471,7 +463,7 @@ contract SmartYield is
       public view override
     returns (uint256)
     {
-        uint256 ts = this.currentTime() * 1e18;
+        uint256 ts = block.timestamp * 1e18;
         if (ts <= abond.issuedAt || (abond.maturesAt <= abond.issuedAt)) {
           return 0;
         }
@@ -492,11 +484,12 @@ contract SmartYield is
   // internals
 
     function _beforeProviderOp() internal {
+      uint256 currentTime = block.timestamp;
       // this modifier will be added to the begginging of all (write) functions.
       // The first tx after a queued liquidation's timestamp will trigger the liquidation
       // reducing the jToken supply, and setting aside owed_dai for withdrawals
       for (uint256 i = juniorBondsMaturitiesPrev; i < juniorBondsMaturities.length; i++) {
-          if (this.currentTime() >= juniorBondsMaturities[i]) {
+          if (currentTime >= juniorBondsMaturities[i]) {
               _liquidateJuniorsAt(juniorBondsMaturities[i]);
               juniorBondsMaturitiesPrev = i + 1;
           } else {
@@ -531,9 +524,11 @@ contract SmartYield is
 
     // removes matured seniorBonds from being accounted in abond
     function unaccountBonds(uint256[] memory bondIds_) public override {
+      uint256 currentTime = block.timestamp;
+      
       for (uint256 f = 0; f < bondIds_.length; f++) {
         if (
-            this.currentTime() > seniorBonds[bondIds_[f]].maturesAt &&
+            currentTime > seniorBonds[bondIds_[f]].maturesAt &&
             seniorBonds[bondIds_[f]].liquidated == false
         ) {
             seniorBonds[bondIds_[f]].liquidated = true;
@@ -562,7 +557,7 @@ contract SmartYield is
     function _accountBond(SeniorBond memory b_)
       internal
     {
-        uint256 _now = this.currentTime() * 1e18;
+        uint256 _now = block.timestamp * 1e18;
 
         uint256 newDebt = this.abondDebt() + b_.gain;
         // for the very first bond or the first bond after abond maturity: this.abondDebt() = 0 => newMaturesAt = b.maturesAt
@@ -586,7 +581,7 @@ contract SmartYield is
     function _unaccountBond(SeniorBond memory b_)
       internal
     {
-        uint256 now_ = this.currentTime() * 1e18;
+        uint256 now_ = block.timestamp * 1e18;
 
         if ((now_ >= abond.maturesAt)) {
           // abond matured
@@ -637,7 +632,7 @@ contract SmartYield is
         JuniorBondsAt storage jBondsAt = juniorBondsMaturingAt[jb_.maturesAt];
         uint256 tmp;
 
-        if (jBondsAt.tokens == 0 && this.currentTime() < jb_.maturesAt) {
+        if (jBondsAt.tokens == 0 && block.timestamp < jb_.maturesAt) {
           juniorBondsMaturities.push(jb_.maturesAt);
           for (uint256 i = juniorBondsMaturities.length - 1; i >= MathUtils.max(1, juniorBondsMaturitiesPrev); i--) {
             if (juniorBondsMaturities[i] > juniorBondsMaturities[i - 1]) {
