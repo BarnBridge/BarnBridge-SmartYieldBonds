@@ -574,7 +574,7 @@ contract SmartYield is
 
       for (uint256 f = 0; f < bondIds_.length; f++) {
         if (
-            currentTime > seniorBonds[bondIds_[f]].maturesAt &&
+            currentTime >= seniorBonds[bondIds_[f]].maturesAt &&
             seniorBonds[bondIds_[f]].liquidated == false
         ) {
             seniorBonds[bondIds_[f]].liquidated = true;
