@@ -22,6 +22,9 @@ contract SmartYield is
 {
     using SafeMath for uint256;
 
+    uint256 public constant MAX_UINT256 = uint256(-1);
+    uint256 public constant EXP_SCALE = 1e18;
+
     // controller address
     address public override controller;
 
@@ -150,8 +153,8 @@ contract SmartYield is
         );
 
         uint256 fee = MathUtils.fractionOf(underlyingAmount_, IController(controller).FEE_BUY_JUNIOR_TOKEN());
-        // (underlyingAmount_ - fee) * 1e18 / price()
-        uint256 getsTokens = (underlyingAmount_.sub(fee)).mul(1e18).div(price());
+        // (underlyingAmount_ - fee) * EXP_SCALE / price()
+        uint256 getsTokens = (underlyingAmount_.sub(fee)).mul(EXP_SCALE).div(price());
 
         require(
           getsTokens >= minTokens_,
@@ -185,13 +188,13 @@ contract SmartYield is
         );
 
         // share of these tokens in the debt
-        // tokenAmount_ * 1e18 / totalSupply()
-        uint256 debtShare = tokenAmount_.mul(1e18).div(totalSupply());
-        // (abondDebt() * debtShare) / 1e18
-        uint256 forfeits = abondDebt().mul(debtShare).div(1e18);
+        // tokenAmount_ * EXP_SCALE / totalSupply()
+        uint256 debtShare = tokenAmount_.mul(EXP_SCALE).div(totalSupply());
+        // (abondDebt() * debtShare) / EXP_SCALE
+        uint256 forfeits = abondDebt().mul(debtShare).div(EXP_SCALE);
         // debt share is forfeit, and only diff is returned to user
-        // (tokenAmount_ * price()) / 1e18 - forfeits
-        uint256 toPay = tokenAmount_.mul(price()).div(1e18).sub(forfeits);
+        // (tokenAmount_ * price()) / EXP_SCALE - forfeits
+        uint256 toPay = tokenAmount_.mul(price()).div(EXP_SCALE).sub(forfeits);
 
         require(
           toPay >= minUnderlying_,
@@ -289,8 +292,8 @@ contract SmartYield is
     {
         _beforeProviderOp(block.timestamp);
 
-        // 1 + abond.maturesAt / 1e18
-        uint256 maturesAt = abond.maturesAt.div(1e18).add(1);
+        // 1 + abond.maturesAt / EXP_SCALE
+        uint256 maturesAt = abond.maturesAt.div(EXP_SCALE).add(1);
 
         require(
           block.timestamp <= deadline_,
@@ -325,9 +328,9 @@ contract SmartYield is
             } else {
                 // juniorBondsMaturingAt was previously liquidated,
                 _burn(address(this), jb.tokens); // burns user's locked tokens reducing the jToken supply
-                // underlyingLiquidatedJuniors += jb.tokens * jBondsAt.price / 1e18
+                // underlyingLiquidatedJuniors += jb.tokens * jBondsAt.price / EXP_SCALE
                 underlyingLiquidatedJuniors = underlyingLiquidatedJuniors.add(
-                  jb.tokens.mul(jBondsAt.price).div(1e18)
+                  jb.tokens.mul(jBondsAt.price).div(EXP_SCALE)
                 );
                 _unaccountJuniorBond(jb);
             }
@@ -387,8 +390,8 @@ contract SmartYield is
 
         // blows up if already burned
         address payTo = IBond(juniorBond).ownerOf(jBondId_);
-        // jBondsAt.price * jb.tokens / 1e18
-        uint256 payAmnt = jBondsAt.price.mul(jb.tokens).div(1e18);
+        // jBondsAt.price * jb.tokens / EXP_SCALE
+        uint256 payAmnt = jBondsAt.price.mul(jb.tokens).div(EXP_SCALE);
 
         // ---
 
@@ -441,14 +444,14 @@ contract SmartYield is
       );
     }
 
-    // jToken price * 1e18
+    // jToken price * EXP_SCALE
     function price()
       public override
     returns (uint256)
     {
         uint256 ts = totalSupply();
-        // (ts == 0) ? 1e18 : (underlyingJuniors() * 1e18) / ts
-        return (ts == 0) ? 1e18 : underlyingJuniors().mul(1e18).div(ts);
+        // (ts == 0) ? EXP_SCALE : (underlyingJuniors() * EXP_SCALE) / ts
+        return (ts == 0) ? EXP_SCALE : underlyingJuniors().mul(EXP_SCALE).div(ts);
     }
 
     function underlyingTotal()
@@ -473,9 +476,9 @@ contract SmartYield is
     {
         // underlyingTotal - abond.principal - abond.gain - queued withdrawls
         uint256 _underlyingTotal = underlyingTotal();
-        // abond.principal - abond.gain - (tokensInJuniorBonds * price() / 1e18)
+        // abond.principal - abond.gain - (tokensInJuniorBonds * price() / EXP_SCALE)
         uint256 _lockedUnderlying = abond.principal.add(abond.gain).add(
-          tokensInJuniorBonds.mul(price()).div(1e18)
+          tokensInJuniorBonds.mul(price()).div(EXP_SCALE)
         );
 
         if (_lockedUnderlying > _underlyingTotal) {
@@ -483,7 +486,7 @@ contract SmartYield is
           return 0;
         }
 
-        // underlyingTotal() - abond.principal - abond.gain - (tokensInJuniorBonds * price() / 1e18)
+        // underlyingTotal() - abond.principal - abond.gain - (tokensInJuniorBonds * price() / EXP_SCALE)
         return _underlyingTotal.sub(_lockedUnderlying);
     }
 
@@ -498,7 +501,7 @@ contract SmartYield is
       public view override
     returns (uint256)
     {
-        uint256 ts = block.timestamp * 1e18;
+        uint256 ts = block.timestamp * EXP_SCALE;
         if (ts <= abond.issuedAt || (abond.maturesAt <= abond.issuedAt)) {
           return 0;
         }
@@ -555,9 +558,9 @@ contract SmartYield is
 
         // ---
 
-        // underlyingLiquidatedJuniors += jBondsAt.tokens * jBondsAt.price / 1e18;
+        // underlyingLiquidatedJuniors += jBondsAt.tokens * jBondsAt.price / EXP_SCALE;
         underlyingLiquidatedJuniors = underlyingLiquidatedJuniors.add(
-          jBondsAt.tokens.mul(jBondsAt.price).div(1e18)
+          jBondsAt.tokens.mul(jBondsAt.price).div(EXP_SCALE)
         );
         _burn(address(this), jBondsAt.tokens); // burns Junior locked tokens reducing the jToken supply
         tokensInJuniorBonds = tokensInJuniorBonds.sub(jBondsAt.tokens);
@@ -584,7 +587,7 @@ contract SmartYield is
       internal
     {
         require(
-          seniorBondId < uint256(-1),
+          seniorBondId < MAX_UINT256,
           "SY: _mintBond"
         );
 
@@ -600,13 +603,13 @@ contract SmartYield is
     function _accountBond(SeniorBond memory b_)
       internal
     {
-        uint256 _now = block.timestamp * 1e18;
+        uint256 _now = block.timestamp * EXP_SCALE;
 
         //abondDebt() + b_.gain
         uint256 newDebt = abondDebt().add(b_.gain);
         // for the very first bond or the first bond after abond maturity: abondDebt() = 0 => newMaturesAt = b.maturesAt
-        // (abond.maturesAt * abondDebt() + b_.maturesAt * 1e18 * b_.gain) / newDebt
-        uint256 newMaturesAt = (abond.maturesAt.mul(abondDebt()).add(b_.maturesAt.mul(1e18).mul(b_.gain))).div(newDebt);
+        // (abond.maturesAt * abondDebt() + b_.maturesAt * EXP_SCALE * b_.gain) / newDebt
+        uint256 newMaturesAt = (abond.maturesAt.mul(abondDebt()).add(b_.maturesAt.mul(EXP_SCALE).mul(b_.gain))).div(newDebt);
 
         // (uint256(1) + ((abond.gain + b_.gain) * (newMaturesAt - _now)) / newDebt)
         uint256 newDuration = (abond.gain.add(b_.gain)).mul(newMaturesAt.sub(_now)).div(newDebt).add(1);
@@ -628,7 +631,7 @@ contract SmartYield is
     function _unaccountBond(SeniorBond memory b_)
       internal
     {
-        uint256 now_ = block.timestamp * 1e18;
+        uint256 now_ = block.timestamp * EXP_SCALE;
 
         if ((now_ >= abond.maturesAt)) {
           // abond matured
@@ -661,7 +664,7 @@ contract SmartYield is
       internal
     {
         require(
-          juniorBondId < uint256(-1),
+          juniorBondId < MAX_UINT256,
           "SY: _mintJuniorBond"
         );
 

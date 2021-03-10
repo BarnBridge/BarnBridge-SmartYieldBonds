@@ -32,7 +32,6 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     address public constant UNISWAP_ROUTER_V2 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 
     uint256 public constant MAX_UINT256 = uint256(-1);
-    uint256 public constant EXP_SCALE = 1e18;
     uint256 public constant DOUBLE_SCALE = 1e36;
 
     uint256 public constant BLOCKS_PER_DAY = 5760; // 4 * 60 * 24 (assuming 4 blocks per minute)
@@ -189,7 +188,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
         // pool share is (comp to underlying) - (harvest cost percent)
         uint256 poolShare = MathUtils.fractionOf(
           quoteSpotCompToUnderlying(compRewardSold),
-          EXP_SCALE - HARVEST_COST
+          EXP_SCALE.sub(HARVEST_COST)
         );
 
         // make sure we get at least the poolShare
@@ -303,7 +302,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
             currentUniswapPriceCumulatives
           );
 
-          uint256 poolShare = MathUtils.fractionOf(expectedCompInUnderlying, 1e18 - HARVEST_COST);
+          uint256 poolShare = MathUtils.fractionOf(expectedCompInUnderlying, EXP_SCALE.sub(HARVEST_COST));
           // cumulate a new distributionRate delta: cumulativeDistributionRate += (expectedDistributeSupplierComp in underlying - harvest cost) / prevUnderlyingBalance
           // cumulativeDistributionRate eventually overflows, but that's ok due to the way it's used in the oracle
 
@@ -418,7 +417,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     function spotDailyRate()
       public view returns (uint256)
     {
-      uint256 expectedSpotDailyDistributionRate = MathUtils.fractionOf(spotDailyDistributionRateProvider(), EXP_SCALE - HARVEST_COST);
+      uint256 expectedSpotDailyDistributionRate = MathUtils.fractionOf(spotDailyDistributionRateProvider(), EXP_SCALE.sub(HARVEST_COST));
       // spotDailySupplyRateProvider() + (spotDailyDistributionRateProvider() - fraction lost to harvest)
       return spotDailySupplyRateProvider().add(expectedSpotDailyDistributionRate);
     }

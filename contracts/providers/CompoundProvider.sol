@@ -19,6 +19,7 @@ contract CompoundProvider is IProvider {
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_UINT256 = uint256(-1);
+    uint256 public constant EXP_SCALE = 1e18;
 
     address public override smartYield;
 
@@ -226,8 +227,8 @@ contract CompoundProvider is IProvider {
     {
         // https://compound.finance/docs#protocol-math
         // (total balance in underlying) - underlyingFees
-        // cTokenBalance * exchangeRateCurrent() / 1e18 - underlyingFees;
-        return cTokenBalance.mul(exchangeRateCurrent()).div(1e18).sub(underlyingFees);
+        // cTokenBalance * exchangeRateCurrent() / EXP_SCALE - underlyingFees;
+        return cTokenBalance.mul(exchangeRateCurrent()).div(EXP_SCALE).sub(underlyingFees);
     }
   // /externals
 

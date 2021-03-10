@@ -8,6 +8,8 @@ import "./ISmartYield.sol";
 
 abstract contract IController is Governed {
 
+    uint256 public constant EXP_SCALE = 1e18;
+
     address public pool; // compound provider pool
 
     address public smartYield; // smartYield
@@ -43,6 +45,10 @@ abstract contract IController is Governed {
       public
       onlyDaoOrGuardian
     {
+        require(
+          HARVEST_COST < EXP_SCALE,
+          "IController: HARVEST_COST too large"
+        );
         HARVEST_COST = newValue_;
     }
 
