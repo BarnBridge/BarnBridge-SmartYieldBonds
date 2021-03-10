@@ -254,13 +254,13 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
 
       // only cumulate once per block
       if (0 == timeElapsed) {
-        return (cumulativeSupplyRate + cumulativeDistributionRate);
+        return cumulativeSupplyRate.add(cumulativeDistributionRate);
       }
 
       uint256 cTokenBalance = CompoundProvider(pool).cTokenBalance();
       updateCumulativesInternal(cTokenBalance, true);
 
-      return (cumulativeSupplyRate + cumulativeDistributionRate);
+      return cumulativeSupplyRate.add(cumulativeDistributionRate);
     }
 
     function updateCumulativesInternal(uint256 prevCTokenBalance_, bool pingCompound_)
