@@ -114,7 +114,7 @@ describe('Controller', async function () {
   describe('testing Icontroller and Governed', async function () {
     it('Icontroller', async function () {
       const { controller, senior1, smartYield } = await bbFixtures(fixture());
-      await expect(controller.connect(senior1).setBondMaxRatePerDay(e18(10))).to.be.revertedWith('GOV: not dao/guardian');
+      await expect(controller.connect(senior1).setBondMaxRatePerDay(e18(10))).to.be.revertedWith('GOV: not dao');
       await expect(controller.connect(senior1).setPaused(false, true)).to.be.revertedWith('GOV: not dao/guardian');
       await controller.setPaused(true, true);
       await expect(smartYield.buyTokens(toBN(10), 1, TIME_IN_FUTURE)).to.be.revertedWith('SY: buyTokens paused');
