@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "../lib/math/MathUtils.sol";
 import "./IBondModel.sol";
-import "../ISmartYield.sol";
 
 contract BondModelV1 is IBondModel {
     using SafeMath for uint256;

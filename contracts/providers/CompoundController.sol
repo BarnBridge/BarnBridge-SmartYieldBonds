@@ -21,6 +21,7 @@ import "./CompoundProvider.sol";
 
 import "./../IController.sol";
 import "./ICompoundCumulator.sol";
+import "./../oracle/IYieldOracle.sol";
 import "./../oracle/IYieldOraclelizable.sol";
 
 contract CompoundController is IController, ICompoundCumulator, IYieldOraclelizable {
