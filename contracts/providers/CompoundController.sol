@@ -303,7 +303,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
             currentUniswapPriceCumulatives
           );
 
-          uint256 poolShare = MathUtils.fractionOf(expectedCompInUnderlying, 1e18 - HARVEST_COST);
+          uint256 poolShare = MathUtils.fractionOf(expectedCompInUnderlying, EXP_SCALE - HARVEST_COST);
           // cumulate a new distributionRate delta: cumulativeDistributionRate += (expectedDistributeSupplierComp in underlying - harvest cost) / prevUnderlyingBalance
           // cumulativeDistributionRate eventually overflows, but that's ok due to the way it's used in the oracle
 

@@ -7,6 +7,8 @@ library MathUtils {
 
     using SafeMath for uint256;
 
+    uint256 public constant EXP_SCALE = 1e18;
+
     function min(uint256 x, uint256 y) internal pure returns (uint256 z) {
         z = x < y ? x : y;
     }
@@ -18,7 +20,7 @@ library MathUtils {
     function compound(
         // in wei
         uint256 principal,
-        // rate is * 1e18
+        // rate is * EXP_SCALE
         uint256 ratePerPeriod,
         uint16 periods
     ) internal pure returns (uint256) {
@@ -27,8 +29,8 @@ library MathUtils {
       }
 
       while (periods > 0) {
-          // principal += principal * ratePerPeriod / 1e18;
-          principal = principal.add(principal.mul(ratePerPeriod).div(1e18));
+          // principal += principal * ratePerPeriod / EXP_SCALE;
+          principal = principal.add(principal.mul(ratePerPeriod).div(EXP_SCALE));
           periods -= 1;
       }
 
@@ -46,12 +48,12 @@ library MathUtils {
 
       while (periods > 0) {
         if (periods % 2 == 1) {
-          //principal += principal * ratePerPeriod / 1e18;
-          principal = principal.add(principal.mul(ratePerPeriod).div(1e18));
+          //principal += principal * ratePerPeriod / EXP_SCALE;
+          principal = principal.add(principal.mul(ratePerPeriod).div(EXP_SCALE));
           periods -= 1;
         } else {
-          //ratePerPeriod = ((2 * ratePerPeriod * 1e18) + (ratePerPeriod * ratePerPeriod)) / 1e18;
-          ratePerPeriod = ((uint256(2).mul(ratePerPeriod).mul(1e18)).add(ratePerPeriod.mul(ratePerPeriod))).div(1e18);
+          //ratePerPeriod = ((2 * ratePerPeriod * EXP_SCALE) + (ratePerPeriod * ratePerPeriod)) / EXP_SCALE;
+          ratePerPeriod = ((uint256(2).mul(ratePerPeriod).mul(EXP_SCALE)).add(ratePerPeriod.mul(ratePerPeriod))).div(EXP_SCALE);
           periods /= 2;
         }
       }
@@ -59,9 +61,9 @@ library MathUtils {
       return principal;
     }
 
-    // computes a * f / 1e18
+    // computes a * f / EXP_SCALE
     function fractionOf(uint256 a, uint256 f) internal pure returns (uint256) {
-      return a.mul(f).div(1e18);
+      return a.mul(f).div(EXP_SCALE);
     }
 
 }
