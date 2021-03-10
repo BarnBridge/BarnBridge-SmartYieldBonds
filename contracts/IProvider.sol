@@ -18,7 +18,7 @@ interface IProvider {
 
     function _takeUnderlying(address from_, uint256 amount_) external;
 
-    function _sendUnderlying(address to_, uint256 amount_) external returns (bool);
+    function _sendUnderlying(address to_, uint256 amount_) external;
 
     function transferFees() external;
 
