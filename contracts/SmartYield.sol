@@ -285,6 +285,8 @@ contract SmartYield is
     )
       external override
     {
+        _beforeProviderOp(block.timestamp);
+
         uint256 maturesAt = 1 + abond.maturesAt / 1e18;
 
         require(
