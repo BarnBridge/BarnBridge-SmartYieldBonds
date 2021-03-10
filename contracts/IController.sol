@@ -43,7 +43,7 @@ abstract contract IController is Governed {
 
     function setHarvestCost(uint256 newValue_)
       public
-      onlyDaoOrGuardian
+      onlyDao
     {
         require(
           HARVEST_COST < EXP_SCALE,
@@ -54,28 +54,28 @@ abstract contract IController is Governed {
 
     function setBondMaxRatePerDay(uint256 newVal_)
       public
-      onlyDaoOrGuardian
+      onlyDao
     {
       BOND_MAX_RATE_PER_DAY = newVal_;
     }
 
     function setBondLifeMax(uint16 newVal_)
       public
-      onlyDaoOrGuardian
+      onlyDao
     {
       BOND_LIFE_MAX = newVal_;
     }
 
     function setFeeBuyJuniorToken(uint256 newVal_)
       public
-      onlyDaoOrGuardian
+      onlyDao
     {
       FEE_BUY_JUNIOR_TOKEN = newVal_;
     }
 
     function setFeeRedeemSeniorBond(uint256 newVal_)
       public
-      onlyDaoOrGuardian
+      onlyDao
     {
       FEE_REDEEM_SENIOR_BOND = newVal_;
     }
@@ -90,21 +90,21 @@ abstract contract IController is Governed {
 
     function setOracle(address newVal_)
       public
-      onlyDaoOrGuardian
+      onlyDao
     {
       oracle = newVal_;
     }
 
     function setBondModel(address newVal_)
       public
-      onlyDaoOrGuardian
+      onlyDao
     {
       bondModel = newVal_;
     }
 
     function setFeesOwner(address newVal_)
       public
-      onlyDaoOrGuardian
+      onlyDao
     {
       feesOwner = newVal_;
     }

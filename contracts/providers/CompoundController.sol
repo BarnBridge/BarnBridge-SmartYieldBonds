@@ -118,7 +118,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     // path[2] = address(uToken);
     function setUniswapPath(address[] memory newUniswapPath_)
       public virtual
-      onlyDaoOrGuardian
+      onlyDao
     {
         require(
           2 <= newUniswapPath_.length,
