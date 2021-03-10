@@ -64,6 +64,28 @@ const fixture = (decimals: number) => {
 describe('junior bonds: buyJuniorBond()', async function () {
   describe('purchase junior bonds', async function () {
 
+    it('barnbridge oz c01 example test', async function () {
+      const { pool, smartYield, oracle, bondModel, underlying, controller, seniorBond, juniorBond, buyTokens, buyBond, buyJuniorBond, redeemJuniorBond, junior1, junior2, junior3, senior1, senior2 } = await bbFixtures(fixture(decimals));
+      await controller.setProviderRatePerDay(true, supplyRatePerBlock.mul(BLOCKS_PER_DAY));
+
+      await buyTokens(junior1, e18(1000));
+      await buyTokens(junior2, e18(1500));
+      await buyTokens(junior3, e18(2500));
+
+      await forceTime(A_DAY * 3);
+
+      await buyBond(senior1, e18(2000), 0, 30);
+      await forceTime(A_DAY * 1);
+
+      await buyBond(senior2, e18(2500), 0, 30);
+
+      await buyJuniorBond(junior1, e18(1000), TIME_IN_FUTURE);
+      await buyJuniorBond(junior2, e18(1500), TIME_IN_FUTURE);
+      await buyJuniorBond(junior3, e18(2500), TIME_IN_FUTURE);
+
+      expect(await smartYield.callStatic.underlyingLoanable(), 'loanable should be 0').deep.equal(BN.from(0));
+    });
+
     it('liquidation works', async function () {
       const { pool, smartYield, oracle, bondModel, ctokenWorld, underlying, controller, seniorBond, juniorBond, buyTokens, buyBond, buyJuniorBond, redeemJuniorBond, junior1, junior2, junior3, senior1, senior2 } = await bbFixtures(fixture(decimals));
       await controller.setProviderRatePerDay(true, supplyRatePerBlock.mul(BLOCKS_PER_DAY));

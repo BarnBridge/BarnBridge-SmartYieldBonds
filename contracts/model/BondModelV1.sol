@@ -20,6 +20,10 @@ contract BondModelV1 is IBondModel {
       external pure override
     returns (uint256)
     {
+        if (0 == total_) {
+          return 0;
+        }
+
         uint256 aproxGain = MathUtils.compound2(
           principal_,
           //dailyRate * (loanable / (total + principal)),
