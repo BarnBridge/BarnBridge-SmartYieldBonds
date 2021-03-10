@@ -468,8 +468,19 @@ contract SmartYield is
     returns (uint256)
     {
         // underlyingTotal - abond.principal - abond.gain - queued withdrawls
+        uint256 _underlyingTotal = underlyingTotal();
+        // abond.principal - abond.gain - (tokensInJuniorBonds * price() / 1e18)
+        uint256 _lockedUnderlying = abond.principal.add(abond.gain).add(
+          tokensInJuniorBonds.mul(price()).div(1e18)
+        );
+
+        if (_lockedUnderlying > _underlyingTotal) {
+          // abond.gain and (tokensInJuniorBonds in underlying) can overlap, so there is a cases where _lockedUnderlying > _underlyingTotal
+          return 0;
+        }
+
         // underlyingTotal() - abond.principal - abond.gain - (tokensInJuniorBonds * price() / 1e18)
-        return underlyingTotal().sub(abond.principal).sub(abond.gain).sub(tokensInJuniorBonds.mul(price()).div(1e18));
+        return _underlyingTotal.sub(_lockedUnderlying);
     }
 
     function abondGain()
