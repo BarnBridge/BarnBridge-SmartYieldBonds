@@ -35,7 +35,7 @@ abstract contract IController is Governed {
     uint256 public BOND_MAX_RATE_PER_DAY = 719065000000000; // APY 30% / year
 
     // max duration of a purchased sBond
-    uint16 public BOND_LIFE_MAX = 30; // in days
+    uint16 public BOND_LIFE_MAX = 90; // in days
 
     bool public PAUSED_BUY_JUNIOR_TOKEN = false;
 
