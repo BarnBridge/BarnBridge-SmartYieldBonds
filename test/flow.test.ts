@@ -260,9 +260,6 @@ describe('flow tests', async function () {
 
     await moveTimeWindowAndUpdate();
 
-    const providerRatePerDayAfter2Bonds = await controller.callStatic.providerRatePerDay();
-    expect(providerRatePerDayAfter2Bonds.lt(providerRatePerDayInitial), 'provider rate per day decreases after 2 bonds').equal(true);
-
     const priceAfter2Bonds = await smartYield.callStatic.price();
     expect(priceAfter2Bonds.gt(priceAfterJtokens), 'price increases after 2 bonds').equal(true);
 
