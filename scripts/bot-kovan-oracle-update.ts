@@ -1,8 +1,8 @@
 import 'tsconfig-paths/register';
 // -----
 
-const oracleAddr = '0x5529f48D8B62EA5E3091cA957895C52ca99D9A48';
-const smartYieldAddr = '0xD165c8CAE4D824E75588282821C57fB3b74c7f33';
+const oracleAddr = '0x95D79e6045b8A08a017c78135422A4010052D1d1';
+const smartYieldAddr = '0x2327c862E8770E10f63EEF470686fFD2684A0092';
 
 // -----
 import { Wallet, BigNumber as BN } from 'ethers';
@@ -51,7 +51,7 @@ const shouldSleep = (mostRecentObs: Observation, periodSize: BN, now: number, pe
 };
 
 const doOracleUpdate = async (oracle: YieldOracle) => {
-  await oracle.update({ gasLimit: 150_000 });
+  await oracle.update({ gasLimit: 500_000 });
 };
 
 const pingCompound = async (cToken: ICToken, pong: boolean) => {
@@ -108,12 +108,6 @@ async function main() {
       console.log('will sleep (sec):', sleepSec);
 
       if (sleepSec === 0) {
-
-        console.log('pinging compound ...');
-        await pingCompound(cToken, pong);
-        pong = !pong;
-        console.log('pinged.');
-        await sleep(60 * 1000);
 
         console.log('calling update ...');
         await doOracleUpdate(oracle);

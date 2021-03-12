@@ -3,6 +3,7 @@ import 'tsconfig-paths/register';
 import { deployBondModel, deployCompoundController, deployCompoundProvider, deployJuniorBond, deploySeniorBond, deploySmartYield, deployYieldOracle } from '@testhelp/index';
 import { Wallet, BigNumber as BN } from 'ethers';
 import { run, ethers } from 'hardhat';
+import { ERC20Factory } from '@typechain/ERC20Factory';
 
 const A_HOUR = 60 * 60;
 
@@ -23,8 +24,6 @@ const feesOwner = dao;
 const cUSDC = '0x4a92e71227d294f041bd82dd8f78591b75140d63';
 const COMP = '0x61460874a7196d6a22d1ee4922473664b3e95270';
 
-// uniswap https://uniswap.org/docs/v2/smart-contracts/router02/
-const uniswapRouter = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
 const USDC = '0xb7a4f3e9097c08da09517b5ab877f7a917224ede';
 const WETH = '0xd0A1E359811322d97991E03f863a0C30C2cF029C';
 const uniswapPath = [COMP, WETH, USDC];
@@ -36,22 +35,23 @@ async function main() {
   console.log('Deployer:', deployerSign.address);
   console.log('Others:', signers.map(a => a.address));
 
-  const controller = await deployCompoundController(deployerSign, uniswapRouter, uniswapPath);
   const bondModel = await deployBondModel(deployerSign);
-  const pool = await deployCompoundProvider(deployerSign);
+  const pool = await deployCompoundProvider(deployerSign, cUSDC);
+
   const smartYield = await deploySmartYield(deployerSign, juniorTokenCONF.name, juniorTokenCONF.symbol, BN.from(decimals));
+  const seniorBond = await deploySeniorBond(deployerSign, smartYield.address, seniorBondCONF.name, seniorBondCONF.symbol);
+  const juniorBond = await deployJuniorBond(deployerSign, smartYield.address, juniorBondCONF.name, juniorBondCONF.symbol);
 
-  const seniorBond = await deploySeniorBond(deployerSign, smartYield, seniorBondCONF.name, seniorBondCONF.symbol);
-  const juniorBond = await deployJuniorBond(deployerSign, smartYield, juniorBondCONF.name, juniorBondCONF.symbol);
-  const oracle = await deployYieldOracle(deployerSign, pool, oracleCONF.windowSize, oracleCONF.granularity);
+  const controller = await deployCompoundController(deployerSign, pool.address, smartYield.address, bondModel.address, uniswapPath);
+  const oracle = await deployYieldOracle(deployerSign, controller.address, oracleCONF.windowSize, oracleCONF.granularity);
 
-  await controller.setBondModel(bondModel.address);
   await controller.setOracle(oracle.address);
-  await controller.setDao(dao);
   await controller.setFeesOwner(feesOwner);
-  //await controller.setGuardian();
   await smartYield.setup(controller.address, pool.address, seniorBond.address, juniorBond.address);
-  await pool.setup(smartYield.address, controller.address, cUSDC);
+  await pool.setup(smartYield.address, controller.address);
+
+  await controller.setGuardian(dao);
+  await controller.setDao(dao);
 
   console.log('CONF --------');
   console.log('DAO:', dao);
@@ -60,15 +60,14 @@ async function main() {
   console.log('USDC:', USDC);
   console.log('WETH:', WETH);
   console.log('uniswapPath:', uniswapPath);
-  console.log('uniswapRouter:', uniswapRouter);
   console.log('');
   console.log('DEPLOYED ----');
-  console.log('controller:', controller.address);
   console.log('bondModel:', bondModel.address);
   console.log('compoundProvider:', pool.address);
   console.log('smartYield:', smartYield.address);
   console.log('seniorBond:', seniorBond.address);
   console.log('juniorBond:', juniorBond.address);
+  console.log('controller:', controller.address);
   console.log('oracle:', oracle.address);
 }
 
