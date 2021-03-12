@@ -250,7 +250,7 @@ describe('flow tests', async function () {
     const abond1 = await smartYield.abond();
     dumpSeniorBond(abond1);
 
-    expect(bond1.gain, 'bond1 gain').deep.equal(BN.from('39358600'));
+    expect(bond1.gain.gt(0), 'bond1 gain > 0').equal(true);
     expect(bond1.gain, 'bond1 gain is abond gain').deep.equal(abond1.gain);
 
     await moveTimeWindowAndUpdate();
