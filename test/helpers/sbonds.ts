@@ -9,7 +9,7 @@ import { Erc20Mock } from '@typechain/Erc20Mock';
 import { TIME_IN_FUTURE } from './time';
 
 export type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
-export type BondType = ThenArg<ReturnType<SmartYield['bonds']>>;
+export type BondType = ThenArg<ReturnType<SmartYield['seniorBonds']>>;
 
 export const buyBond = (smartYield: SmartYield, pool: CompoundProvider, underlying: Erc20Mock) => {
   return async (user: Wallet, amountUnderlying: number | BN, minGain: number | BN, forDays: number | BN): Promise<void> => {
@@ -71,4 +71,11 @@ export const dumpAbondState = async (msg: string, pool: SmartYield): Promise<voi
   dumpBond('ABOND:', abond, currentTime, true, '\t');
   console.log(`\t----------------------------------------------------------------------------------`);
 
+};
+
+export const dumpSeniorBond = (sBond: BondType) => {
+  console.log('gain      :', sBond.gain.toString());
+  console.log('principal :', sBond.principal.toString());
+  console.log('issuedAt  :', sBond.issuedAt.toString());
+  console.log('maturesAt :', sBond.maturesAt.toString());
 };

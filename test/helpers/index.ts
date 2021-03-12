@@ -108,3 +108,4 @@ export * from './tokens';
 export * from './deploy';
 export * from './time';
 export * from './prices';
+export * from './format';

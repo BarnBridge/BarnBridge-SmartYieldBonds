@@ -5,7 +5,7 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { ethers } from 'hardhat';
 
-import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY } from '@testhelp/index';
+import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY, dumpSeniorBond, sellTokens, withDecimals, deployUnderlying, TIME_IN_FUTURE, redeemBond, redeemJuniorBond } from '@testhelp/index';
 
 import { ERC20Factory } from '@typechain/ERC20Factory';
 import { ICTokenFactory } from '@typechain/ICTokenFactory';
@@ -91,6 +91,17 @@ const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: 
   };
 };
 
+const moveTimeWindowAndUpdate = (oracle: YieldOracle) => {
+  return async (): Promise<void> => {
+    for (let f = 0; f < oracleCONF.granularity; f++) {
+      await mineBlocks(BLOCKS_A_PERIOD - 1);
+      await forceNextTime();
+      await oracle.update();
+    }
+    await forceNextTime();
+  };
+};
+
 const moveTime = (cToken: ICToken, whale: Wallet) => {
   return async (seconds: number | BN | BNj): Promise<void> => {
     seconds = BN.from(seconds.toString());
@@ -132,6 +143,14 @@ export const buyBond = (smartYield: SmartYield, pool: CompoundProvider, underlyi
   };
 };
 
+export const buyJuniorBond = (smartYield: SmartYield) => {
+  return async (user: Wallet, tokenAmount: number | BN, maxMaturesAt: number | BN): Promise<void> => {
+    tokenAmount = toBN(tokenAmount);
+    maxMaturesAt = toBN(maxMaturesAt);
+    await smartYield.connect(user).buyJuniorBond(tokenAmount, maxMaturesAt, TIME_IN_FUTURE);
+  };
+};
+
 export const mintCtoken = (cToken: ICToken, whale: Wallet) => {
   return async (underlyingAmount_: BN): Promise<void> => {
     await cToken.connect(whale).mint(underlyingAmount_);
@@ -146,7 +165,7 @@ export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
 
  const fixture = () => {
   return async (wallets: Wallet[]) => {
-    const [deployerSign, ownerSign, junior1, junior2, junior3, senior1, senior2, senior3] = wallets;
+    const [deployerSign, ownerSign, junior1, junior2, junior3, senior1, senior2, senior3, user1] = wallets;
 
     const whaleSign = await impersonate(deployerSign)(USDCwhale);
 
@@ -171,7 +190,6 @@ export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
 
     const [oracle ] = await Promise.all([
       deployYieldOracle(deployerSign, controller.address, oracleCONF.windowSize, oracleCONF.granularity),
-      controller.setBondModel(bondModel.address),
       controller.setFeesOwner(deployerSign.address),
       smartYield.setup(controller.address, pool.address, seniorBond.address, juniorBond.address),
       pool.setup(smartYield.address, controller.address),
@@ -179,90 +197,132 @@ export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
 
     await controller.setOracle(oracle.address);
 
-
     return {
       oracle, smartYield, cToken, bondModel, seniorBond, underlying, controller, pool, compoundComptroller, comp,
       deployerSign: deployerSign as Signer,
       ownerSign: ownerSign as Signer,
+      user1,
       whaleSign,
       junior1, junior2, junior3, senior1, senior2, senior3,
       moveTime: moveTime(cToken, whaleSign as unknown as Wallet),
       currentBlock: currentBlock(),
       buyTokens: buyTokens(smartYield, pool, underlying),
+      buyJuniorBond: buyJuniorBond(smartYield),
+      sellTokens: sellTokens(smartYield, pool),
+      redeemJuniorBond: redeemJuniorBond(smartYield),
       buyBond: buyBond(smartYield, pool, underlying),
+      redeemBond: redeemBond(smartYield),
       mintCtoken: mintCtoken(cToken, whaleSign as unknown as Wallet),
       redeemCtoken: redeemCtoken(cToken, whaleSign as unknown as Wallet),
       dumpState: dumpState(cToken, controller, smartYield, pool, oracle, oracleCONF.granularity),
+      moveTimeWindowAndUpdate: moveTimeWindowAndUpdate(oracle),
     };
   };
 };
 
 
-describe('yield expected', async function () {
+describe('flow tests', async function () {
 
-  it('test yield', async function () {
+  it('yield and price movements', async function () {
 
-    const { whaleSign, pool, cToken, comp, oracle, currentBlock, moveTime, buyTokens, buyBond, mintCtoken, redeemCtoken, dumpState, controller } = await bbFixtures(fixture());
+    const { whaleSign, pool, cToken, comp, oracle, currentBlock, moveTime, buyTokens, buyBond, sellTokens, mintCtoken, redeemCtoken, redeemBond, redeemJuniorBond, dumpState, controller, moveTimeWindowAndUpdate, buyJuniorBond, smartYield, underlying } = await bbFixtures(fixture());
+
+    const priceInitial = await smartYield.callStatic.price();
+
+    expect(priceInitial, 'initial price is 1').deep.equal(e18(1));
 
     await buyTokens(whaleSign as unknown as Wallet, 100_000 * 10**6);
 
-    let skipBlocks = 0;
+    const gotJtokens1 = await smartYield.callStatic.balanceOf(await whaleSign.getAddress());
 
-    for (let i = 0; i < 100; i++) {
-      await mineBlocks(BLOCKS_A_PERIOD / 5 - skipBlocks);
-      skipBlocks = 0;
+    await moveTimeWindowAndUpdate();
+    await dumpState();
 
-      //await (await cToken.connect(whaleSign).accrueInterest()).wait();
+    const providerRatePerDayInitial = await controller.callStatic.providerRatePerDay();
+    expect(providerRatePerDayInitial.gt(0), 'provider rate per day increases').equal(true);
 
-      if (i % 20 == 2) {
-        skipBlocks++;
-        await forceNextTime();
-        console.log('+++ HARVEST!');
-        const harv = await (await controller.harvest(0)).wait();
-        console.log('harvest gas >>>>>>>>>>>>>>>>>>>>>>>>>> ', harv.gasUsed.toString());
-        console.log('--- HARVEST!');
-      }
+    const priceAfterJtokens = await smartYield.callStatic.price();
+    expect(priceAfterJtokens.gt(priceInitial), 'initially price increases').equal(true);
 
-      if (i % 5 == 4) {
-        skipBlocks++;
-        await forceNextTime();
-        console.log('+++ UPDATE!');
-        await oracle.update();
-        console.log('--- UPDATE!');
-      }
+    await buyBond(whaleSign as unknown as Wallet, 100_000 * 10**6, 3);
 
+    const bond1 = await smartYield.seniorBonds(1);
+    const abond1 = await smartYield.abond();
+    dumpSeniorBond(abond1);
 
-      if (i % 20 == 1) {
-        skipBlocks++;
-        await forceNextTime();
-        await buyTokens(whaleSign as unknown as Wallet, 1_000_000 * 10**6);
-      }
+    expect(bond1.gain.gt(0), 'bond1 gain > 0').equal(true);
+    expect(bond1.gain, 'bond1 gain is abond gain').deep.equal(abond1.gain);
 
-      if (i % 20 == 19) {
-        skipBlocks++;
-        await forceNextTime();
-        await buyBond(whaleSign as unknown as Wallet, 100_000 * 10**6, 30);
-      }
+    await moveTimeWindowAndUpdate();
 
-      //await mineBlocks(1);
+    await buyBond(whaleSign as unknown as Wallet, 100_000 * 10**6, 1);
+    const bond2 = await smartYield.seniorBonds(2);
 
-      console.log(`[${i}]`);
-      skipBlocks++;
-      await forceNextTime();
-      await (await cToken.connect(whaleSign).accrueInterest()).wait();
-      await dumpState();
+    await moveTimeWindowAndUpdate();
+
+    const priceAfter2Bonds = await smartYield.callStatic.price();
+    expect(priceAfter2Bonds.gt(priceAfterJtokens), 'price increases after 2 bonds').equal(true);
+
+    await sellTokens(whaleSign as unknown as Wallet, 50_000 * 10**6);
+
+    await buyJuniorBond(whaleSign as unknown as Wallet, gotJtokens1.sub(50_000 * 10**6), TIME_IN_FUTURE);
+
+    for (let f = 0; f < 24 * 3; f++) {
+      await moveTimeWindowAndUpdate();
     }
 
+    const priceAfter3Days = await smartYield.callStatic.price();
+    expect(priceAfter3Days.gt(priceAfter2Bonds), 'price increases further after 2 bonds & 3 days').equal(true);
+
+    await redeemBond(whaleSign as unknown as Wallet, 1);
+    await redeemBond(whaleSign as unknown as Wallet, 2);
+
+    await redeemJuniorBond(whaleSign as unknown as Wallet, 1);
+
+    const priceAfterWithdrawls = await smartYield.callStatic.price();
+    expect(priceAfterWithdrawls, 'price after withdrawls is 1').deep.equal(e18(1));
+
   }).timeout(500 * 1000);
 
-  it('works with multiple SY deposits between harvest', async function () {
+  it('switch controller', async function () {
+    const { whaleSign, pool, cToken, comp, oracle, currentBlock, moveTime, buyTokens, buyBond, sellTokens, mintCtoken, redeemCtoken, redeemBond, redeemJuniorBond, dumpState, controller, moveTimeWindowAndUpdate, buyJuniorBond, smartYield, underlying, deployerSign, user1 } = await bbFixtures(fixture());
 
-    const { whaleSign, pool, cToken, comp, currentBlock, moveTime, buyTokens } = await bbFixtures(fixture());
+    await controller.setGuardian(user1.address);
+    await controller.setDao(user1.address);
+
+    const newBondModel = await deployBondModel(deployerSign as unknown as Wallet);
+    const newController = await deployCompoundController(deployerSign as unknown as Wallet, pool.address, smartYield.address, newBondModel.address, uniswapPath);
+    const newOracle = await deployYieldOracle(deployerSign as unknown as Wallet, newController.address, oracleCONF.windowSize, oracleCONF.granularity);
+    await newController.setOracle(newOracle.address);
 
     await buyTokens(whaleSign as unknown as Wallet, 100_000 * 10**6);
 
+    const newControllerProviderRatePerDay = await newController.callStatic.providerRatePerDay();
+    expect(newControllerProviderRatePerDay.eq(0), 'newController provider rate per day is 0 initially').equal(true);
 
+    const controllerProviderRatePerDay = await controller.callStatic.providerRatePerDay();
+    expect(controllerProviderRatePerDay.eq(0), 'controller provider rate per day is 0 initially').equal(true);
 
+    for (let f = 0; f < oracleCONF.granularity; f++) {
+      await mineBlocks(BLOCKS_A_PERIOD - 2);
+      await forceNextTime();
+      await newOracle.update();
+      await forceNextTime();
+      await oracle.update();
+    }
+
+    const controllerProviderRatePerDayInitial = await controller.callStatic.providerRatePerDay();
+    expect(controllerProviderRatePerDayInitial.gt(0), 'controller provider rate per day increases').equal(true);
+
+    const newControllerProviderRatePerDayInitial = await newController.callStatic.providerRatePerDay();
+    expect(newControllerProviderRatePerDayInitial.gt(0), 'newController provider rate per day increases').equal(true);
+
+    await expect(controller.yieldControllTo(newController.address), 'reverted if not dao').revertedWith('GOV: not dao');
+
+    await controller.connect(user1).yieldControllTo(newController.address);
+
+    await buyBond(whaleSign as unknown as Wallet, 100_000 * 10**6, 1);
   }).timeout(500 * 1000);
+
 
 });
