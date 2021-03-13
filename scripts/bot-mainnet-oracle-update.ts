@@ -1,18 +1,21 @@
 import 'tsconfig-paths/register';
 // -----
 
-const oracleAddr = '0x95D79e6045b8A08a017c78135422A4010052D1d1';
-const smartYieldAddr = '0x2327c862E8770E10f63EEF470686fFD2684A0092';
+const oracleAddr = '0xbd45Dba10b4E2A81040b7511FF4c210Eb590b817';
+const smartYieldAddr = '0x4B8d90D68F26DEF303Dcb6CFc9b63A1aAEC15840';
+
+const gasStationUrl = process.env.GAS_STATION_URL;
 
 // -----
 import { Wallet, BigNumber as BN } from 'ethers';
 import { ethers } from 'hardhat';
+import axios from 'axios';
 import { YieldOracleFactory } from '@typechain/YieldOracleFactory';
 import { YieldOracle } from '@typechain/YieldOracle';
 import { SmartYieldFactory } from '@typechain/SmartYieldFactory';
 import { ICTokenFactory } from '@typechain/ICTokenFactory';
 import { CompoundProviderFactory } from '@typechain/CompoundProviderFactory';
-import { ICToken } from '@typechain/ICToken';
+
 
 export type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 export type Observation = ThenArg<ReturnType<YieldOracle['yieldObservations']>>;
@@ -36,7 +39,6 @@ const mostRecentObservation = (observations: Observation[]) => {
   );
 };
 
-
 // 0 - should update
 // n>0 - should sleep n seconds
 const shouldSleep = (mostRecentObs: Observation, periodSize: BN, now: number, periodSizeSleepRatio: number): number => {
@@ -51,15 +53,38 @@ const shouldSleep = (mostRecentObs: Observation, periodSize: BN, now: number, pe
 };
 
 const doOracleUpdate = async (oracle: YieldOracle) => {
-  await (await oracle.update({ gasLimit: 500_000 })).wait(1);
+  const gasPrice = await getGasPrice();
+  console.log('gas price is :', gasPrice.toString());
+  await (await oracle.update({ gasLimit: 500_000, gasPrice })).wait(1);
+};
+
+const getGasPrice = async(): Promise<BN> => {
+  if (undefined === gasStationUrl) {
+    console.error('evn var GAS_STATION_URL is not set!');
+    process.exit(-1);
+  }
+  const req = await axios.get(gasStationUrl);
+  return BN.from(req.data['fast']).mul(10**9).div(10);
+};
+
+const walletBalance = async(address: string): Promise<BN> => {
+  const balance = await ethers.provider.getBalance(address);
+  if (balance.eq(0)) {
+    console.error('no balance on address ' + address + '!');
+    process.exit(-1);
+  }
+  return balance;
 };
 
 async function main() {
 
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
 
-    console.log('Starting YieldOracle.update() bot ...');
+  console.log('Starting YieldOracle.update() bot ...');
   console.log('wallet:', walletSign.address);
+
+  console.log('wallet balance:', (await walletBalance(walletSign.address)).toString());
+  console.log('gas price is:', (await getGasPrice()).toString());
 
   const oracle = YieldOracleFactory.connect(oracleAddr, walletSign);
 
@@ -71,9 +96,9 @@ async function main() {
   const granularity = await oracle.granularity();
   const periodSize = await oracle.periodSize();
 
-  console.log('windowSize: ', windowSize.toString());
+  console.log('windowSize :', windowSize.toString());
   console.log('granularity:', granularity.toString());
-  console.log('periodSize: ', periodSize.toString());
+  console.log('periodSize :', periodSize.toString());
 
   while (true) {
     try {
@@ -98,7 +123,6 @@ async function main() {
       console.log('will sleep (sec):', sleepSec);
 
       if (sleepSec === 0) {
-
         console.log('calling update ...');
         await doOracleUpdate(oracle);
         console.log('called.');
@@ -109,7 +133,9 @@ async function main() {
       await sleep(sleepSec * 1000);
     } catch (e) {
       console.error('ERROR:', e);
-      await sleep(60 * 1000);
+      console.error('exiting!');
+      process.exit(-1);
+
     }
   }
 
