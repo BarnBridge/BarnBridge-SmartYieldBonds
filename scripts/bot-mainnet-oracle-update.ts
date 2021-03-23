@@ -55,12 +55,12 @@ const shouldSleep = (mostRecentObs: Observation, periodSize: BN, now: number, pe
 const doOracleUpdate = async (oracle: YieldOracle) => {
   const gasPrice = await getGasPrice();
   console.log('gas price is :', gasPrice.toString());
-  await (await oracle.update({ gasLimit: 500_000, gasPrice })).wait(1);
+  await (await oracle.update({ gasLimit: 500_000, gasPrice })).wait(10);
 };
 
 const getGasPrice = async(): Promise<BN> => {
   if (undefined === gasStationUrl) {
-    console.error('evn var GAS_STATION_URL is not set!');
+    console.error('env var GAS_STATION_URL is not set!');
     process.exit(-1);
   }
   const req = await axios.get(gasStationUrl);
