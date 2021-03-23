@@ -92,7 +92,7 @@ async function main() {
         mostRecentObservation(observations),
         periodSize,
         block.timestamp,
-        0.9
+        1
       );
 
       console.log('will sleep (sec):', sleepSec);
@@ -102,7 +102,7 @@ async function main() {
         console.log('calling update ...');
         await doOracleUpdate(oracle);
         console.log('called.');
-        await sleep(60 * 1000);
+        await sleep(30 * 60 * 1000);
         continue;
       }
 
