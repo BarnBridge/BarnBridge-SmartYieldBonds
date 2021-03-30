@@ -36,6 +36,11 @@ import { UniswapMock } from '@typechain/UniswapMock';
 import CompoundProviderArtifact from './../../artifacts/contracts/providers/CompoundProvider.sol/CompoundProvider.json';
 import { CompoundProvider } from '@typechain/CompoundProvider';
 
+import Mai3ProviderArtifact from './../../artifacts/contracts/providers/Mai3Provider.sol/Mai3Provider.json';
+import { Mai3Provider } from '@typechain/Mai3Provider';
+
+import SignedYieldOracleArtifact from './../../artifacts/contracts/oracle/SignedYieldOracle.sol/SignedYieldOracle.json';
+import { SignedYieldOracle } from '@typechain/SignedYieldOracle';
 // ---- mocks
 
 import HarvestWorldMockArtifact from './../../artifacts/contracts/mocks/barnbridge/harvest/HarvestWorldMock.sol/HarvestWorldMock.json';
@@ -54,6 +59,14 @@ import { CTokenWorldMock } from '@typechain/CTokenWorldMock';
 
 import MathTestsArtifact from './../../artifacts/contracts/mocks/barnbridge/MathTests.sol/MathTests.json';
 import { MathTests } from '@typechain/MathTests';
+
+// ---mocks
+import Mai3WorldMockArtifact from './../../artifacts/contracts/mocks/mai3/Mai3WorldMock.sol/Mai3WorldMock.json';
+import { Mai3WorldMock } from '@typechain/Mai3WorldMock';
+
+import Mai3ControllerMockArtifact from './../../artifacts/contracts/mocks/mai3/Mai3ControllerMock.sol/Mai3ControllerMock.json';
+import { Mai3ControllerMock } from '@typechain/Mai3ControllerMock';
+
 
 
 export const deployUnderlying = (deployerSign: Wallet, decimals: number): Promise<Erc20Mock> => {
@@ -130,4 +143,20 @@ export const deployCTokenWorldMock = (deployerSign: Wallet, exchangeRateStored: 
 
 export const deployMathTests = (deployerSign: Wallet): Promise<MathTests> => {
   return (deployContract(deployerSign, MathTestsArtifact, [])) as Promise<MathTests>;
+};
+
+export const deployMai3WorldMock = (deployerSign: Wallet, rewardRate: BigNumberish, removePenaltyRate: BigNumberish): Promise<Mai3WorldMock> => {
+  return (deployContract(deployerSign, Mai3WorldMockArtifact, [rewardRate, removePenaltyRate])) as Promise<Mai3WorldMock>;
+}
+
+export const deployMai3Provider = (deployerSign: Wallet, mai3LiquidityPoolAddress: string): Promise<Mai3Provider> => {
+  return (deployContract(deployerSign, Mai3ProviderArtifact, [mai3LiquidityPoolAddress])) as Promise<Mai3Provider>;
+};
+
+export const deployMai3ControllerMock = (deployerSign: Wallet, poolAddress: string, smartYieldAddress: string, bondModelAddress: string, uniswapPath: string[], mcbOracleAddress: string): Promise<Mai3ControllerMock> => {
+  return (deployContract(deployerSign, Mai3ControllerMockArtifact, [poolAddress, smartYieldAddress, bondModelAddress, uniswapPath, mcbOracleAddress])) as Promise<Mai3ControllerMock>;
+};
+
+export const deploySignedYieldOracle = (deployerSign: Wallet, cumulativeAddress: string, windowSize: number, granularity: number): Promise<SignedYieldOracle> => {
+  return (deployContract(deployerSign, SignedYieldOracleArtifact, [cumulativeAddress, windowSize, granularity])) as Promise<SignedYieldOracle>;
 };
