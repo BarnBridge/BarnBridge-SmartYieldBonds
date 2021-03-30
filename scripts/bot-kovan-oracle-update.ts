@@ -58,7 +58,7 @@ async function main() {
 
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
 
-    console.log('Starting YieldOracle.update() bot ...');
+  console.log('Starting YieldOracle.update() bot ...');
   console.log('wallet:', walletSign.address);
 
   const oracle = YieldOracleFactory.connect(oracleAddr, walletSign);
