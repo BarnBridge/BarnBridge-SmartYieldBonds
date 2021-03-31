@@ -76,6 +76,18 @@ const walletBalance = async(address: string): Promise<BN> => {
   return balance;
 };
 
+const willUpdate = async (oracle: YieldOracle, periodSize: BN, now: number): Promise<boolean> => {
+  const observationIndex = await oracle.observationIndexOf(now);
+  const observation = await oracle.yieldObservations(observationIndex);
+  const timeElapsed = BN.from(now).sub(observation.timestamp);
+  console.log('timeElapsed is: ', timeElapsed.toString());
+  console.log('periodSize  is: ', periodSize.toString());
+  if (timeElapsed.gt(periodSize)) {
+    return true;
+  }
+  return false;
+};
+
 async function main() {
 
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
@@ -117,16 +129,24 @@ async function main() {
         mostRecentObservation(observations),
         periodSize,
         block.timestamp,
-        0.9
+        0.98
       );
 
       console.log('will sleep (sec):', sleepSec);
 
       if (sleepSec === 0) {
+
+        const okToUpdate = await willUpdate(oracle, periodSize, block.timestamp);
+        if (!okToUpdate) {
+          console.log('update will bailout, skipping ...');
+          await sleep(5 * 60 * 1000);
+          continue;
+        }
+
         console.log('calling update ...');
         await doOracleUpdate(oracle);
         console.log('called.');
-        await sleep(60 * 1000);
+        await sleep(5 * 60 * 1000);
         continue;
       }
 
