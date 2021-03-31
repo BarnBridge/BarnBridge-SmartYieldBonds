@@ -8,7 +8,7 @@ import {
   deployMai3ControllerMock,
   deployMai3Provider,
   deployMai3WorldMock,
-  deploySignedYieldOracle,
+  deploySignedYieldOracleMock,
   e18
 } from '@testhelp/index';
 import { A_DAY } from '@testhelp/time';
@@ -51,10 +51,16 @@ const fixture = () => {
       smartYieldAddr,
       bondModel.address,
       [mcb.address, underlying.address],
-      mcbOracle.address
+      mcbOracle.address,
+      0
     );
 
-    const oracle = await deploySignedYieldOracle(deployerSign, controller.address, oracleCONF.windowSize, oracleCONF.granularity);
+    const oracle = await deploySignedYieldOracleMock(
+      deployerSign,
+      controller.address,
+      oracleCONF.windowSize,
+      oracleCONF.granularity
+    );
 
     await Promise.all([
       controller.setOracle(oracle.address),

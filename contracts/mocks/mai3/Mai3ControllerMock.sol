@@ -17,8 +17,9 @@ contract Mai3ControllerMock is Mai3Controller {
         address smartYield_,
         address bondModel_,
         address[] memory uniswapPath_,
-        address mcbSpotOracle_
-    ) Mai3Controller(pool_, smartYield_, bondModel_, uniswapPath_, mcbSpotOracle_) {
+        address mcbSpotOracle_,
+        uint256 initialDailySupplyRate_
+    ) Mai3Controller(pool_, smartYield_, bondModel_, uniswapPath_, mcbSpotOracle_, initialDailySupplyRate_) {
         uniswapRouter_ = address(new UniswapMock());
     }
 

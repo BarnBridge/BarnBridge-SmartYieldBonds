@@ -86,6 +86,9 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
     // Mai3-compatitable oralce for MCB to underlying spot price
     address public mcbSpotOracle;
 
+    // A baseline of the supply rate, set by the creator
+    uint256 public initialDailySupplyRate;
+
     event Harvest(
         address indexed caller,
         uint256 mcbRewardTotal,
@@ -105,11 +108,13 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
         address smartYield_,
         address bondModel_,
         address[] memory uniswapPath_,
-        address mcbSpotOracle_
+        address mcbSpotOracle_,
+        uint256 initialDailySupplyRate_
     ) IController() {
         pool = pool_;
         smartYield = smartYield_;
         mcbSpotOracle = mcbSpotOracle_;
+        initialDailySupplyRate = initialDailySupplyRate_;
 
         uToken = Mai3Provider(pool).uToken();
         shareToken = Mai3Provider(pool).shareToken();
@@ -124,6 +129,10 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
 
     function setMCBOracle(address mcbSpotOracle_) public onlyDao {
         mcbSpotOracle = mcbSpotOracle_;
+    }
+
+    function setInitialDailySupplyRate(uint256 rate_) public onlyDao {
+        initialDailySupplyRate = rate_;
     }
 
     function updateAllowances() public {
@@ -238,7 +247,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
             }
             rate = signedRate.toUint256();
         } else {
-            rate = spotDailyDistributionRateProvider();
+            rate = initialDailySupplyRate.add(spotDailyDistributionRateProvider());
         }
 
         return MathUtils.min(rate, BOND_MAX_RATE_PER_DAY);

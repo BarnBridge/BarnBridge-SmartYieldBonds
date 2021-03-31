@@ -39,8 +39,8 @@ import { CompoundProvider } from '@typechain/CompoundProvider';
 import Mai3ProviderArtifact from './../../artifacts/contracts/providers/Mai3Provider.sol/Mai3Provider.json';
 import { Mai3Provider } from '@typechain/Mai3Provider';
 
-import SignedYieldOracleArtifact from './../../artifacts/contracts/oracle/SignedYieldOracle.sol/SignedYieldOracle.json';
-import { SignedYieldOracle } from '@typechain/SignedYieldOracle';
+import SignedYieldOracleMockArtifact from './../../artifacts/contracts/mocks/barnbridge/SignedYieldOralceMock.sol/SignedYieldOracleMock.json';
+import { SignedYieldOracleMock } from '@typechain/SignedYieldOracleMock';
 // ---- mocks
 
 import HarvestWorldMockArtifact from './../../artifacts/contracts/mocks/barnbridge/harvest/HarvestWorldMock.sol/HarvestWorldMock.json';
@@ -153,10 +153,10 @@ export const deployMai3Provider = (deployerSign: Wallet, mai3LiquidityPoolAddres
   return (deployContract(deployerSign, Mai3ProviderArtifact, [mai3LiquidityPoolAddress])) as Promise<Mai3Provider>;
 };
 
-export const deployMai3ControllerMock = (deployerSign: Wallet, poolAddress: string, smartYieldAddress: string, bondModelAddress: string, uniswapPath: string[], mcbOracleAddress: string): Promise<Mai3ControllerMock> => {
-  return (deployContract(deployerSign, Mai3ControllerMockArtifact, [poolAddress, smartYieldAddress, bondModelAddress, uniswapPath, mcbOracleAddress])) as Promise<Mai3ControllerMock>;
+export const deployMai3ControllerMock = (deployerSign: Wallet, poolAddress: string, smartYieldAddress: string, bondModelAddress: string, uniswapPath: string[], mcbOracleAddress: string, initialDailySupplyRate: BigNumberish): Promise<Mai3ControllerMock> => {
+  return (deployContract(deployerSign, Mai3ControllerMockArtifact, [poolAddress, smartYieldAddress, bondModelAddress, uniswapPath, mcbOracleAddress, initialDailySupplyRate])) as Promise<Mai3ControllerMock>;
 };
 
-export const deploySignedYieldOracle = (deployerSign: Wallet, cumulativeAddress: string, windowSize: number, granularity: number): Promise<SignedYieldOracle> => {
-  return (deployContract(deployerSign, SignedYieldOracleArtifact, [cumulativeAddress, windowSize, granularity])) as Promise<SignedYieldOracle>;
+export const deploySignedYieldOracleMock = (deployerSign: Wallet, cumulativeAddress: string, windowSize: number, granularity: number): Promise<SignedYieldOracleMock> => {
+  return (deployContract(deployerSign, SignedYieldOracleMockArtifact, [cumulativeAddress, windowSize, granularity])) as Promise<SignedYieldOracleMock>;
 };

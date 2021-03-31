@@ -48,11 +48,7 @@ contract SignedYieldOracle is ISignedYieldOracle {
         uint8 granularity_
     ) {
         require(granularity_ > 1, "YO: GRANULARITY");
-        require(
-            (periodSize = windowSize_ / granularity_) * granularity_ ==
-                windowSize_,
-            "YO: WINDOW_NOT_EVENLY_DIVISIBLE"
-        );
+        require((periodSize = windowSize_ / granularity_) * granularity_ == windowSize_, "YO: WINDOW_NOT_EVENLY_DIVISIBLE");
         windowSize = windowSize_;
         granularity = granularity_;
         cumulator = ISignedYieldOraclelizable(cumulator_);
@@ -62,23 +58,20 @@ contract SignedYieldOracle is ISignedYieldOracle {
         }
     }
 
+    // for mock
+    function getTimestamp() public view virtual returns (uint256) {
+        return block.timestamp;
+    }
+
     // returns the index of the observation corresponding to the given timestamp
-    function observationIndexOf(uint256 timestamp_)
-        public
-        view
-        returns (uint8 index)
-    {
+    function observationIndexOf(uint256 timestamp_) public view returns (uint8 index) {
         uint256 epochPeriod = timestamp_ / periodSize;
         return uint8(epochPeriod % granularity);
     }
 
     // returns the observation from the oldest epoch (at the beginning of the window) relative to the current time
-    function getFirstObservationInWindow()
-        private
-        view
-        returns (Observation storage firstObservation)
-    {
-        uint8 observationIndex = observationIndexOf(block.timestamp);
+    function getFirstObservationInWindow() private view returns (Observation storage firstObservation) {
+        uint8 observationIndex = observationIndexOf(getTimestamp());
         // no overflow issue. if observationIndex + 1 overflows, result is still zero.
         uint8 firstObservationIndex = (observationIndex + 1) % granularity;
         firstObservation = yieldObservations[firstObservationIndex];
@@ -88,14 +81,15 @@ contract SignedYieldOracle is ISignedYieldOracle {
     // once per epoch period.
     function update() external virtual override {
         // get the observation for the current period
-        uint8 observationIndex = observationIndexOf(block.timestamp);
+        uint256 timestamp = getTimestamp();
+        uint8 observationIndex = observationIndexOf(timestamp);
         Observation storage observation = yieldObservations[observationIndex];
 
         // we only want to commit updates once per period (i.e. windowSize / granularity)
-        uint256 timeElapsed = block.timestamp - observation.timestamp;
+        uint256 timeElapsed = timestamp - observation.timestamp;
         if (timeElapsed > periodSize) {
             int256 yieldCumulative = cumulator.cumulatives();
-            observation.timestamp = block.timestamp;
+            observation.timestamp = timestamp;
             observation.yieldCumulative = yieldCumulative;
         }
     }
@@ -109,11 +103,7 @@ contract SignedYieldOracle is ISignedYieldOracle {
         uint256 forInterval_
     ) private pure returns (int256 yieldAverage) {
         // ((yieldCumulativeEnd_ - yieldCumulativeStart_) * forInterval_) / timeElapsed_;
-        return
-            yieldCumulativeEnd_
-                .sub(yieldCumulativeStart_)
-                .mul(forInterval_.toInt256())
-                .div(timeElapsed_.toInt256());
+        return yieldCumulativeEnd_.sub(yieldCumulativeStart_).mul(forInterval_.toInt256()).div(timeElapsed_.toInt256());
     }
 
     function _isAvailable(uint256 timeElapsed_) internal view returns (bool) {
@@ -143,34 +133,23 @@ contract SignedYieldOracle is ISignedYieldOracle {
     function isAvailabe() external view override returns (bool) {
         Observation storage firstObservation = getFirstObservationInWindow();
 
-        uint256 timeElapsed = block.timestamp - firstObservation.timestamp;
+        uint256 timeElapsed = getTimestamp() - firstObservation.timestamp;
         return _isAvailable(timeElapsed);
     }
 
     // returns the amount out corresponding to the amount in for a given token using the moving average over the time
     // range [now - [windowSize, windowSize - periodSize * 2], now]
     // update must have been called for the bucket corresponding to timestamp `now - windowSize`
-    function consultSigned(uint256 forInterval)
-        external
-        virtual
-        override
-        returns (int256 yieldForInterval)
-    {
+    function consultSigned(uint256 forInterval) external virtual override returns (int256 yieldForInterval) {
         Observation storage firstObservation = getFirstObservationInWindow();
 
-        uint256 timeElapsed = block.timestamp - firstObservation.timestamp;
+        uint256 timeElapsed = getTimestamp() - firstObservation.timestamp;
         if (!_isAvailable(timeElapsed)) {
             return 0;
         }
 
         int256 yieldCumulative = cumulator.cumulatives();
 
-        return
-            computeAmountOut(
-                firstObservation.yieldCumulative,
-                yieldCumulative,
-                timeElapsed,
-                forInterval
-            );
+        return computeAmountOut(firstObservation.yieldCumulative, yieldCumulative, timeElapsed, forInterval);
     }
 }
