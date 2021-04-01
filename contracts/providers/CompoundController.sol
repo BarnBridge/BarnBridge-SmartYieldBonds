@@ -53,8 +53,6 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     // compound.finance comptroller.compSupplyState right after the previous deposit/withdraw
     IComptroller.CompMarketState public prevCompSupplyState;
 
-    uint256 public underlyingDecimals;
-
     // uniswap path for COMP to underlying
     address[] public uniswapPath;
 
@@ -89,7 +87,6 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     {
       pool = pool_;
       smartYield = smartYield_;
-      underlyingDecimals = ERC20(ICToken(CompoundProvider(pool).cToken()).underlying()).decimals();
       setBondModel(bondModel_);
       setUniswapPath(uniswapPath_);
 
@@ -372,7 +369,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
 
       ICToken cToken = ICToken(CompoundProvider(pool).cToken());
       IUniswapAnchoredOracle compOracle = IUniswapAnchoredOracle(IComptroller(cToken.comptroller()).oracle());
-      uint256 underlyingOut = compIn_.mul(compOracle.price("COMP")).mul(10**24).div(compOracle.getUnderlyingPrice(address(cToken))).div(10**(2 * underlyingDecimals));
+      uint256 underlyingOut = compIn_.mul(compOracle.price("COMP")).mul(10**12).div(compOracle.getUnderlyingPrice(address(cToken)));
 
       return underlyingOut;
     }
@@ -404,13 +401,13 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
       IUniswapAnchoredOracle compOracle = IUniswapAnchoredOracle(comptroller.oracle());
 
       // compSpeeds(cToken) * price("COMP") * BLOCKS_PER_DAY
-      uint256 compDollarsPerDay = comptroller.compSpeeds(address(cToken)).mul(compOracle.price("COMP")).mul(BLOCKS_PER_DAY);
+      uint256 compDollarsPerDay = comptroller.compSpeeds(address(cToken)).mul(compOracle.price("COMP")).mul(BLOCKS_PER_DAY).mul(10**12);
 
       // (totalBorrows() + getCash()) * getUnderlyingPrice(cToken)
       uint256 totalSuppliedDollars = cToken.totalBorrows().add(cToken.getCash()).mul(compOracle.getUnderlyingPrice(address(cToken)));
 
       // (compDollarsPerDay / totalSuppliedDollars)
-      return compDollarsPerDay.mul(10**42).div(totalSuppliedDollars).div(10**(2 * underlyingDecimals));
+      return compDollarsPerDay.mul(EXP_SCALE).div(totalSuppliedDollars);
     }
 
     // smart yield spot daily rate includes: spot supply + spot distribution
