@@ -21,6 +21,7 @@ contract Mai3ControllerMock is Mai3Controller {
         uint256 initialDailySupplyRate_
     ) Mai3Controller(pool_, smartYield_, bondModel_, uniswapPath_, mcbSpotOracle_, initialDailySupplyRate_) {
         uniswapRouter_ = address(new UniswapMock());
+        updateAllowances();
     }
 
     function uniswapRouter() public view override returns (address) {

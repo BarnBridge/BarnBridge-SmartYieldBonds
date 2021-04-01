@@ -172,7 +172,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
     }
 
     // claims and sells MCB on uniswap, returns total received mcb and caller reward
-    function harvest(uint256 maxMCBAmount_) public returns (uint256 compGot, uint256 underlyingHarvestReward) {
+    function harvest(uint256 maxMCBAmount_) public returns (uint256 mcbGot, uint256 underlyingHarvestReward) {
         require(harvestedLast < block.timestamp, "PPC: harvest later");
 
         address caller = msg.sender;
@@ -192,7 +192,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
         IERC20(rewardToken).safeTransferFrom(pool, address(this), harvestedReward);
         uint256 mcbRewardTotal = IERC20(rewardToken).balanceOf(address(this)); // MCB
 
-        // only sell upmost maxMCBAmount_, if maxMCBAmount_ sell all
+        // only sell upmost maxMCBAmount_, if maxMCBAmount_ == 0 sell all
         maxMCBAmount_ = (maxMCBAmount_ == 0) ? mcbRewardTotal : maxMCBAmount_;
         uint256 mcbRewardSold = MathUtils.min(maxMCBAmount_, mcbRewardTotal);
 

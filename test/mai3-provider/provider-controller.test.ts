@@ -13,11 +13,13 @@ import {
 } from '@testhelp/index';
 import { A_DAY } from '@testhelp/time';
 import { Erc20MockFactory } from '@typechain/Erc20MockFactory';
-import { CompOracleMockFactory } from '@typechain/CompOracleMockFactory';
+import { Mai3OracleMockFactory } from '@typechain/Mai3OracleMockFactory';
+import { UniswapMockFactory } from '@typechain/UniswapMockFactory';
 
 const decimals = 18;
 const supplyRatePerBlock = BN.from('40749278849'); // 8.94% // 89437198474492656
-const exchangeRateStored = BN.from('209682627301038234646967647');
+
+const WETH = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
 
 const oracleCONF = { windowSize: 4 * A_DAY, granularity: 4 };
 
@@ -38,7 +40,7 @@ const fixture = () => {
     const underlying = Erc20MockFactory.connect(await mai3World.callStatic.underlying(), deployerSign);
     const mcb = Erc20MockFactory.connect(await mai3World.callStatic.mcb(), deployerSign);
     const shareToken = Erc20MockFactory.connect(await mai3World.callStatic.shareToken(), deployerSign);
-    const mcbOracle = CompOracleMockFactory.connect(await mai3World.callStatic.mcbOracle(), deployerSign);
+    const mcbOracle = Mai3OracleMockFactory.connect(await mai3World.callStatic.mcbOracle(), deployerSign);
 
     const [pool, bondModel] = await Promise.all([
       deployMai3Provider(deployerSign, mai3World.address),
@@ -50,10 +52,12 @@ const fixture = () => {
       pool.address,
       smartYieldAddr,
       bondModel.address,
-      [mcb.address, underlying.address],
+      [mcb.address, WETH, underlying.address],
       mcbOracle.address,
       0
     );
+
+    const uniswapMock = UniswapMockFactory.connect(await controller.callStatic.uniswapRouter(), deployerSign);
 
     const oracle = await deploySignedYieldOracleMock(
       deployerSign,
@@ -69,6 +73,7 @@ const fixture = () => {
     ]);
 
     return {
+      uniswapMock,
       controller,
       pool,
       bondModel,
@@ -196,4 +201,165 @@ describe('Mai3Provider._depositProvider() / Mai3Provider._withdrawProvider() ', 
 
     expect(await pool.callStatic.underlyingBalance(), 'underlyingBalance() is 0.8').deep.equal(e18(0.8));
   });
+});
+
+describe('Mai3Controller.harvest()', async function() {
+  it('happy path with full harvest', async function() {
+    const { mai3World, pool, controller, uniswapMock, mcbOracle, underlying, mcb, deployerSign } = await bbFixtures(fixture());
+
+    const mcbPrice = e18(100);
+
+    const uniswapMockPrice = e18(99);
+
+    await mcbOracle.setNewPrice(mcbPrice);
+    await mai3World.setEarned(pool.address, e18(20));
+    await uniswapMock.setup(mcb.address, underlying.address, uniswapMockPrice);
+    await uniswapMock.expectCallSwapExactTokensForTokens(
+      e18(20),
+      e18(1920),
+      [mcb.address, WETH, underlying.address],
+      controller.address
+    );
+
+    await mai3World.setRemovePenaltyRate(e18(0.2));
+
+    const { mcbGot, underlyingHarvestReward } = await controller.callStatic.harvest(0);
+    expect(underlyingHarvestReward, 'harvest reward').deep.equal(e18(60));
+    expect(mcbGot, 'mcb got reward').deep.equal(e18(20));
+
+    await controller.harvest(0);
+
+    expect(await pool.callStatic.underlyingBalance(), 'harvest deposited amount').deep.equal(e18(1536)); // 1920*0.8
+    expect(await pool.callStatic.underlyingFees(), 'fees after harvest').deep.equal(e18(0));
+    expect(await underlying.callStatic.balanceOf(controller.address), 'no underlying on controller after harvest').deep.equal(
+      BN.from(0)
+    );
+    expect(await mcb.callStatic.balanceOf(controller.address), 'no mcb on controller after harvest').deep.equal(BN.from(0));
+
+    expect(await underlying.callStatic.balanceOf(await deployerSign.getAddress()), 'caller gets rewards').deep.equal(e18(60));
+    expect(await underlying.callStatic.balanceOf(mai3World.address), 'mai3 gets underlying poolShare').deep.equal(e18(1920));
+  }).timeout(500 * 1000);
+
+  it('happy path with partial harvest', async function() {
+    const { mai3World, pool, controller, uniswapMock, mcbOracle, underlying, mcb, deployerSign } = await bbFixtures(fixture());
+
+    const mcbPrice = e18(100);
+
+    const uniswapMockPrice = e18(99);
+
+    await mcbOracle.setNewPrice(mcbPrice);
+    await mai3World.setEarned(pool.address, e18(20));
+    await uniswapMock.setup(mcb.address, underlying.address, uniswapMockPrice);
+    await uniswapMock.expectCallSwapExactTokensForTokens(
+      e18(10),
+      e18(960),
+      [mcb.address, WETH, underlying.address],
+      controller.address
+    );
+
+    await mai3World.setRemovePenaltyRate(e18(0.2));
+
+    const { mcbGot, underlyingHarvestReward } = await controller.callStatic.harvest(e18(10));
+    expect(underlyingHarvestReward, 'harvest reward').deep.equal(e18(30));
+    expect(mcbGot, 'mcb got reward').deep.equal(e18(20));
+
+    await controller.harvest(e18(10));
+
+    expect(await pool.callStatic.underlyingBalance(), 'harvest deposited amount').deep.equal(e18(768)); // 960*0.8
+    expect(await pool.callStatic.underlyingFees(), 'fees after harvest').deep.equal(e18(0));
+    expect(await underlying.callStatic.balanceOf(controller.address), 'no underlying on controller after harvest').deep.equal(
+      BN.from(0)
+    );
+    expect(await mcb.callStatic.balanceOf(controller.address), 'still mcb on controller after harvest').deep.equal(e18(10));
+
+    expect(await underlying.callStatic.balanceOf(await deployerSign.getAddress()), 'caller gets rewards').deep.equal(e18(30));
+    expect(await underlying.callStatic.balanceOf(mai3World.address), 'mai3 gets underlying poolShare').deep.equal(e18(960));
+
+    await mai3World.setEarned(pool.address, e18(20));
+
+    await uniswapMock.expectCallSwapExactTokensForTokens(
+      e18(30),
+      e18(2880),
+      [mcb.address, WETH, underlying.address],
+      controller.address
+    );
+
+    await controller.harvest(0);
+
+    expect(await pool.callStatic.underlyingBalance(), 'harvest deposited amount').deep.equal(e18(3072)); // 3840*0.8
+    expect(await pool.callStatic.underlyingFees(), 'fees after harvest').deep.equal(e18(0));
+    expect(await underlying.callStatic.balanceOf(controller.address), 'no underlying on controller after harvest').deep.equal(
+      BN.from(0)
+    );
+    expect(await mcb.callStatic.balanceOf(controller.address), 'no mcb on controller after harvest').deep.equal(BN.from(0));
+
+    expect(await underlying.callStatic.balanceOf(await deployerSign.getAddress()), 'caller gets rewards').deep.equal(e18(120));
+    expect(await underlying.callStatic.balanceOf(mai3World.address), 'mai3 gets underlying poolShare').deep.equal(e18(3840));
+
+    expect(await controller.callStatic.cumulativeHarvestedReward(), 'cumulative harvested mcb').deep.equal(e18(40));
+  }).timeout(500 * 1000);
+
+  it('happy path with more harvest than available', async function() {
+    const { mai3World, pool, controller, uniswapMock, mcbOracle, underlying, mcb, deployerSign } = await bbFixtures(fixture());
+
+    const mcbPrice = e18(100);
+
+    const uniswapMockPrice = e18(99);
+
+    await mcbOracle.setNewPrice(mcbPrice);
+    await mai3World.setEarned(pool.address, e18(20));
+    await uniswapMock.setup(mcb.address, underlying.address, uniswapMockPrice);
+    await uniswapMock.expectCallSwapExactTokensForTokens(
+      e18(20),
+      e18(1920),
+      [mcb.address, WETH, underlying.address],
+      controller.address
+    );
+
+    await mai3World.setRemovePenaltyRate(e18(0.2));
+
+    const { mcbGot, underlyingHarvestReward } = await controller.callStatic.harvest(e18(100));
+    expect(underlyingHarvestReward, 'harvest reward').deep.equal(e18(60));
+    expect(mcbGot, 'mcb got reward').deep.equal(e18(20));
+
+    await controller.harvest(e18(100));
+
+    expect(await pool.callStatic.underlyingBalance(), 'harvest deposited amount').deep.equal(e18(1536)); // 1920*0.8
+    expect(await pool.callStatic.underlyingFees(), 'fees after harvest').deep.equal(e18(0));
+    expect(await underlying.callStatic.balanceOf(controller.address), 'no underlying on controller after harvest').deep.equal(
+      BN.from(0)
+    );
+    expect(await mcb.callStatic.balanceOf(controller.address), 'no mcb on controller after harvest').deep.equal(BN.from(0));
+
+    expect(await underlying.callStatic.balanceOf(await deployerSign.getAddress()), 'caller gets rewards').deep.equal(e18(60));
+    expect(await underlying.callStatic.balanceOf(mai3World.address), 'mai3 gets underlying poolShare').deep.equal(e18(1920));
+  }).timeout(500 * 1000);
+
+  it('reverts if uniswap price/slippage is below/more than HARVEST_COST', async function() {
+    const { mai3World, pool, controller, uniswapMock, mcbOracle, underlying, mcb } = await bbFixtures(fixture());
+
+    const mcbPrice = e18(100);
+
+    const uniswapMockPrice = e18(96).sub(1);
+
+    await mcbOracle.setNewPrice(mcbPrice);
+    await mai3World.setEarned(pool.address, e18(20));
+    await uniswapMock.setup(mcb.address, underlying.address, uniswapMockPrice);
+    await uniswapMock.expectCallSwapExactTokensForTokens(
+      e18(20),
+      e18(1920),
+      [mcb.address, WETH, underlying.address],
+      controller.address
+    );
+
+    await expect(controller.harvest(e18(20))).revertedWith('PPC: harvest poolShare');
+  }).timeout(500 * 1000);
+
+  it('reverts if claimComp gives 0', async function() {
+    const { mai3World, pool, controller } = await bbFixtures(fixture());
+
+    await mai3World.setEarned(pool.address, e18(0));
+
+    await expect(controller.harvest(0)).revertedWith('PPC: harvested nothing');
+  }).timeout(500 * 1000);
 });
