@@ -58,7 +58,8 @@ const getObservations = async (oracle: YieldOracle, granularity: number) => {
 const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: SmartYield, pool: CompoundProvider, oracle: YieldOracle, granularity: number) => {
   return async () => {
 
-    const [spotDailySupplyRate, spotDailyDistributionRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, compoundSupplyRate, providerRatePerDay, maxBondDailyRate] = await Promise.all([
+    const [spotCompToUnderlying, spotDailySupplyRate, spotDailyDistributionRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, compoundSupplyRate, providerRatePerDay, maxBondDailyRate] = await Promise.all([
+      controller.callStatic.quoteSpotCompToUnderlying(e18(1)),
       controller.callStatic.spotDailySupplyRateProvider(),
       controller.callStatic.spotDailyDistributionRateProvider(),
       controller.callStatic.spotDailyRate(),
@@ -73,8 +74,6 @@ const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: 
       smartYield.callStatic.maxBondDailyRate(),
     ]);
 
-    const {compGot, underlyingHarvestReward} = await controller.callStatic.harvest(0);
-
     console.log('---------');
     console.log('compound APY    :', dailyRate2APY(compoundSupplyRate.mul(4).mul(60).mul(24)));
     console.log('underlyingBalance :', underlyingBalance.toString());
@@ -85,8 +84,14 @@ const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: 
     console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APY(oracleRatePerDay), dailyRate2APY(spotDailyRate), dailyRate2APY(maxRatePerDay));
     console.log('sy spot APY (supply + distri) :', dailyRate2APY(spotDailyRate), `(${dailyRate2APY(spotDailySupplyRate)} + ${dailyRate2APY(spotDailyDistributionRate)})`);
 
-    console.log('harvestReward   :', underlyingHarvestReward.toString());
-    console.log('harvestCompGot   :', compGot.toString());
+    try {
+      const {compGot, underlyingHarvestReward} = await controller.callStatic.harvest(0);
+      console.log('harvestReward   :', underlyingHarvestReward.toString());
+      console.log('harvestCompGot  :', compGot.toString());
+    } catch (e) {
+      console.log('harvestReward   : FAILED.');
+    }
+    console.log('spotCompToUnderlying 1 COMP=', spotCompToUnderlying.toString());
     console.log('---------');
   };
 };
@@ -198,7 +203,7 @@ export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
 };
 
 
-describe('yield expected', async function () {
+describe('yield expected USDC', async function () {
 
   it('test yield', async function () {
 
