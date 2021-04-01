@@ -5,7 +5,7 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { ethers } from 'hardhat';
 
-import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY } from '@testhelp/index';
+import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY, e } from '@testhelp/index';
 
 import { ERC20Factory } from '@typechain/ERC20Factory';
 import { ICTokenFactory } from '@typechain/ICTokenFactory';
@@ -34,6 +34,13 @@ const BLOCKS_A_DAY = 24 * BLOCKS_A_HOUR;
 // barnbridge
 const decimals = 6; // same as USDC
 
+// ethereum / compound
+
+// block = 12154444
+// USDC supply APY 8.29%
+// USDC distribution APY 2.55% (2.448%)
+// 1 COMP ~= 448 USD (comp oracle)
+// 1 COMP ~= 449 USDC (uniswap)
 // externals ---
 
 // compound
@@ -209,7 +216,7 @@ describe('yield expected USDC', async function () {
 
     const { whaleSign, pool, cToken, comp, oracle, currentBlock, moveTime, buyTokens, buyBond, mintCtoken, redeemCtoken, dumpState, controller } = await bbFixtures(fixture());
 
-    await buyTokens(whaleSign as unknown as Wallet, 100_000 * 10**6);
+    await buyTokens(whaleSign as unknown as Wallet, e(1_000_000, decimals));
 
     let skipBlocks = 0;
 
@@ -219,7 +226,7 @@ describe('yield expected USDC', async function () {
 
       //await (await cToken.connect(whaleSign).accrueInterest()).wait();
 
-      if (i % 20 == 2) {
+      if (i % 20 == 19) {
         skipBlocks++;
         await forceNextTime();
         console.log('+++ HARVEST!');
@@ -240,13 +247,13 @@ describe('yield expected USDC', async function () {
       if (i % 20 == 1) {
         skipBlocks++;
         await forceNextTime();
-        await buyTokens(whaleSign as unknown as Wallet, 1_000_000 * 10**6);
+        await buyTokens(whaleSign as unknown as Wallet, e(1_000_000, decimals));
       }
 
       if (i % 20 == 19) {
         skipBlocks++;
         await forceNextTime();
-        await buyBond(whaleSign as unknown as Wallet, 100_000 * 10**6, 30);
+        await buyBond(whaleSign as unknown as Wallet, e(100_000, decimals), 30);
       }
 
       //await mineBlocks(1);
@@ -264,7 +271,7 @@ describe('yield expected USDC', async function () {
 
     const { whaleSign, pool, cToken, comp, currentBlock, moveTime, buyTokens } = await bbFixtures(fixture());
 
-    await buyTokens(whaleSign as unknown as Wallet, 100_000 * 10**6);
+    await buyTokens(whaleSign as unknown as Wallet, e(100_000, decimals));
 
 
 

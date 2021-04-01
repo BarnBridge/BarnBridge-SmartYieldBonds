@@ -5,7 +5,7 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { ethers } from 'hardhat';
 
-import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY } from '@testhelp/index';
+import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY, e } from '@testhelp/index';
 
 import { ERC20Factory } from '@typechain/ERC20Factory';
 import { ICTokenFactory } from '@typechain/ICTokenFactory';
@@ -32,9 +32,11 @@ const BLOCKS_A_DAY = 24 * BLOCKS_A_HOUR;
 
 // ethereum / compound
 
-// block = 12146966
-// DAI supply APY 6.65%
-// DAI distribution APY 2.47% (2.37%)
+// block = 12154444
+// DAI supply APY 7.14%
+// DAI distribution APY 2.72% (2.6112%)
+// 1 COMP ~= 448 USD (comp oracle)
+// 1 COMP ~= 449 DAI (uniswap)
 
 // barnbridge
 const decimals = 18; // same as DAI
@@ -59,7 +61,6 @@ const getObservations = async (oracle: YieldOracle, granularity: number) => {
   );
 };
 
-
 const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: SmartYield, pool: CompoundProvider, oracle: YieldOracle, granularity: number) => {
   return async () => {
 
@@ -79,8 +80,6 @@ const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: 
       smartYield.callStatic.maxBondDailyRate(),
     ]);
 
-    const {compGot, underlyingHarvestReward} = await controller.callStatic.harvest(0);
-
     console.log('---------');
     console.log('compound APY      :', dailyRate2APY(compoundSupplyRate.mul(4).mul(60).mul(24)));
     console.log('underlyingBalance :', underlyingBalance.toString());
@@ -91,8 +90,13 @@ const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: 
     console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APY(oracleRatePerDay), dailyRate2APY(spotDailyRate), dailyRate2APY(maxRatePerDay));
     console.log('sy spot APY (supply + distri) :', dailyRate2APY(spotDailyRate), `(${dailyRate2APY(spotDailySupplyRate)} + ${dailyRate2APY(spotDailyDistributionRate)})`);
 
-    console.log('harvestReward    :', underlyingHarvestReward.toString());
-    console.log('harvestCompGot   :', compGot.toString());
+    try {
+      const {compGot, underlyingHarvestReward} = await controller.callStatic.harvest(0);
+      console.log('harvestReward   :', underlyingHarvestReward.toString());
+      console.log('harvestCompGot  :', compGot.toString());
+    } catch (e) {
+      console.log('harvestReward   : FAILED.');
+    }
 
     console.log('spotCompToUnderlying 1 COMP=', spotCompToUnderlying.toString());
     console.log('---------');
@@ -212,7 +216,7 @@ describe('yield expected DAI', async function () {
 
     const { whaleSign, pool, cToken, comp, oracle, currentBlock, moveTime, buyTokens, buyBond, mintCtoken, redeemCtoken, dumpState, controller } = await bbFixtures(fixture());
 
-    await buyTokens(whaleSign as unknown as Wallet, 100_000 * 10**6);
+    await buyTokens(whaleSign as unknown as Wallet, e(10_000_000, decimals));
 
     let skipBlocks = 0;
 
@@ -222,7 +226,7 @@ describe('yield expected DAI', async function () {
 
       //await (await cToken.connect(whaleSign).accrueInterest()).wait();
 
-      if (i % 20 == 2) {
+      if (i % 20 == 19) {
         skipBlocks++;
         await forceNextTime();
         console.log('+++ HARVEST!');
@@ -243,13 +247,13 @@ describe('yield expected DAI', async function () {
       if (i % 20 == 1) {
         skipBlocks++;
         await forceNextTime();
-        await buyTokens(whaleSign as unknown as Wallet, 1_000_000 * 10**6);
+        await buyTokens(whaleSign as unknown as Wallet, e(1_000_000, decimals));
       }
 
       if (i % 20 == 19) {
         skipBlocks++;
         await forceNextTime();
-        await buyBond(whaleSign as unknown as Wallet, 100_000 * 10**6, 30);
+        await buyBond(whaleSign as unknown as Wallet, e(100_000, decimals), 30);
       }
 
       //await mineBlocks(1);
@@ -267,7 +271,7 @@ describe('yield expected DAI', async function () {
 
     const { whaleSign, pool, cToken, comp, currentBlock, moveTime, buyTokens } = await bbFixtures(fixture());
 
-    await buyTokens(whaleSign as unknown as Wallet, 100_000 * 10**6);
+    await buyTokens(whaleSign as unknown as Wallet, e(100_000, decimals));
 
 
 
