@@ -20,19 +20,15 @@ import { CompoundController } from '@typechain/CompoundController';
 const A_HOUR = 60 * 60;
 const A_DAY = 24 * A_HOUR;
 
-const seniorBondCONF = { name: 'BarnBridge cUSDC sBOND', symbol: 'bbscUSDC' };
-const juniorBondCONF = { name: 'BarnBridge cUSDC jBOND', symbol: 'bbjcUSDC' };
-const juniorTokenCONF = { name: 'BarnBridge cUSDC', symbol: 'bbcUSDC' };
+const seniorBondCONF = { name: 'BarnBridge cUSDC sBOND', symbol: 'bb_sBOND_cUSDC' };
+const juniorBondCONF = { name: 'BarnBridge cUSDC jBOND', symbol: 'bb_jBOND_cUSDC' };
+const juniorTokenCONF = { name: 'BarnBridge cUSDC', symbol: 'bb_cUSDC' };
 
 const oracleCONF = { windowSize: A_HOUR, granularity: 4 };
 
 const BLOCKS_A_PERIOD = 4 * oracleCONF.windowSize / oracleCONF.granularity / 60;
 const BLOCKS_A_HOUR = 4 * 60;
 const BLOCKS_A_DAY = 24 * BLOCKS_A_HOUR;
-
-
-// barnbridge
-const decimals = 6; // same as USDC
 
 // ethereum / compound
 
@@ -41,6 +37,10 @@ const decimals = 6; // same as USDC
 // USDC distribution APY 2.55% (2.448%)
 // 1 COMP ~= 448 USD (comp oracle)
 // 1 COMP ~= 449 USDC (uniswap)
+
+// barnbridge
+const decimals = 6; // same as USDC
+
 // externals ---
 
 // compound
@@ -60,7 +60,6 @@ const getObservations = async (oracle: YieldOracle, granularity: number) => {
     [...Array(granularity).keys()].map(i => oracle.yieldObservations(i))
   );
 };
-
 
 const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: SmartYield, pool: CompoundProvider, oracle: YieldOracle, granularity: number) => {
   return async () => {
@@ -82,10 +81,10 @@ const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: 
     ]);
 
     console.log('---------');
-    console.log('compound APY    :', dailyRate2APY(compoundSupplyRate.mul(4).mul(60).mul(24)));
+    console.log('compound APY      :', dailyRate2APY(compoundSupplyRate.mul(4).mul(60).mul(24)));
     console.log('underlyingBalance :', underlyingBalance.toString());
     console.log('underlyingFees    :', underlyingFees.toString());
-    console.log('underlyingFull :', underlyingBalance.add(underlyingFees).toString());
+    console.log('underlyingFull    :', underlyingBalance.add(underlyingFees).toString());
 
     console.log('sy provider APY :', dailyRate2APY(providerRatePerDay));
     console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APY(oracleRatePerDay), dailyRate2APY(spotDailyRate), dailyRate2APY(maxRatePerDay));
@@ -98,6 +97,7 @@ const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: 
     } catch (e) {
       console.log('harvestReward   : FAILED.');
     }
+
     console.log('spotCompToUnderlying 1 COMP=', spotCompToUnderlying.toString());
     console.log('---------');
   };
@@ -216,7 +216,7 @@ describe('yield expected USDC', async function () {
 
     const { whaleSign, pool, cToken, comp, oracle, currentBlock, moveTime, buyTokens, buyBond, mintCtoken, redeemCtoken, dumpState, controller } = await bbFixtures(fixture());
 
-    await buyTokens(whaleSign as unknown as Wallet, e(1_000_000, decimals));
+    await buyTokens(whaleSign as unknown as Wallet, e(100_000_000, decimals));
 
     let skipBlocks = 0;
 
@@ -230,8 +230,12 @@ describe('yield expected USDC', async function () {
         skipBlocks++;
         await forceNextTime();
         console.log('+++ HARVEST!');
-        const harv = await (await controller.harvest(0)).wait();
-        console.log('harvest gas >>>>>>>>>>>>>>>>>>>>>>>>>> ', harv.gasUsed.toString());
+        try {
+          const harv = await (await controller.harvest(0)).wait();
+          console.log('harvest gas >>>>>>>>>>>>>>>>>>>>>>>>>> ', harv.gasUsed.toString());
+        } catch (e) {
+          console.log('harvest FAILED!', e);
+        }
         console.log('--- HARVEST!');
       }
 

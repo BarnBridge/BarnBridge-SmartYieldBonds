@@ -216,7 +216,7 @@ describe('yield expected DAI', async function () {
 
     const { whaleSign, pool, cToken, comp, oracle, currentBlock, moveTime, buyTokens, buyBond, mintCtoken, redeemCtoken, dumpState, controller } = await bbFixtures(fixture());
 
-    await buyTokens(whaleSign as unknown as Wallet, e(10_000_000, decimals));
+    await buyTokens(whaleSign as unknown as Wallet, e(1_000_000, decimals));
 
     let skipBlocks = 0;
 
