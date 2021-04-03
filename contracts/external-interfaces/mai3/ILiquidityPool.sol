@@ -75,4 +75,11 @@ interface ILiquidityPool {
         external
         view
         returns (int256 cashToReturnResult, int256 shareToRemoveResult);
+
+    /**
+     * @notice Get the pool margin of the liquidity pool.
+     *         Pool margin is how much collateral of the pool considering the AMM's positions of perpetuals
+     * @return poolMargin The pool margin of the liquidity pool
+     */
+    function getPoolMargin() external view returns (int256 poolMargin, bool isSafe);
 }

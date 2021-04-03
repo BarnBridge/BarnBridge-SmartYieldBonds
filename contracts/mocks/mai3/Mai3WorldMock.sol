@@ -97,20 +97,16 @@ contract Mai3WorldMock is ILiquidityPool, ILpGovernor {
         } else {
             IERC20(_underlying).transferFrom(msg.sender, address(this), cashToAdd_.toUint256());
             uint256 afterUnderlying = beforeUnderlying.add(cashToAdd_.toUint256());
-            uint256 deltaShare = afterUnderlying.div(beforeUnderlying).mul(beforeShare).sub(beforeShare);
+            uint256 deltaShare = afterUnderlying.mul(beforeShare).div(beforeUnderlying).sub(beforeShare);
             Erc20Mock(_shareToken).mintMock(msg.sender, deltaShare);
         }
     }
 
     function removeLiquidity(int256 shareToRemove_, int256 cashToReturn_) external override {
-        (int256 cashToReturnResult, int256 shareToRemoveResult) = _queryRemoveLiquidity(shareToRemove_, cashToReturn_);
-        if (shareToRemove_ > 0) {
-            Erc20Mock(_shareToken).burnMock(msg.sender, shareToRemove_.toUint256());
-            IERC20(_underlying).transfer(msg.sender, cashToReturnResult.toUint256());
-        } else {
-            Erc20Mock(_shareToken).burnMock(msg.sender, shareToRemoveResult.toUint256());
-            IERC20(_underlying).transfer(msg.sender, cashToReturn_.toUint256());
-        }
+        (int256 shareToRemoveResult, int256 cashToReturnResult) = _queryRemoveLiquidity(shareToRemove_, cashToReturn_);
+        require(cashToReturnResult > 0 && shareToRemoveResult > 0, "remove amount > 0");
+        Erc20Mock(_shareToken).burnMock(msg.sender, shareToRemoveResult.toUint256());
+        IERC20(_underlying).transfer(msg.sender, cashToReturnResult.toUint256());
     }
 
     function _queryRemoveLiquidity(int256 shareToRemove_, int256 cashToReturn_)
@@ -126,12 +122,12 @@ contract Mai3WorldMock is ILiquidityPool, ILpGovernor {
             uint256 shareToRemove = shareToRemove_.toUint256();
             uint256 cashToReturn =
                 beforeUnderlying.mul(shareToRemove).div(beforeShareSupply).mul(EXP_SCALE.sub(_removePenaltyRate)).div(EXP_SCALE);
-            return (0, cashToReturn.toInt256());
+            return (shareToRemove_, cashToReturn.toInt256());
         } else {
             uint256 cashToReturn = cashToReturn_.toUint256();
             uint256 shareToRemove =
                 cashToReturn.mul(EXP_SCALE).div(EXP_SCALE.sub(_removePenaltyRate)).mul(beforeShareSupply).div(beforeUnderlying);
-            return (shareToRemove.toInt256(), 0);
+            return (shareToRemove.toInt256(), cashToReturn_);
         }
     }
 
@@ -142,6 +138,10 @@ contract Mai3WorldMock is ILiquidityPool, ILpGovernor {
         returns (int256 shareToRemoveResult, int256 cashToReturnResult)
     {
         return _queryRemoveLiquidity(shareToRemove_, cashToReturn_);
+    }
+
+    function getPoolMargin() external view override returns (int256 poolMargin, bool isSafe) {
+        return (IERC20(_underlying).balanceOf(address(this)).toInt256(), true);
     }
 
     function castVote(uint256 proposalId, bool support) external override {}

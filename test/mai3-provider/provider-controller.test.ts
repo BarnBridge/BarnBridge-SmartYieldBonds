@@ -16,9 +16,6 @@ import { Erc20MockFactory } from '@typechain/Erc20MockFactory';
 import { Mai3OracleMockFactory } from '@typechain/Mai3OracleMockFactory';
 import { UniswapMockFactory } from '@typechain/UniswapMockFactory';
 
-const decimals = 18;
-const supplyRatePerBlock = BN.from('40749278849'); // 8.94% // 89437198474492656
-
 const WETH = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
 
 const oracleCONF = { windowSize: 4 * A_DAY, granularity: 4 };
@@ -91,20 +88,42 @@ const fixture = () => {
       userAddr,
       userSign,
       deployerSign: deployerSign as Signer,
-      smartYieldSign
+      smartYieldSign,
+      daoSign
     };
   };
 };
 
+describe('Mai3Provider.setController()', async function() {
+  it('only dao can call setController()', async function() {
+    const { pool, deployerSign, userAddr, userSign } = await bbFixtures(fixture());
+
+    await expect(pool.connect(userSign).setController(userAddr), 'should throw if not dao').revertedWith(
+      'PPC: only controller/DAO'
+    );
+  });
+
+  it('set new controller', async function() {
+    const { pool, deployerSign, userAddr, daoSign } = await bbFixtures(fixture());
+
+    await pool.connect(deployerSign).setController(userAddr);
+    expect(await pool.callStatic.controller(), 'sould be new controller').equal(userAddr);
+  });
+});
+
 describe('Mai3Provider._takeUnderlying() / Mai3Provider._sendUnderlying() ', async function() {
   it('system should be in expected state', async function() {
-    const { pool, controller, underlying, mai3World, smartYieldAddr } = await bbFixtures(fixture());
+    const { pool, controller, underlying, mai3World, smartYieldAddr, deployerSign, userAddr } = await bbFixtures(fixture());
 
     expect(await pool._setup(), 'should be _setup').equal(true);
+    await expect(pool.connect(deployerSign).setup(mai3World.address, userAddr), 'should throw if already setup').revertedWith(
+      'PPC: already setup'
+    );
     expect(await pool.smartYield(), 'should be smartYield').equal(smartYieldAddr);
     expect(await pool.controller(), 'should be controller').equal(controller.address);
     expect(await pool.shareToken(), 'should be shareToken').equal(await mai3World.shareToken());
     expect(await pool.uToken(), 'should be uToken').equal(underlying.address);
+    expect(await pool.callStatic.netAssetValueCurrent(), 'inital nav should be 1').deep.equal(e18(1));
   });
 
   it('only smartYield can call _takeUnderlying/_sendUnderlying', async function() {
@@ -181,7 +200,7 @@ describe('Mai3Provider._depositProvider() / Mai3Provider._withdrawProvider() ', 
     ).not.revertedWith('PPC: only smartYield');
   });
 
-  it('_depositProvider deposits to provider', async function() {
+  it('_depositProvider deposits to provider and withdraw', async function() {
     const { pool, underlying, shareToken, smartYieldSign, mai3World } = await bbFixtures(fixture());
 
     expect(await underlying.balanceOf(pool.address), 'pool has 0 underlying').deep.equal(BN.from(0));
@@ -191,15 +210,101 @@ describe('Mai3Provider._depositProvider() / Mai3Provider._withdrawProvider() ', 
 
     expect(await underlying.balanceOf(pool.address), 'pool has 1 underlying').deep.equal(e18(1));
 
-    await pool.connect(smartYieldSign)._depositProvider(e18(1), 0);
+    const provider = pool.connect(smartYieldSign);
+    await provider._depositProvider(e18(0.3), 0);
+    expect(await underlying.balanceOf(pool.address), 'pool has 0.7 underlying').deep.equal(e18(0.7));
+    expect(await shareToken.balanceOf(pool.address), 'pool has 0.3 shareToken').deep.equal(e18(0.3));
 
-    expect(await underlying.balanceOf(pool.address), 'pool has 0 underlying').deep.equal(BN.from(0));
-
-    expect(await shareToken.balanceOf(pool.address), 'pool has correct shareToken').deep.equal(e18(1));
+    await provider._depositProvider(e18(0.7), 0);
+    expect(await underlying.balanceOf(pool.address), 'pool has 0 underlying').deep.equal(e18(0));
+    expect(await shareToken.balanceOf(pool.address), 'pool has 1 shareToken').deep.equal(e18(1));
 
     await mai3World.setRemovePenaltyRate(e18(0.2));
 
     expect(await pool.callStatic.underlyingBalance(), 'underlyingBalance() is 0.8').deep.equal(e18(0.8));
+
+    await provider._withdrawProvider(e18(0.5), 0);
+
+    expect(await underlying.balanceOf(pool.address), 'pool has 0.5 underlying').deep.equal(e18(0.5));
+
+    expect(await pool.callStatic.underlyingBalance(), 'underlyingBalance() is (1-0.5)*0.8=0.4').deep.equal(e18(0.4));
+
+    expect(await shareToken.balanceOf(pool.address), 'pool has 1-0.625=0.375 shareToken').deep.equal(e18(0.375));
+  });
+});
+
+describe('Mai3Provider.takeFees()', async function() {
+  it('transfer fee after deposting and withdrawing', async function() {
+    const { userAddr, daoSign, pool, underlying, shareToken, smartYieldSign, mai3World, controller } = await bbFixtures(
+      fixture()
+    );
+
+    expect(await underlying.balanceOf(pool.address), 'pool has 0 underlying').deep.equal(BN.from(0));
+    expect(await shareToken.balanceOf(pool.address), 'pool has 0 shareToken').deep.equal(BN.from(0));
+
+    await underlying.mintMock(pool.address, e18(1));
+
+    expect(await underlying.balanceOf(pool.address), 'pool has 1 underlying').deep.equal(e18(1));
+
+    const provider = pool.connect(smartYieldSign);
+    await provider._depositProvider(e18(0.3), e18(0.01));
+    expect(await underlying.balanceOf(pool.address), 'pool has 0.7 underlying').deep.equal(e18(0.7));
+    expect(await shareToken.balanceOf(pool.address), 'pool has 0.3 shareToken').deep.equal(e18(0.3));
+
+    await provider._depositProvider(e18(0.7), e18(0.01));
+    expect(await underlying.balanceOf(pool.address), 'pool has 0 underlying').deep.equal(e18(0));
+    expect(await shareToken.balanceOf(pool.address), 'pool has 1 shareToken').deep.equal(e18(1));
+
+    await mai3World.setRemovePenaltyRate(e18(0.2));
+
+    expect(await pool.callStatic.underlyingBalance(), 'underlyingBalance() is 0.78').deep.equal(e18(0.78));
+
+    await provider._withdrawProvider(e18(0.5), e18(0.02));
+
+    expect(await underlying.balanceOf(pool.address), 'pool has 0.5 underlying').deep.equal(e18(0.5));
+
+    expect(await pool.callStatic.underlyingBalance(), 'underlyingBalance() is (1-0.5)*0.8-0.04=0.36').deep.equal(e18(0.36));
+
+    expect(await shareToken.balanceOf(pool.address), 'pool has 1-0.625=0.375 shareToken').deep.equal(e18(0.375));
+
+    await pool.connect(smartYieldSign)._sendUnderlying(userAddr, e18(0.5));
+
+    await controller.setFeesOwner(daoSign.address);
+
+    await provider.transferFees();
+
+    expect(await underlying.balanceOf(pool.address), 'pool has 0 underlying').deep.equal(e18(0));
+
+    expect(await pool.callStatic.underlyingBalance(), 'underlyingBalance() is 0.36').deep.equal(e18(0.368));
+
+    expect(await shareToken.balanceOf(pool.address), 'pool has 0.375 * 0.9 shareToken').deep.equal(e18(0.375 * 0.9));
+
+    expect(await underlying.balanceOf(daoSign.address), 'dao has 0.04 fees').deep.equal(e18(0.04));
+  });
+
+  it('fee is larger than underlying', async function() {
+    const { userAddr, daoSign, pool, underlying, shareToken, smartYieldSign, mai3World, controller } = await bbFixtures(
+      fixture()
+    );
+    await underlying.mintMock(pool.address, e18(1));
+    const provider = pool.connect(smartYieldSign);
+    await provider._depositProvider(e18(1), e18(2));
+    expect(await underlying.balanceOf(pool.address), 'pool has 0 underlying').deep.equal(e18(0));
+    expect(await pool.callStatic.underlyingBalance(), 'underlyingBalance() is 0').deep.equal(e18(0));
+  });
+});
+
+describe('Provider.castVote()', async function() {
+  it('only dao can call castVote()', async function() {
+    const { pool, deployerSign, userAddr, userSign } = await bbFixtures(fixture());
+
+    await expect(pool.connect(userSign).castVote(1, true), 'should throw if not dao').revertedWith('PPC: only controller/DAO');
+  });
+
+  it('cast vote', async function() {
+    const { pool, deployerSign, userAddr, daoSign } = await bbFixtures(fixture());
+
+    await pool.connect(deployerSign).castVote(1, true);
   });
 });
 

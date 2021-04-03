@@ -63,7 +63,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
     uint256 public prevCumulationTime;
 
     // exchnageRateStored last time we cumulated
-    uint256 public prevExchnageRateCurrent;
+    uint256 public prevNetAssetValue;
 
     // cumulative supply rate += ((new underlying) / underlying)
     int256 public cumulativeSupplyRate;
@@ -171,9 +171,15 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
         return UNISWAP_ROUTER_V2;
     }
 
+    function getTimestamp() public view virtual returns (uint256) {
+        //mockable
+        return block.timestamp;
+    }
+
     // claims and sells MCB on uniswap, returns total received mcb and caller reward
     function harvest(uint256 maxMCBAmount_) public returns (uint256 mcbGot, uint256 underlyingHarvestReward) {
-        require(harvestedLast < block.timestamp, "PPC: harvest later");
+        uint256 timestamp = getTimestamp();
+        require(harvestedLast < timestamp, "PPC: harvest later");
 
         address caller = msg.sender;
 
@@ -207,7 +213,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
             poolShare,
             uniswapPath,
             address(this),
-            block.timestamp
+            timestamp
         );
 
         uint256 underlyingGot = IERC20(uToken).balanceOf(address(this));
@@ -222,7 +228,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
         uint256 callerReward = IERC20(uToken).balanceOf(address(this));
         IERC20(uToken).safeTransfer(caller, callerReward);
 
-        harvestedLast = block.timestamp;
+        harvestedLast = timestamp;
 
         emit Harvest(caller, mcbRewardTotal, mcbRewardSold, poolShare, callerReward, HARVEST_COST);
 
@@ -258,7 +264,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
             return 0;
         }
 
-        uint256 timeElapsed = block.timestamp - prevCumulationTime;
+        uint256 timeElapsed = getTimestamp() - prevCumulationTime;
 
         // only cumulate once per block
         if (0 == timeElapsed) {
@@ -272,7 +278,8 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
     }
 
     function updateCumulativesInternal(uint256 prevShareTokenBalance_) private {
-        uint256 timeElapsed = block.timestamp - prevCumulationTime;
+        uint256 timestamp = getTimestamp();
+        uint256 timeElapsed = timestamp - prevCumulationTime;
 
         // only cumulate once per block
         if (0 == timeElapsed) {
@@ -283,15 +290,13 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
 
         uint256 cumulativeEarnedRewardNow = cumulativeEarnedReward();
 
-        uint256 exchangeRateCurrent = Mai3Provider(pool).exchangeRateCurrent();
+        uint256 netAssetValueCurrent = Mai3Provider(pool).netAssetValueCurrent();
 
-        if (prevExchnageRateCurrent > 0) {
-            int256 prevExchnageRateCurrentInt256 = prevExchnageRateCurrent.toInt256();
-            // cumulate a new supplyRate delta: cumulativeSupplyRate += (exchangeRateCurrent() - prevExchnageRateCurrent) / prevExchnageRateCurrent
+        if (prevNetAssetValue > 0) {
+            int256 prevNetAssetValueInt256 = prevNetAssetValue.toInt256();
+            // cumulate a new supplyRate delta: cumulativeSupplyRate += (netAssetValueCurrent() - prevNetAssetValue) / prevNetAssetValue
             cumulativeSupplyRate = cumulativeSupplyRate.add(
-                exchangeRateCurrent.toInt256().sub(prevExchnageRateCurrentInt256).mul(int256(EXP_SCALE)).div(
-                    prevExchnageRateCurrentInt256
-                )
+                netAssetValueCurrent.toInt256().sub(prevNetAssetValueInt256).mul(int256(EXP_SCALE)).div(prevNetAssetValueInt256)
             );
 
             if (cumulativeEarnedRewardNow > prevCumulativeEarnedReward) {
@@ -302,12 +307,12 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
                 uint256 poolShare = MathUtils.fractionOf(expectedMCBInUnderlying, EXP_SCALE.sub(HARVEST_COST));
                 // cumulate a new distributionRate delta: cumulativeDistributionRate += (expectedDistributeSupplierComp in underlying - harvest cost) / prevUnderlyingBalance
                 cumulativeDistributionRate = cumulativeDistributionRate.add(
-                    poolShare.mul(EXP_SCALE).div(shareTokensToUnderlying(prevShareTokenBalance_, prevExchnageRateCurrent))
+                    poolShare.mul(EXP_SCALE).div(shareTokensToUnderlying(prevShareTokenBalance_, prevNetAssetValue))
                 );
             }
         }
 
-        prevCumulationTime = block.timestamp;
+        prevCumulationTime = timestamp;
 
         // uniswap cumulatives only change once per block
         uniswapPriceCumulatives = currentUniswapPriceCumulatives;
@@ -315,7 +320,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
         prevCumulativeEarnedReward = cumulativeEarnedRewardNow;
 
         // exchangeRateStored can increase multiple times per block
-        prevExchnageRateCurrent = exchangeRateCurrent;
+        prevNetAssetValue = netAssetValueCurrent;
     }
 
     function shareTokensToUnderlying(uint256 shareTokens_, uint256 exchangeRate_) public pure returns (uint256) {
@@ -379,7 +384,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
 
         uint256 dailyMCBPerShare = rewardRate.mul(BLOCKS_PER_DAY).div(IERC20(rewardToken).totalSupply());
 
-        uint256 exchangeRate = Mai3Provider(pool).exchangeRateCurrent();
+        uint256 exchangeRate = Mai3Provider(pool).netAssetValueCurrent();
 
         return quoteSpotMCBToUnderlying(dailyMCBPerShare).div(exchangeRate);
     }

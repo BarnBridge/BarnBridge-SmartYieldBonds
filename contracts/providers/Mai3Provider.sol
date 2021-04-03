@@ -57,11 +57,6 @@ contract Mai3Provider is IProvider {
         _;
     }
 
-    modifier onlyController {
-        require(msg.sender == controller, "PPC: only controller");
-        _;
-    }
-
     modifier onlySmartYieldOrController {
         require(msg.sender == smartYield || msg.sender == controller, "PPC: only smartYield/controller");
         _;
@@ -141,6 +136,7 @@ contract Mai3Provider is IProvider {
         IERC20(uToken).approve(address(mai3LiquidityPool), underlyingAmount_);
 
         ILiquidityPool(mai3LiquidityPool).addLiquidity(underlyingAmount_.toInt256());
+        IMai3Cumulator(controller)._afterShareTokenBalanceChange(shareTokenBalance);
 
         // shareTokenBalance is used to compute the pool yield, make sure no one interferes with the computations between deposits/withdrawls
         shareTokenBalance = IERC20(shareToken).balanceOf(address(this));
@@ -155,8 +151,9 @@ contract Mai3Provider is IProvider {
     function _withdrawProviderInternal(uint256 underlyingAmount_, uint256 takeFees_) internal {
         // underlyingFees += takeFees_;
         underlyingFees = underlyingFees.add(takeFees_);
-
+        IMai3Cumulator(controller)._beforeShareTokenBalanceChange();
         ILiquidityPool(mai3LiquidityPool).removeLiquidity(0, underlyingAmount_.toInt256());
+        IMai3Cumulator(controller)._afterShareTokenBalanceChange(shareTokenBalance);
 
         // shareTokenBalance is used to compute the pool yield, make sure no one interferes with the computations between deposits/withdrawls
         shareTokenBalance = IERC20(shareToken).balanceOf(address(this));
@@ -179,9 +176,6 @@ contract Mai3Provider is IProvider {
         ILiquidityPool(mai3LiquidityPool).forceToSyncState();
 
         (, int256 cash) = ILiquidityPool(mai3LiquidityPool).queryRemoveLiquidity(shareTokenBalance.toInt256(), 0);
-        if (cash < 0) {
-            return 0;
-        }
         uint256 cashU256 = cash.toUint256();
 
         if (cashU256 < underlyingFees) {
@@ -191,14 +185,15 @@ contract Mai3Provider is IProvider {
         return cashU256 - underlyingFees;
     }
 
-    // public the exchage rate between share token and underlying asset, without remove penalty(slippage)
-    function exchangeRateCurrent() public returns (uint256) {
-        ILiquidityPool(mai3LiquidityPool).forceToSyncState();
-        (, int256 cash) = ILiquidityPool(mai3LiquidityPool).queryRemoveLiquidity(shareTokenBalance.toInt256(), 0);
-        if (cash < 0) {
-            return 0;
+    // use pool margin to calculate the current net asset value
+    function netAssetValueCurrent() public returns (uint256) {
+        uint256 totalShareToken = IERC20(shareToken).totalSupply();
+        if (totalShareToken == 0) {
+            return EXP_SCALE;
         }
-        return cash.toUint256().mul(EXP_SCALE).div(shareTokenBalance);
+        ILiquidityPool(mai3LiquidityPool).forceToSyncState();
+        (int256 poolMargin, ) = ILiquidityPool(mai3LiquidityPool).getPoolMargin();
+        return poolMargin.toUint256().div(totalShareToken);
     }
 
     // claim liquidity mining reward
