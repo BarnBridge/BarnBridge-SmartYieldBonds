@@ -2,6 +2,10 @@
 
 are found in the [SPEC.md](./SPEC.md) file
 
+# Smart Contract Architecture
+
+![image](https://gblobscdn.gitbook.com/assets%2F-MIu3rMElIO-jG68zdaV%2F-MXHutr14sDo0hYi6gg3%2F-MXHwLefdUtdmBIqsexN%2Fsmart%20yield.png?alt=media&token=e4ddb985-c36c-4182-915d-befd37e2db4a)
+
 # Getting Started
 
 ```bash
