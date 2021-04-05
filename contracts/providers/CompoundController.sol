@@ -53,6 +53,8 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     // compound.finance comptroller.compSupplyState right after the previous deposit/withdraw
     IComptroller.CompMarketState public prevCompSupplyState;
 
+    uint256 public underlyingDecimals;
+
     // uniswap path for COMP to underlying
     address[] public uniswapPath;
 
@@ -87,6 +89,7 @@ contract CompoundController is IController, ICompoundCumulator, IYieldOracleliza
     {
       pool = pool_;
       smartYield = smartYield_;
+      underlyingDecimals = ERC20(ICToken(CompoundProvider(pool).cToken()).underlying()).decimals();
       setBondModel(bondModel_);
       setUniswapPath(uniswapPath_);
 
