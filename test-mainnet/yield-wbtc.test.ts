@@ -5,7 +5,7 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { ethers } from 'hardhat';
 
-import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY } from '@testhelp/index';
+import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY, e } from '@testhelp/index';
 
 import { ERC20Factory } from '@typechain/ERC20Factory';
 import { ICTokenFactory } from '@typechain/ICTokenFactory';
@@ -20,9 +20,9 @@ import { CompoundController } from '@typechain/CompoundController';
 const A_HOUR = 60 * 60;
 const A_DAY = 24 * A_HOUR;
 
-const seniorBondCONF = { name: 'BarnBridge cUSDC sBOND', symbol: 'bbscUSDC' };
-const juniorBondCONF = { name: 'BarnBridge cUSDC jBOND', symbol: 'bbjcUSDC' };
-const juniorTokenCONF = { name: 'BarnBridge cUSDC', symbol: 'bbcUSDC' };
+const seniorBondCONF = { name: 'BarnBridge cWBTC sBOND', symbol: 'bb_sBOND_cWBTC' };
+const juniorBondCONF = { name: 'BarnBridge cWBTC jBOND', symbol: 'bb_jBOND_cWBTC' };
+const juniorTokenCONF = { name: 'BarnBridge cWBTC', symbol: 'bb_cWBTC' };
 
 const oracleCONF = { windowSize: A_HOUR, granularity: 4 };
 
@@ -30,23 +30,30 @@ const BLOCKS_A_PERIOD = 4 * oracleCONF.windowSize / oracleCONF.granularity / 60;
 const BLOCKS_A_HOUR = 4 * 60;
 const BLOCKS_A_DAY = 24 * BLOCKS_A_HOUR;
 
+// ethereum / compound
+
+// block = 12154444
+// USDC supply APY 8.29%
+// USDC distribution APY 2.55% (2.448%)
+// 1 COMP ~= 448 USD (comp oracle)
+// 1 COMP ~= 449 USDC (uniswap)
 
 // barnbridge
-const decimals = 6; // same as USDC
+const decimals = 8; // same as WBTC
 
 // externals ---
 
 // compound
-const cUSDC = '0x39AA39c021dfbaE8faC545936693aC917d5E7563';
+const cWBTC = '0xccF4429DB6322D5C611ee964527D42E5d685DD6a';
 const COMP = '0xc00e94cb662c3520282e6f5717214004a7f26888';
 const cComptroller = '0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B';
 
 // uniswap https://uniswap.org/docs/v2/smart-contracts/router02/
-const USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+const WBTC = '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599';
 const WETH = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
-const uniswapPath = [COMP, WETH, USDC];
+const uniswapPath = [COMP, WETH, WBTC];
 
-const USDCwhale = '0x55FE002aefF02F77364de339a1292923A15844B8';
+const WBTCwhale = '0x3Fea27346894f5bDF53aC4AcB599fcfEc36a4883';
 
 const getObservations = async (oracle: YieldOracle, granularity: number) => {
   return await Promise.all(
@@ -54,11 +61,11 @@ const getObservations = async (oracle: YieldOracle, granularity: number) => {
   );
 };
 
-
 const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: SmartYield, pool: CompoundProvider, oracle: YieldOracle, granularity: number) => {
   return async () => {
 
-    const [spotDailySupplyRate, spotDailyDistributionRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, compoundSupplyRate, providerRatePerDay, maxBondDailyRate] = await Promise.all([
+    const [spotCompToUnderlying, spotDailySupplyRate, spotDailyDistributionRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, compoundSupplyRate, providerRatePerDay, maxBondDailyRate] = await Promise.all([
+      controller.callStatic.quoteSpotCompToUnderlying(e18(1)),
       controller.callStatic.spotDailySupplyRateProvider(),
       controller.callStatic.spotDailyDistributionRateProvider(),
       controller.callStatic.spotDailyRate(),
@@ -73,20 +80,25 @@ const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: 
       smartYield.callStatic.maxBondDailyRate(),
     ]);
 
-    const {compGot, underlyingHarvestReward} = await controller.callStatic.harvest(0);
-
     console.log('---------');
-    console.log('compound APY    :', dailyRate2APY(compoundSupplyRate.mul(4).mul(60).mul(24)));
+    console.log('compound APY      :', dailyRate2APY(compoundSupplyRate.mul(4).mul(60).mul(24)));
     console.log('underlyingBalance :', underlyingBalance.toString());
     console.log('underlyingFees    :', underlyingFees.toString());
-    console.log('underlyingFull :', underlyingBalance.add(underlyingFees).toString());
+    console.log('underlyingFull    :', underlyingBalance.add(underlyingFees).toString());
 
     console.log('sy provider APY :', dailyRate2APY(providerRatePerDay));
     console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APY(oracleRatePerDay), dailyRate2APY(spotDailyRate), dailyRate2APY(maxRatePerDay));
     console.log('sy spot APY (supply + distri) :', dailyRate2APY(spotDailyRate), `(${dailyRate2APY(spotDailySupplyRate)} + ${dailyRate2APY(spotDailyDistributionRate)})`);
 
-    console.log('harvestReward   :', underlyingHarvestReward.toString());
-    console.log('harvestCompGot   :', compGot.toString());
+    try {
+      const {compGot, underlyingHarvestReward} = await controller.callStatic.harvest(0);
+      console.log('harvestReward   :', underlyingHarvestReward.toString());
+      console.log('harvestCompGot  :', compGot.toString());
+    } catch (e) {
+      console.log('harvestReward   : FAILED.');
+    }
+
+    console.log('spotCompToUnderlying 1 COMP=', spotCompToUnderlying.toString());
     console.log('---------');
   };
 };
@@ -148,10 +160,10 @@ export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
   return async (wallets: Wallet[]) => {
     const [deployerSign, ownerSign, junior1, junior2, junior3, senior1, senior2, senior3] = wallets;
 
-    const whaleSign = await impersonate(deployerSign)(USDCwhale);
+    const whaleSign = await impersonate(deployerSign)(WBTCwhale);
 
-    const underlying = ERC20Factory.connect(USDC, deployerSign);
-    const cToken = ICTokenFactory.connect(cUSDC, deployerSign);
+    const underlying = ERC20Factory.connect(WBTC, deployerSign);
+    const cToken = ICTokenFactory.connect(cWBTC, deployerSign);
     const comp = ERC20Factory.connect(COMP, deployerSign);
     const compoundComptroller = IComptrollerFactory.connect(cComptroller, deployerSign);
 
@@ -159,7 +171,7 @@ export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
 
     const [bondModel, pool, smartYield] = await Promise.all([
       deployBondModel(deployerSign),
-      deployCompoundProvider(deployerSign, cUSDC),
+      deployCompoundProvider(deployerSign, cWBTC),
       deploySmartYield(deployerSign, juniorTokenCONF.name, juniorTokenCONF.symbol, BN.from(decimals)),
     ]);
 
@@ -198,13 +210,13 @@ export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
 };
 
 
-describe('yield expected', async function () {
+describe('yield expected WBTC', async function () {
 
   it('test yield', async function () {
 
     const { whaleSign, pool, cToken, comp, oracle, currentBlock, moveTime, buyTokens, buyBond, mintCtoken, redeemCtoken, dumpState, controller } = await bbFixtures(fixture());
 
-    await buyTokens(whaleSign as unknown as Wallet, 100_000 * 10**6);
+    await buyTokens(whaleSign as unknown as Wallet, e(1_000, decimals));
 
     let skipBlocks = 0;
 
@@ -214,12 +226,16 @@ describe('yield expected', async function () {
 
       //await (await cToken.connect(whaleSign).accrueInterest()).wait();
 
-      if (i % 20 == 2) {
+      if (i % 20 == 19) {
         skipBlocks++;
         await forceNextTime();
         console.log('+++ HARVEST!');
-        const harv = await (await controller.harvest(0)).wait();
-        console.log('harvest gas >>>>>>>>>>>>>>>>>>>>>>>>>> ', harv.gasUsed.toString());
+        try {
+          const harv = await (await controller.harvest(0)).wait();
+          console.log('harvest gas >>>>>>>>>>>>>>>>>>>>>>>>>> ', harv.gasUsed.toString());
+        } catch (e) {
+          console.log('harvest FAILED!', e);
+        }
         console.log('--- HARVEST!');
       }
 
@@ -235,13 +251,13 @@ describe('yield expected', async function () {
       if (i % 20 == 1) {
         skipBlocks++;
         await forceNextTime();
-        await buyTokens(whaleSign as unknown as Wallet, 1_000_000 * 10**6);
+        await buyTokens(whaleSign as unknown as Wallet, e(10, decimals));
       }
 
       if (i % 20 == 19) {
         skipBlocks++;
         await forceNextTime();
-        await buyBond(whaleSign as unknown as Wallet, 100_000 * 10**6, 30);
+        await buyBond(whaleSign as unknown as Wallet, e(10, decimals), 30);
       }
 
       //await mineBlocks(1);
@@ -252,16 +268,6 @@ describe('yield expected', async function () {
       await (await cToken.connect(whaleSign).accrueInterest()).wait();
       await dumpState();
     }
-
-  }).timeout(500 * 1000);
-
-  it('works with multiple SY deposits between harvest', async function () {
-
-    const { whaleSign, pool, cToken, comp, currentBlock, moveTime, buyTokens } = await bbFixtures(fixture());
-
-    await buyTokens(whaleSign as unknown as Wallet, 100_000 * 10**6);
-
-
 
   }).timeout(500 * 1000);
 
