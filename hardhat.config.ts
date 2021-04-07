@@ -47,6 +47,7 @@ const config: HardhatUserConfig = {
     only: [
       'SmartYield', 'SeniorBond', 'JuniorBond', 'YieldOracle', 'BondModelV1',
       'CompoundProvider', 'CompoundController',
+      'Mai3Provider', 'Mai3Controller'
     ],
   },
 
