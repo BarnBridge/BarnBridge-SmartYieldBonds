@@ -145,6 +145,7 @@ export class Updater {
 
       if (this.needsUpdate(sleeps)) {
         await this.doUpdates(sleeps);
+        continue;
       }
 
       await this.sleep(sleeps);
