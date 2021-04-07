@@ -246,6 +246,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
     // if the oracle is ready, use the oracle, otherwise use the spot MCB rate only
     function providerRatePerDay() public virtual override returns (uint256) {
         uint256 rate = 0;
+
         if (ISignedYieldOracle(oracle).isAvailabe()) {
             int256 signedRate = ISignedYieldOracle(oracle).consultSigned(1 days);
             if (signedRate < 0) {
@@ -260,10 +261,6 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
     }
 
     function cumulatives() external override returns (int256) {
-        if (cumulativeSupplyRate < 0) {
-            return 0;
-        }
-
         uint256 timeElapsed = getTimestamp() - prevCumulationTime;
 
         // only cumulate once per block
@@ -299,7 +296,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
                 netAssetValueCurrent.toInt256().sub(prevNetAssetValueInt256).mul(int256(EXP_SCALE)).div(prevNetAssetValueInt256)
             );
 
-            if (cumulativeEarnedRewardNow > prevCumulativeEarnedReward) {
+            if (cumulativeEarnedRewardNow > prevCumulativeEarnedReward && prevShareTokenBalance_ > 0) {
                 uint256 expectedMCB = cumulativeEarnedRewardNow.sub(prevCumulativeEarnedReward);
                 uint256 expectedMCBInUnderlying =
                     quoteMCBToUnderlying(expectedMCB, timeElapsed, uniswapPriceCumulatives, currentUniswapPriceCumulatives);
@@ -307,7 +304,7 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
                 uint256 poolShare = MathUtils.fractionOf(expectedMCBInUnderlying, EXP_SCALE.sub(HARVEST_COST));
                 // cumulate a new distributionRate delta: cumulativeDistributionRate += (expectedDistributeSupplierComp in underlying - harvest cost) / prevUnderlyingBalance
                 cumulativeDistributionRate = cumulativeDistributionRate.add(
-                    poolShare.mul(EXP_SCALE).div(shareTokensToUnderlying(prevShareTokenBalance_, prevNetAssetValue))
+                    poolShare.mul(EXP_SCALE).div(shareTokensToNAV(prevShareTokenBalance_, prevNetAssetValue))
                 );
             }
         }
@@ -319,12 +316,12 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
 
         prevCumulativeEarnedReward = cumulativeEarnedRewardNow;
 
-        // exchangeRateStored can increase multiple times per block
+        // prevNetAssetValue can increase multiple times per block
         prevNetAssetValue = netAssetValueCurrent;
     }
 
-    function shareTokensToUnderlying(uint256 shareTokens_, uint256 exchangeRate_) public pure returns (uint256) {
-        return shareTokens_.mul(exchangeRate_).div(EXP_SCALE);
+    function shareTokensToNAV(uint256 shareTokens_, uint256 nav_) public pure returns (uint256) {
+        return shareTokens_.mul(nav_).div(EXP_SCALE);
     }
 
     function uniswapPriceCumulativeNow(address pair_, uint8 priceKey_) public view returns (uint256) {
@@ -381,11 +378,16 @@ contract Mai3Controller is IController, ISignedYieldOraclelizable, IMai3Cumulato
     // MCB distribution rate per day
     function spotDailyDistributionRateProvider() public returns (uint256) {
         uint256 rewardRate = ILpGovernor(governor).rewardRate();
+        uint256 shareTotal = IERC20(shareToken).totalSupply();
 
-        uint256 dailyMCBPerShare = rewardRate.mul(BLOCKS_PER_DAY).div(IERC20(rewardToken).totalSupply());
+        if (shareTotal == 0) {
+            return 0;
+        }
 
-        uint256 exchangeRate = Mai3Provider(pool).netAssetValueCurrent();
+        uint256 dailyMCBPerShare = rewardRate.mul(BLOCKS_PER_DAY).div(shareTotal);
 
-        return quoteSpotMCBToUnderlying(dailyMCBPerShare).div(exchangeRate);
+        uint256 nav = Mai3Provider(pool).netAssetValueCurrent();
+
+        return quoteSpotMCBToUnderlying(dailyMCBPerShare).div(nav);
     }
 }

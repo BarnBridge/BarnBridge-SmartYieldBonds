@@ -193,7 +193,7 @@ contract Mai3Provider is IProvider {
         }
         ILiquidityPool(mai3LiquidityPool).forceToSyncState();
         (int256 poolMargin, ) = ILiquidityPool(mai3LiquidityPool).getPoolMargin();
-        return poolMargin.toUint256().div(totalShareToken);
+        return poolMargin.toUint256().mul(EXP_SCALE).div(totalShareToken);
     }
 
     // claim liquidity mining reward

@@ -15,6 +15,7 @@ import { A_DAY } from '@testhelp/time';
 import { Erc20MockFactory } from '@typechain/Erc20MockFactory';
 import { Mai3OracleMockFactory } from '@typechain/Mai3OracleMockFactory';
 import { UniswapMockFactory } from '@typechain/UniswapMockFactory';
+import { Mai3WorldMock } from '@typechain/Mai3WorldMock';
 
 const WETH = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
 
@@ -467,4 +468,249 @@ describe('Mai3Controller.harvest()', async function() {
 
     await expect(controller.harvest(0)).revertedWith('PPC: harvested nothing');
   }).timeout(500 * 1000);
+});
+
+describe('Mai3Controller.providerRatePerDay()', async function() {
+  it('use initial reward rate, zero share total', async function() {
+    const { mai3World, userSign, controller, deployerSign, underlying } = await bbFixtures(fixture());
+
+    const mcbPrice = e18(100);
+
+    await mai3World.setRewardRate(e18(0.02));
+    expect(await controller.callStatic.providerRatePerDay(), 'rate should be 0').deep.eq(e18(0));
+
+    const maxRate = await controller.callStatic.BOND_MAX_RATE_PER_DAY();
+    await controller.connect(deployerSign).setInitialDailySupplyRate(maxRate.add(1));
+
+    expect(await controller.callStatic.providerRatePerDay(), 'rate should be maxRate').deep.eq(maxRate);
+    const blocksPerDay = await controller.callStatic.BLOCKS_PER_DAY();
+
+    await controller.connect(deployerSign).setInitialDailySupplyRate(maxRate.add(-1));
+    expect(await controller.callStatic.providerRatePerDay(), 'rate should be maxRate-1').deep.eq(maxRate.sub(1));
+
+    const u = e18(10000000000);
+    await underlying.mintMock(userSign.address, u);
+    await underlying.connect(userSign).approve(mai3World.address, u);
+    await mai3World.connect(userSign).addLiquidity(u);
+
+    await controller.connect(deployerSign).setInitialDailySupplyRate(e18(0.00001));
+
+    expect(await controller.callStatic.providerRatePerDay(), 'rate should be 20 * blocksPerDay / u + 0.00001').deep.eq(
+      e18(20)
+        .mul(blocksPerDay)
+        .div(u)
+        .add(e18(0.00001))
+    );
+  }).timeout(500 * 1000);
+
+  it('only dao can setInitialDailySupplyRate()', async function() {
+    const { controller, deployerSign, userAddr, userSign } = await bbFixtures(fixture());
+
+    await expect(controller.connect(userSign).setInitialDailySupplyRate(e18(0.1)), 'should throw if not dao').revertedWith(
+      'GOV: not dao'
+    );
+  });
+
+  it('only dao can setMCBOralce()', async function() {
+    const { controller, deployerSign, userAddr, userSign } = await bbFixtures(fixture());
+
+    await expect(controller.connect(userSign).setOracle(userAddr), 'should throw if not dao').revertedWith('GOV: not dao');
+  });
+
+  it('only dao can setMCBOralce()', async function() {
+    const { controller, deployerSign, userAddr, userSign } = await bbFixtures(fixture());
+
+    await controller.connect(deployerSign).setMCBOracle(userAddr);
+    expect(await controller.callStatic.mcbSpotOracle(), 'should be address').deep.eq(userAddr);
+  });
+
+  it('cummulatives without mcb', async function() {
+    const { pool, uniswapMock, mcb, mai3World, userSign, controller, deployerSign, underlying, oracle } = await bbFixtures(
+      fixture()
+    );
+
+    const uniswapMockPrice = e18(0);
+    await uniswapMock.setup(mcb.address, underlying.address, uniswapMockPrice);
+
+    let u = e18(10000000000);
+    await underlying.mintMock(userSign.address, u);
+    await underlying.connect(userSign).approve(mai3World.address, u);
+    await mai3World.connect(userSign).addLiquidity(u);
+
+    await Promise.all([oracle.setTimestamp(1000 * A_DAY), controller.setTimestamp(1000 * A_DAY)]);
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '1.orcale should be not available').eq(false);
+    expect(await oracle.callStatic.consultSigned(A_DAY), '1.orcale consult returns 0').deep.eq(e18(0));
+    // expect(await controller.callStatic.cumulativeSupplyRate(), 'cumulative supply is 0').deep.eq(e18(0));
+
+    // increase 0.01% profit
+    let diff = u.div(10000);
+    u = u.add(diff);
+    await underlying.mintMock(mai3World.address, diff);
+    await Promise.all([oracle.setTimestamp(1001 * A_DAY), controller.setTimestamp(1001 * A_DAY)]);
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '2.orcale is not available').eq(false);
+
+    // should not update
+    await underlying.mintMock(mai3World.address, u.div(100));
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '2(2).orcale is not available').eq(false);
+    await underlying.burnMock(mai3World.address, u.div(100));
+
+    // increase 0.01% profit
+    diff = u.div(10000);
+    u = u.add(diff);
+    await underlying.mintMock(mai3World.address, diff);
+    await Promise.all([oracle.setTimestamp(1002 * A_DAY), controller.setTimestamp(1002 * A_DAY)]);
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '3.orcale is not available').eq(false);
+
+    // increase 0.01% profit
+    diff = u.div(10000);
+    u = u.add(diff);
+
+    await underlying.mintMock(mai3World.address, diff);
+    await Promise.all([oracle.setTimestamp(1003 * A_DAY), controller.setTimestamp(1003 * A_DAY)]);
+    await oracle.update();
+
+    expect(await oracle.callStatic.isAvailabe(), '4.orcale is available').eq(true);
+    expect(await oracle.callStatic.consultSigned(1 * A_DAY), 'oralce').deep.eq(e18(0.0001));
+    expect(await controller.callStatic.providerRatePerDay(), 'rate is 0.01').deep.eq(e18(0.0001));
+  });
+
+  it('cummulatives with mcb', async function() {
+    const {
+      smartYieldSign,
+      mcbOracle,
+      pool,
+      uniswapMock,
+      mcb,
+      mai3World,
+      userSign,
+      controller,
+      deployerSign,
+      underlying,
+      oracle
+    } = await bbFixtures(fixture());
+    await mcbOracle.setNewPrice(e18(10));
+
+    const uniswapMockPrice = e18(10);
+    await uniswapMock.setup(mcb.address, underlying.address, uniswapMockPrice);
+
+    let u = e18(10000000000);
+    let m = u.div(10000);
+    await underlying.mintMock(pool.address, u);
+    pool.connect(smartYieldSign)._depositProvider(u, 0);
+
+    await mai3World.connect(deployerSign).setEarned(pool.address, m);
+
+    await Promise.all([oracle.setTimestamp(1000 * A_DAY), controller.setTimestamp(1000 * A_DAY)]);
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '1.orcale should be not available').eq(false);
+    // expect(await controller.callStatic.cumulativeSupplyRate(), 'cumulative supply is 0').deep.eq(e18(0));
+
+    // increase 0.01% profit
+    let diff = u.div(10000);
+    u = u.add(diff);
+    await underlying.mintMock(mai3World.address, diff);
+    await mai3World.connect(deployerSign).setEarned(pool.address, m.mul(2));
+    await Promise.all([oracle.setTimestamp(1001 * A_DAY), controller.setTimestamp(1001 * A_DAY)]);
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '2.orcale is not available').eq(false);
+
+    let t = await controller.callStatic.prevCumulativeEarnedReward();
+    // should not update
+    await underlying.mintMock(mai3World.address, u.div(100));
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '2(2).orcale is not available').eq(false);
+    await underlying.burnMock(mai3World.address, u.div(100));
+
+    // increase 0.01% profit
+    diff = u.div(10000);
+    u = u.add(diff);
+    await underlying.mintMock(mai3World.address, diff);
+    await mai3World.connect(deployerSign).setEarned(pool.address, m.mul(3));
+    await Promise.all([oracle.setTimestamp(1002 * A_DAY), controller.setTimestamp(1002 * A_DAY)]);
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '3.orcale is not available').eq(false);
+
+    t = await controller.callStatic.prevCumulativeEarnedReward();
+
+    // increase 0.01% profit
+    diff = u.div(10000);
+    u = u.add(diff);
+    await underlying.mintMock(mai3World.address, diff);
+    await mai3World.connect(deployerSign).setEarned(pool.address, m.mul(4));
+    await Promise.all([oracle.setTimestamp(1003 * A_DAY), controller.setTimestamp(1003 * A_DAY)]);
+    await oracle.update();
+
+    expect(await oracle.callStatic.isAvailabe(), '4.orcale is available').eq(true);
+    expect(await oracle.callStatic.consultSigned(1 * A_DAY), 'oralce').deep.eq('195990401279840');
+    expect(await controller.callStatic.providerRatePerDay(), 'rate is 195990401279840').deep.eq('195990401279840');
+  });
+
+  it('cummulatives negative', async function() {
+    const { pool, uniswapMock, mcb, mai3World, userSign, controller, deployerSign, underlying, oracle } = await bbFixtures(
+      fixture()
+    );
+
+    const uniswapMockPrice = e18(0);
+    await uniswapMock.setup(mcb.address, underlying.address, uniswapMockPrice);
+
+    let u = e18(10000000000);
+    await underlying.mintMock(userSign.address, u);
+    await underlying.connect(userSign).approve(mai3World.address, u);
+    await mai3World.connect(userSign).addLiquidity(u);
+
+    await Promise.all([oracle.setTimestamp(1000 * A_DAY), controller.setTimestamp(1000 * A_DAY)]);
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '1.orcale should be not available').eq(false);
+    // expect(await controller.callStatic.cumulativeSupplyRate(), 'cumulative supply is 0').deep.eq(e18(0));
+
+    //  0.01% loss
+    let diff = u.div(10000);
+    u = u.sub(diff);
+    await underlying.burnMock(mai3World.address, diff);
+    await Promise.all([oracle.setTimestamp(1001 * A_DAY), controller.setTimestamp(1001 * A_DAY)]);
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '2.orcale is not available').eq(false);
+
+    // decrese 0.01% loss
+    diff = u.div(10000);
+    u = u.sub(diff);
+    await underlying.burnMock(mai3World.address, diff);
+    await Promise.all([oracle.setTimestamp(1002 * A_DAY), controller.setTimestamp(1002 * A_DAY)]);
+    await oracle.update();
+    expect(await oracle.isAvailabe(), '3.orcale is not available').eq(false);
+
+    // decrease 0.01% profit
+    diff = u.div(10000);
+    u = u.sub(diff);
+
+    await underlying.burnMock(mai3World.address, diff);
+    await Promise.all([oracle.setTimestamp(1003 * A_DAY), controller.setTimestamp(1003 * A_DAY)]);
+    await oracle.update();
+
+    expect(await oracle.callStatic.isAvailabe(), '4.orcale is available').eq(true);
+    expect(await oracle.callStatic.consultSigned(1 * A_DAY), 'oralce').deep.eq(e18(-0.0001));
+    expect(await controller.callStatic.providerRatePerDay(), 'rate is 0.01').deep.eq(e18(0));
+
+    // increase 0.05% profit
+    diff = u.div(10000).mul(5);
+    u = u.add(diff);
+
+    100000000000000;
+    5000000000000000;
+
+    await underlying.mintMock(mai3World.address, diff);
+    await Promise.all([oracle.setTimestamp(1004 * A_DAY), controller.setTimestamp(1004 * A_DAY)]);
+    await oracle.update();
+
+    //0 -0.01% -0.01% -0.01% 0.05%
+    //0 -0.02% -0.03% -0.04% 0.01%
+    // [0.01% - (-0.02%)] / 3 = 0.01%
+    expect(await oracle.callStatic.isAvailabe(), '5.orcale is available').eq(true);
+    expect(await oracle.callStatic.consultSigned(1 * A_DAY), 'oralce').deep.eq(e18(0.0001));
+    expect(await controller.callStatic.providerRatePerDay(), 'rate is 0.01%').deep.eq(e18(0.0001));
+  });
 });
