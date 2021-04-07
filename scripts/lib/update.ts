@@ -1,5 +1,6 @@
+import axios from 'axios';
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
-import { ethers } from 'hardhat';
+import { ethers, web3 } from 'hardhat';
 import { Block } from '@ethersproject/abstract-provider';
 import { YieldOracleFactory } from '@typechain/YieldOracleFactory';
 import { YieldOracle } from '@typechain/YieldOracle';
@@ -39,13 +40,15 @@ export class Updater {
   public smartYields: SmartYields;
   public oraclesInfo: OraclesInfo;
   public oraclesConnection: OraclesConnection;
+  public gasPriceGetter: () => Promise<BN>;
 
-  constructor(sy: SmartYields, signer: Wallet, maxSleepSec: number) {
+  constructor(sy: SmartYields, signer: Wallet, maxSleepSec: number, gasPriceGetter: () => Promise<BN>) {
     this.smartYields = sy;
     this.signer = signer;
     this.maxSleepSec = maxSleepSec;
     this.oraclesConnection = {} as OraclesConnection;
     this.oraclesInfo = {} as OraclesInfo;
+    this.gasPriceGetter = gasPriceGetter;
   }
 
   public async connect(): Promise<void> {
@@ -119,9 +122,12 @@ export class Updater {
           continue;
         }
 
+        const gasPrice = await this.gasPriceGetter();
+
+        console.log(`... gas price is ${gasPrice.toString()}.`);
         console.log(`... calling update on "${pool}" (${this.smartYields[pool as PoolName]}).`);
         updates.push(
-          doOracleUpdate(oracle)
+          doOracleUpdate(oracle, gasPrice)
         );
       }
     }
@@ -197,8 +203,8 @@ const shouldSleep = (mostRecentObs: Observation, periodSize: BN, now: number, pe
   return periodSize.mul(r).div(100).sub(since).toNumber();
 };
 
-const doOracleUpdate = async (oracle: YieldOracle) => {
-  await (await oracle.update({ gasLimit: 500_000 })).wait(10);
+const doOracleUpdate = async (oracle: YieldOracle, gasPrice: BN) => {
+  await (await oracle.update({ gasLimit: 500_000, gasPrice })).wait(3);
 };
 
 const connect = async (syAddr: string, sign: Signer) => {
@@ -233,3 +239,26 @@ const getOracleInfo = async (oracle: YieldOracle) => {
 
   return { windowSize, granularity, periodSize, observations, latestObservation, block };
 };
+
+export const walletBalance = async(address: string): Promise<BN> => {
+  const balance = await ethers.provider.getBalance(address);
+  if (balance.eq(0)) {
+    console.error('no balance on address ' + address + '!');
+    process.exit(-1);
+  }
+  return balance;
+};
+
+export const getGasPriceMainnet = async(): Promise<BN> => {
+  if (undefined === process.env.GAS_STATION_URL) {
+    console.error('env var GAS_STATION_URL is not set!');
+    process.exit(-1);
+  }
+  const req = await axios.get(process.env.GAS_STATION_URL);
+  return BN.from(req.data['fast']).mul(10**9).div(10);
+};
+
+export const getGasPriceTest = async(): Promise<BN> => {
+  return BN.from(await web3.eth.getGasPrice());
+};
+

@@ -9,16 +9,22 @@ const smartYields = {
 // -----
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
 import { ethers } from 'hardhat';
-import { Updater } from './lib/update';
+import { getGasPriceTest, walletBalance, Updater } from './lib/update';
 
 async function main() {
 
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
 
-  console.log('Starting YieldOracle.update() bot ...');
-  console.log('wallet:', walletSign.address);
+  const gasPriceGetter = getGasPriceTest;
 
-  const updater = new Updater(smartYields, walletSign, 1000);
+  console.log('Starting YieldOracle.update() bot ...');
+  console.log('wallet     :', walletSign.address);
+  console.log('ETH balance:', (await walletBalance(walletSign.address)).toString());
+  console.log('gas price  :', (await gasPriceGetter()).toString());
+  console.log('pools:');
+  console.table(smartYields);
+
+  const updater = new Updater(smartYields, walletSign, 50000, gasPriceGetter);
 
   await updater.updateLoop();
 }
