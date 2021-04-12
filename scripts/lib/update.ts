@@ -107,7 +107,6 @@ export class Updater {
   }
 
   public async doUpdates(sleeps: { [prop in PoolName]: number }): Promise<void> {
-    const updates = [];
     for (const pool in sleeps) {
       if (0 === sleeps[pool as PoolName]) {
 
@@ -126,18 +125,10 @@ export class Updater {
 
         console.log(`... gas price is ${gasPrice.toString()}.`);
         console.log(`... calling update on "${pool}" (${this.smartYields[pool as PoolName]}).`);
-        updates.push(
-          doOracleUpdate(oracle, gasPrice)
-        );
+        await doOracleUpdate(oracle, gasPrice);
       }
     }
-
-    if (0 === updates.length) {
-      return;
-    }
-
-    console.log('... waiting for updates to finish.');
-    await Promise.all(updates);
+    console.log('... updates done.');
   }
 
   public async updateLoop(): Promise<void> {
