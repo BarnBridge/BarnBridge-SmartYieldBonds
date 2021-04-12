@@ -5,6 +5,7 @@ import 'hardhat-gas-reporter';
 import 'solidity-coverage';
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
+import '@nomiclabs/hardhat-web3';
 import 'hardhat-typechain';
 import 'hardhat-contract-sizer';
 import 'hardhat-abi-exporter';
