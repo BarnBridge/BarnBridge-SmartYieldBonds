@@ -49,7 +49,7 @@
     "test-mainnet": "globstar --node -- hardhat test --network hardhat \"test-mainnet/*.test.ts\"",
     "bot-update-kovan": "hardhat run scripts/bot-kovan-oracle-update.ts --network kovan",
     "bot-update-mainnet": "hardhat run scripts/bot-mainnet-oracle-update.ts --network mainnet",
-    "coverage": "hardhat coverage",
+    "coverage": "hardhat coverage --network coverage",
     "compile": "hardhat clean && hardhat compile",
     "compile-and-test": "hardhat clean && hardhat compile && hardhat test",
     "size-contracts": "hardhat clean && hardhat compile && hardhat size-contracts"
