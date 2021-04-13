@@ -1,4 +1,4 @@
-``` shell 
+``` shell
   abond value computations
     ✓ should deploy contracts correctly (2258ms)
     first and last bond
@@ -97,7 +97,7 @@ maturesAt : 1648320744000000000000000000
 -------------------------------------------------|----------|----------|----------|----------|----------------|
 File                                             |  % Stmts | % Branch |  % Funcs |  % Lines |Uncovered Lines |
 -------------------------------------------------|----------|----------|----------|----------|----------------|
- contracts/                                      |    95.29 |     64.1 |    94.34 |    94.95 |                |
+ contracts\                                      |    95.29 |     64.1 |    94.34 |    94.95 |                |
   Governed.sol                                   |      100 |      100 |      100 |      100 |                |
   IBond.sol                                      |      100 |      100 |      100 |      100 |                |
   IController.sol                                |    84.62 |        0 |       90 |    84.62 |          48,52 |
@@ -107,48 +107,27 @@ File                                             |  % Stmts | % Branch |  % Func
   JuniorToken.sol                                |      100 |      100 |      100 |      100 |                |
   SeniorBond.sol                                 |      100 |       50 |      100 |      100 |                |
   SmartYield.sol                                 |    95.65 |    65.63 |    93.55 |    95.18 |... 580,581,691 |
- contracts/external-interfaces/compound-finance/ |      100 |      100 |      100 |      100 |                |
+ contracts\external-interfaces\compound-finance\ |      100 |      100 |      100 |      100 |                |
   ICToken.sol                                    |      100 |      100 |      100 |      100 |                |
   IComptroller.sol                               |      100 |      100 |      100 |      100 |                |
   IUniswapAnchoredOracle.sol                     |      100 |      100 |      100 |      100 |                |
- contracts/external-interfaces/uniswap/          |      100 |      100 |      100 |      100 |                |
+ contracts\external-interfaces\uniswap\          |      100 |      100 |      100 |      100 |                |
   IUniswapV2Router.sol                           |      100 |      100 |      100 |      100 |                |
- contracts/lib/math/                             |    88.89 |    66.67 |      100 |    88.89 |                |
+ contracts\lib\math\                             |    88.89 |    66.67 |      100 |    88.89 |                |
   MathUtils.sol                                  |    88.89 |    66.67 |      100 |    88.89 |          28,46 |
- contracts/lib/uniswap/                          |    11.71 |     7.63 |    25.93 |    12.12 |                |
-  Babylonian.sol                                 |        0 |        0 |        0 |        0 |... 48,49,50,51 |
-  BitMath.sol                                    |        0 |        0 |        0 |        0 |... 78,79,81,83 |
-  FixedPoint.sol                                 |    19.23 |    13.89 |    27.27 |    19.61 |... 142,143,144 |
-  FullMath.sol                                   |        0 |        0 |        0 |        0 |... 44,46,48,49 |
-  UniswapV2Library.sol                           |    14.71 |       10 |       25 |    14.71 |... 76,77,78,79 |
-  UniswapV2OracleLibrary.sol                     |      100 |      100 |      100 |      100 |                |
- contracts/mocks/                                |       60 |      100 |       75 |       60 |                |
-  Erc20Mock.sol                                  |       60 |      100 |       75 |       60 |          16,17 |
- contracts/mocks/barnbridge/                     |    64.71 |       50 |    64.29 |    61.11 |                |
-  CompoundControllerMock.sol                     |    88.89 |       50 |      100 |    88.89 |             47 |
-  MathTests.sol                                  |      100 |      100 |      100 |      100 |                |
-  SmartYieldMock.sol                             |      100 |      100 |      100 |      100 |                |
-  YieldOracleMock.sol                            |        0 |      100 |        0 |        0 |... 26,30,34,35 |
- contracts/mocks/barnbridge/harvest/             |    96.15 |       50 |    93.75 |    96.15 |                |
-  CompoundControllerHarvestMock.sol              |      100 |      100 |      100 |      100 |                |
-  HarvestWorldMock.sol                           |    95.45 |       50 |    92.31 |    95.45 |             34 |
- contracts/mocks/compound-finance/               |    84.78 |      100 |    66.67 |    85.42 |                |
-  CTokenWorldMock.sol                            |    83.33 |      100 |     61.9 |    84.09 |... 115,133,145 |
-  CompOracleMock.sol                             |      100 |      100 |      100 |      100 |                |
- contracts/mocks/uniswap/                        |      100 |       50 |      100 |      100 |                |
-  UniswapMock.sol                                |      100 |       50 |      100 |      100 |                |
- contracts/model/                                |       75 |       50 |      100 |       75 |                |
+ contracts\model\                                |       75 |       50 |      100 |       75 |                |
   BondModelV1.sol                                |       75 |       50 |      100 |       75 |          24,48 |
   IBondModel.sol                                 |      100 |      100 |      100 |      100 |                |
- contracts/oracle/                               |    96.43 |       70 |      100 |    96.43 |                |
+ contracts\oracle\                               |    96.43 |       70 |      100 |    96.43 |                |
   IYieldOracle.sol                               |      100 |      100 |      100 |      100 |                |
   IYieldOraclelizable.sol                        |      100 |      100 |      100 |      100 |                |
   YieldOracle.sol                                |    96.43 |       70 |      100 |    96.43 |            142 |
- contracts/providers/                            |    95.93 |    71.43 |    94.87 |    95.48 |                |
+ contracts\providers\                            |    95.93 |    69.05 |    94.87 |    95.48 |                |
   CompoundController.sol                         |      100 |       80 |      100 |      100 |                |
-  CompoundProvider.sol                           |    87.72 |    63.64 |    88.89 |    86.89 |... 216,218,220 |
+  CompoundProvider.sol                           |    87.72 |    59.09 |    88.89 |    86.89 |... 216,218,220 |
   ICompoundCumulator.sol                         |      100 |      100 |      100 |      100 |                |
 -------------------------------------------------|----------|----------|----------|----------|----------------|
-All files                                        |    70.42 |     41.1 |    79.27 |    71.31 |                |
+All files                                        |    94.96 |    65.71 |    95.24 |    94.64 |                |
 -------------------------------------------------|----------|----------|----------|----------|----------------|
-``` 
+
+```
