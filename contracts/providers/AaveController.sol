@@ -49,6 +49,8 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
     {
       pool = pool_;
       smartYield = smartYield_;
+      // 30% per year linear
+      setBondMaxRatePerDay(821917808219178);
       setBondModel(bondModel_);
     }
 
