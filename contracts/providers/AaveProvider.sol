@@ -146,7 +146,7 @@ contract AaveProvider is IProvider {
         underlyingFees = underlyingFees.add(takeFees_);
 
         ICompoundCumulator(controller)._beforeCTokenBalanceChange();
-        IERC20(uToken).approve(address(cToken), underlyingAmount_);
+        IERC20(uToken).approve(address(AToken(cToken).POOL()), underlyingAmount_);
         ILendingPool(AToken(cToken).POOL()).deposit(uToken, underlyingAmount_, address(this), 0);
         ICompoundCumulator(controller)._afterCTokenBalanceChange(0);
     }
