@@ -3,7 +3,6 @@ pragma solidity ^0.7.6;
 pragma abicoder v2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./../lib/math/MathUtils.sol";
@@ -14,11 +13,11 @@ import "./../external-interfaces/aave/ILendingPool.sol";
 import "./AaveProvider.sol";
 
 import "./../IController.sol";
-import "./ICompoundCumulator.sol";
+import "./IAaveCumulator.sol";
 import "./../oracle/IYieldOracle.sol";
 import "./../oracle/IYieldOraclelizable.sol";
 
-contract AaveController is IController, ICompoundCumulator, IYieldOraclelizable {
+contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -30,7 +29,7 @@ contract AaveController is IController, ICompoundCumulator, IYieldOraclelizable 
     // exchnageRateStored last time we cumulated
     uint256 public prevExchnageRateCurrent;
 
-    // cumulative supply rate += ((new underlying) / underlying)
+    // cumulative supply rate += ((exchangeRate now - exchangeRate prev) * EXP_SCALE / exchangeRate now)
     uint256 public cumulativeSupplyRate;
 
     modifier onlyPool {
@@ -45,7 +44,6 @@ contract AaveController is IController, ICompoundCumulator, IYieldOraclelizable 
       address pool_,
       address smartYield_,
       address bondModel_
-      //address[] memory uniswapPath_
     )
       IController()
     {
@@ -59,7 +57,7 @@ contract AaveController is IController, ICompoundCumulator, IYieldOraclelizable 
       onlyPool
     { }
 
-    function _afterCTokenBalanceChange(uint256 prevCTokenBalance_)
+    function _afterCTokenBalanceChange()
       external override
       onlyPool
     {
@@ -103,6 +101,7 @@ contract AaveController is IController, ICompoundCumulator, IYieldOraclelizable 
       }
 
       ILendingPool lendingPool = ILendingPool(AToken(AaveProvider(pool).cToken()).POOL());
+      // https://docs.aave.com/developers/the-core-protocol/lendingpool#getreservenormalizedincome
       uint256 exchangeRateStoredNow = lendingPool.getReserveNormalizedIncome(AaveProvider(pool).uToken());
 
       if (prevExchnageRateCurrent > 0) {
@@ -112,12 +111,6 @@ contract AaveController is IController, ICompoundCumulator, IYieldOraclelizable 
       prevCumulationTime = block.timestamp;
 
       prevExchnageRateCurrent = exchangeRateStoredNow;
-    }
-
-    function cTokensToUnderlying(
-      uint256 cTokens_, uint256 exchangeRate_
-    ) public pure returns (uint256) {
-      return cTokens_.mul(exchangeRate_).div(EXP_SCALE);
     }
 
     // aave spot supply rate per day

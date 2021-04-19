@@ -11,7 +11,7 @@ import "./../external-interfaces/aave/ILendingPool.sol";
 
 import "./AaveController.sol";
 
-import "./ICompoundCumulator.sol";
+import "./IAaveCumulator.sol";
 import "./../IProvider.sol";
 
 contract AaveProvider is IProvider {
@@ -145,10 +145,10 @@ contract AaveProvider is IProvider {
         // underlyingFees += takeFees_
         underlyingFees = underlyingFees.add(takeFees_);
 
-        ICompoundCumulator(controller)._beforeCTokenBalanceChange();
+        IAaveCumulator(controller)._beforeCTokenBalanceChange();
         IERC20(uToken).approve(address(AToken(cToken).POOL()), underlyingAmount_);
         ILendingPool(AToken(cToken).POOL()).deposit(uToken, underlyingAmount_, address(this), 0);
-        ICompoundCumulator(controller)._afterCTokenBalanceChange(0);
+        IAaveCumulator(controller)._afterCTokenBalanceChange();
     }
 
     // withdraw underlyingAmount_ from the liquidity provider, callable by smartYield
@@ -166,10 +166,10 @@ contract AaveProvider is IProvider {
         // underlyingFees += takeFees_;
         underlyingFees = underlyingFees.add(takeFees_);
 
-        ICompoundCumulator(controller)._beforeCTokenBalanceChange();
+        IAaveCumulator(controller)._beforeCTokenBalanceChange();
         uint256 actualUnderlyingAmount = ILendingPool(AToken(cToken).POOL()).withdraw(uToken, underlyingAmount_, address(this));
         require(actualUnderlyingAmount == underlyingAmount_, "AP: _withdrawProvider withdraw");
-        ICompoundCumulator(controller)._afterCTokenBalanceChange(0);
+        IAaveCumulator(controller)._afterCTokenBalanceChange();
     }
 
     function transferFees()
