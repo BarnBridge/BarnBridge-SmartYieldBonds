@@ -90,6 +90,8 @@ contract AaveProvider is IProvider {
         smartYield = smartYield_;
         controller = controller_;
 
+        updateAllowances();
+
         _setup = true;
     }
 
@@ -98,6 +100,15 @@ contract AaveProvider is IProvider {
       onlyControllerOrDao
     {
       controller = newController_;
+    }
+
+    function updateAllowances()
+      public
+    {
+        address lendingPoolAddress = address(AToken(cToken).POOL());
+
+        uint256 lendingPoolAllowance = IERC20(cToken).allowance(address(this), lendingPoolAddress);
+        IERC20(cToken).safeIncreaseAllowance(lendingPoolAddress, MAX_UINT256.sub(lendingPoolAllowance));
     }
 
    // externals
