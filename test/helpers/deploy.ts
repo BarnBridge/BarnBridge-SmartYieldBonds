@@ -18,6 +18,9 @@ import { YieldOracleMock } from '@typechain/YieldOracleMock';
 import CompoundControllerArtifact from './../../artifacts/contracts/providers/CompoundController.sol/CompoundController.json';
 import { CompoundController } from '@typechain/CompoundController';
 
+import AaveControllerArtifact from './../../artifacts/contracts/providers/AaveController.sol/AaveController.json';
+import { AaveController } from '@typechain/AaveController';
+
 import JuniorBondArtifact from './../../artifacts/contracts/JuniorBond.sol/JuniorBond.json';
 import { JuniorBond } from '@typechain/JuniorBond';
 
@@ -30,11 +33,20 @@ import { SmartYieldMock } from '@typechain/SmartYieldMock';
 import BondModelV1Artifact from './../../artifacts/contracts/model/BondModelV1.sol/BondModelV1.json';
 import { BondModelV1 } from '@typechain/BondModelV1';
 
+import BondModelV2LinearArtifact from './../../artifacts/contracts/model/BondModelV2Linear.sol/BondModelV2Linear.json';
+import { BondModelV2Linear } from '@typechain/BondModelV2Linear';
+
+import BondModelV2CompoundedArtifact from './../../artifacts/contracts/model/BondModelV2Compounded.sol/BondModelV2Compounded.json';
+import { BondModelV2Compounded } from '@typechain/BondModelV2Compounded';
+
 import UniswapMockArtifact from './../../artifacts/contracts/mocks/uniswap/UniswapMock.sol/UniswapMock.json';
 import { UniswapMock } from '@typechain/UniswapMock';
 
 import CompoundProviderArtifact from './../../artifacts/contracts/providers/CompoundProvider.sol/CompoundProvider.json';
 import { CompoundProvider } from '@typechain/CompoundProvider';
+
+import AaveProviderArtifact from './../../artifacts/contracts/providers/AaveProvider.sol/AaveProvider.json';
+import { AaveProvider } from '@typechain/AaveProvider';
 
 // ---- mocks
 
@@ -76,6 +88,10 @@ export const deployCompoundController = (deployerSign: Wallet, poolAddress: stri
   return (deployContract(deployerSign, CompoundControllerArtifact, [poolAddress, smartYieldAddress, bondModelAddress, uniswapPath])) as Promise<CompoundController>;
 };
 
+export const deployAaveController = (deployerSign: Wallet, poolAddress: string, smartYieldAddress: string, bondModelAddress: string): Promise<AaveController> => {
+  return (deployContract(deployerSign, AaveControllerArtifact, [poolAddress, smartYieldAddress, bondModelAddress])) as Promise<AaveController>;
+};
+
 export const deployJuniorBondMock = (deployerSign: Wallet, smartYield: SmartYield): Promise<JuniorBond> => {
   return (deployContract(deployerSign, JuniorBondArtifact, [smartYield.address, 'jBOND mock', 'jBOND'])) as Promise<JuniorBond>;
 };
@@ -92,12 +108,24 @@ export const deployBondModel = (deployerSign: Wallet): Promise<BondModelV1> => {
   return (deployContract(deployerSign, BondModelV1Artifact, [])) as Promise<BondModelV1>;
 };
 
+export const deployBondModelV2Linear = (deployerSign: Wallet): Promise<BondModelV2Linear> => {
+  return (deployContract(deployerSign, BondModelV2LinearArtifact, [])) as Promise<BondModelV2Linear>;
+};
+
+export const deployBondModelV2Compounded = (deployerSign: Wallet): Promise<BondModelV2Compounded> => {
+  return (deployContract(deployerSign, BondModelV2CompoundedArtifact, [])) as Promise<BondModelV2Compounded>;
+};
+
 export const deployUniswapMock = (deployerSign: Wallet): Promise<UniswapMock> => {
   return (deployContract(deployerSign, UniswapMockArtifact, [])) as Promise<UniswapMock>;
 };
 
 export const deployCompoundProvider = (deployerSign: Wallet, cTokenAddress: string): Promise<CompoundProvider> => {
   return (deployContract(deployerSign, CompoundProviderArtifact, [cTokenAddress])) as Promise<CompoundProvider>;
+};
+
+export const deployAaveProvider = (deployerSign: Wallet, aTokenAddress: string): Promise<AaveProvider> => {
+  return (deployContract(deployerSign, AaveProviderArtifact, [aTokenAddress])) as Promise<AaveProvider>;
 };
 
 export const deploySmartYield = (deployerSign: Wallet, name: string, symbol: string, decimals: BigNumberish): Promise<SmartYield> => {

@@ -43,8 +43,12 @@ export const apy2supplyRateBerBlock = (apy: number): BN => {
   return BN.from(new BNj(r).multipliedBy(1e18).toFixed(0));
 };
 
-
 export const dailyRate2APY = (dailyRate: BN): string => {
   const dr = new BNj(dailyRate.toString()).div(e18j(1));
   return dr.plus(1).pow(365).minus(1).toFixed(6);
+};
+
+export const dailyRate2APYAave = (dailyRate: BN): string => {
+  const dr = new BNj(dailyRate.toString()).div(e18j(1));
+  return dr.times(365).toFixed(6);
 };
