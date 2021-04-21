@@ -2,7 +2,7 @@
 pragma solidity ^0.7.6;
 pragma abicoder v2;
 
-interface AToken {
+interface IAToken {
   function UNDERLYING_ASSET_ADDRESS() external view returns (address);
   function POOL() external view returns (address);
   function balanceOf(address user) external view returns (uint256);

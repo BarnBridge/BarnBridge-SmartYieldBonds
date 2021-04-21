@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./../lib/math/MathUtils.sol";
 
-import "./../external-interfaces/aave/AToken.sol";
+import "./../external-interfaces/aave/IAToken.sol";
 import "./../external-interfaces/aave/ILendingPool.sol";
 
 import "./AaveProvider.sol";
@@ -102,7 +102,7 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
         return;
       }
 
-      ILendingPool lendingPool = ILendingPool(AToken(AaveProvider(pool).cToken()).POOL());
+      ILendingPool lendingPool = ILendingPool(IAToken(AaveProvider(pool).cToken()).POOL());
       // https://docs.aave.com/developers/the-core-protocol/lendingpool#getreservenormalizedincome
       uint256 exchangeRateStoredNow = lendingPool.getReserveNormalizedIncome(AaveProvider(pool).uToken());
 
@@ -119,7 +119,7 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
     function spotDailySupplyRateProvider()
       public view returns (uint256)
     {
-      ILendingPool lendingPool = ILendingPool(AToken(AaveProvider(pool).cToken()).POOL());
+      ILendingPool lendingPool = ILendingPool(IAToken(AaveProvider(pool).cToken()).POOL());
       ILendingPool.ReserveData memory lendingPoolData = lendingPool.getReserveData(AaveProvider(pool).uToken());
       // lendingPoolData.currentLiquidityRate is a rate per year in wad (1e27)
       // we need a daily rate with 1e18 precision

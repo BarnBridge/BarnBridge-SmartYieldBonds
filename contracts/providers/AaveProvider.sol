@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import "./../external-interfaces/aave/AToken.sol";
+import "./../external-interfaces/aave/IAToken.sol";
 import "./../external-interfaces/aave/ILendingPool.sol";
 
 import "./AaveController.sol";
@@ -73,7 +73,7 @@ contract AaveProvider is IProvider {
     constructor(address aToken_)
     {
         cToken = aToken_;
-        uToken = AToken(aToken_).UNDERLYING_ASSET_ADDRESS();
+        uToken = IAToken(aToken_).UNDERLYING_ASSET_ADDRESS();
     }
 
     function setup(
@@ -105,7 +105,7 @@ contract AaveProvider is IProvider {
     function updateAllowances()
       public
     {
-        address lendingPoolAddress = address(AToken(cToken).POOL());
+        address lendingPoolAddress = address(IAToken(cToken).POOL());
 
         uint256 lendingPoolAllowance = IERC20(cToken).allowance(address(this), lendingPoolAddress);
         IERC20(cToken).safeIncreaseAllowance(lendingPoolAddress, MAX_UINT256.sub(lendingPoolAllowance));
@@ -157,8 +157,8 @@ contract AaveProvider is IProvider {
         underlyingFees = underlyingFees.add(takeFees_);
 
         IAaveCumulator(controller)._beforeCTokenBalanceChange();
-        IERC20(uToken).approve(address(AToken(cToken).POOL()), underlyingAmount_);
-        ILendingPool(AToken(cToken).POOL()).deposit(uToken, underlyingAmount_, address(this), 0);
+        IERC20(uToken).approve(address(IAToken(cToken).POOL()), underlyingAmount_);
+        ILendingPool(IAToken(cToken).POOL()).deposit(uToken, underlyingAmount_, address(this), 0);
         IAaveCumulator(controller)._afterCTokenBalanceChange();
     }
 
@@ -178,7 +178,7 @@ contract AaveProvider is IProvider {
         underlyingFees = underlyingFees.add(takeFees_);
 
         IAaveCumulator(controller)._beforeCTokenBalanceChange();
-        uint256 actualUnderlyingAmount = ILendingPool(AToken(cToken).POOL()).withdraw(uToken, underlyingAmount_, address(this));
+        uint256 actualUnderlyingAmount = ILendingPool(IAToken(cToken).POOL()).withdraw(uToken, underlyingAmount_, address(this));
         require(actualUnderlyingAmount == underlyingAmount_, "AP: _withdrawProvider withdraw");
         IAaveCumulator(controller)._afterCTokenBalanceChange();
     }
@@ -205,7 +205,7 @@ contract AaveProvider is IProvider {
     {
         // https://docs.aave.com/developers/the-core-protocol/atokens#eip20-methods
         // total underlying balance minus underlyingFees
-        return AToken(cToken).balanceOf(address(this)).sub(underlyingFees);
+        return IAToken(cToken).balanceOf(address(this)).sub(underlyingFees);
     }
   // /externals
 }
