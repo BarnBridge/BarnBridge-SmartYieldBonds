@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./../external-interfaces/aave/IAToken.sol";
 import "./../external-interfaces/aave/ILendingPool.sol";
+import "./../external-interfaces/aave/IStakedTokenIncentivesController.sol";
 
 import "./AaveController.sol";
 
@@ -31,7 +32,7 @@ contract AaveProvider is IProvider {
     // underlying token (ie. DAI)
     address public uToken; // IERC20
 
-    // aave LendingPool
+    // aave aToken
     address public cToken;
 
     bool public _setup;
@@ -90,8 +91,6 @@ contract AaveProvider is IProvider {
         smartYield = smartYield_;
         controller = controller_;
 
-        updateAllowances();
-
         _setup = true;
     }
 
@@ -100,15 +99,6 @@ contract AaveProvider is IProvider {
       onlyControllerOrDao
     {
       controller = newController_;
-    }
-
-    function updateAllowances()
-      public
-    {
-        address lendingPoolAddress = address(IAToken(cToken).POOL());
-
-        uint256 lendingPoolAllowance = IERC20(cToken).allowance(address(this), lendingPoolAddress);
-        IERC20(cToken).safeIncreaseAllowance(lendingPoolAddress, MAX_UINT256.sub(lendingPoolAllowance));
     }
 
    // externals
@@ -181,6 +171,22 @@ contract AaveProvider is IProvider {
         uint256 actualUnderlyingAmount = ILendingPool(IAToken(cToken).POOL()).withdraw(uToken, underlyingAmount_, address(this));
         require(actualUnderlyingAmount == underlyingAmount_, "AP: _withdrawProvider withdraw");
         IAaveCumulator(controller)._afterCTokenBalanceChange();
+    }
+
+    // claim "amount" of rewards we have accumulated and send them to "to" address
+    // only callable by controller
+    function claimRewardsTo(uint256 amount, address to)
+      external
+      onlyController
+      returns (uint256)
+    {
+      address[] memory assets = new address[](1);
+      assets[0] = uToken;
+      return IStakedTokenIncentivesController(IAToken(cToken).getIncentivesController()).claimRewards(
+        assets,
+        amount,
+        to
+      );
     }
 
     function transferFees()

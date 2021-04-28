@@ -21,7 +21,11 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
+    uint256 public constant MAX_UINT256 = uint256(-1);
     uint256 public constant SECONDS_PER_YEAR = 365 days;
+
+    // claimed aave rewards are sent to this address
+    address public REWARDS_COLLECTOR;
 
     // last time we cumulated
     uint256 public prevCumulationTime;
@@ -40,10 +44,13 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
       _;
     }
 
+    event Harvest(address indexed caller, uint256 rewardTotal, uint256 rewardSold, uint256 underlyingPoolShare, uint256 underlyingReward, uint256 harvestCost);
+
     constructor(
       address pool_,
       address smartYield_,
-      address bondModel_
+      address bondModel_,
+      address rewardsCollector_
     )
       IController()
     {
@@ -52,6 +59,23 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
       // 30% per year linear
       setBondMaxRatePerDay(821917808219178);
       setBondModel(bondModel_);
+      setRewardsCollector(rewardsCollector_);
+    }
+
+    function setRewardsCollector(address newRewardsCollector_)
+      public
+      onlyDao
+    {
+      REWARDS_COLLECTOR = newRewardsCollector_;
+    }
+
+    // claims pool rewards and sends them to REWARDS_COLLECTOR
+    function harvest(uint256)
+      public
+    {
+      uint256 amountRewarded = AaveProvider(pool).claimRewardsTo(MAX_UINT256, REWARDS_COLLECTOR);
+
+      emit Harvest(msg.sender, amountRewarded, 0, 0, 0, 0);
     }
 
     function _beforeCTokenBalanceChange()
@@ -124,6 +148,14 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
       // lendingPoolData.currentLiquidityRate is a rate per year in wad (1e27)
       // we need a daily rate with 1e18 precision
       return uint256(lendingPoolData.currentLiquidityRate).mul(1 days).div(SECONDS_PER_YEAR).div(1e9);
+    }
+
+    // aave spot reward rate per day
+    function spotDailyDistributionRateProvider()
+      public view returns (uint256)
+    {
+      // kept for backwards compat
+      return 0;
     }
 
     // smart yield spot daily rate includes: spot supply

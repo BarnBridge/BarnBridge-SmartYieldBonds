@@ -14,8 +14,9 @@ import "./../Erc20Mock.sol";
 
 import "../../external-interfaces/aave/IAToken.sol";
 import "../../external-interfaces/aave/ILendingPool.sol";
+import "../../external-interfaces/aave/IStakedTokenIncentivesController.sol";
 
-contract CTokenWorldMock is IAToken, ILendingPool, ERC20 {
+contract ATokenWorldMock is IAToken, ILendingPool, IStakedTokenIncentivesController, ERC20 {
 
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -72,6 +73,10 @@ contract CTokenWorldMock is IAToken, ILendingPool, ERC20 {
       return _underlying;
     }
 
+    function getIncentivesController() external view override returns (address) {
+      return address(this);
+    }
+
     function POOL() external view override returns (address) {
       return address(this);
     }
@@ -87,6 +92,14 @@ contract CTokenWorldMock is IAToken, ILendingPool, ERC20 {
     {
       return _liquidityIndex;
     }
+
+      function claimRewards(
+        address[] calldata assets,
+        uint256 amount,
+        address to
+      ) external override returns (uint256) {
+        return 0;
+      }
 
     function getReserveData(address asset) external view override returns (ILendingPool.ReserveData memory) {
       ILendingPool.ReserveData memory reserveData = ILendingPool.ReserveData(
@@ -114,6 +127,8 @@ contract CTokenWorldMock is IAToken, ILendingPool, ERC20 {
 
       return reserveData;
     }
+
+
 
     function accrueInterest() external returns (uint256) {
       uint256 blocksElapsed = (block.timestamp - _lastAccrued) / 15;
