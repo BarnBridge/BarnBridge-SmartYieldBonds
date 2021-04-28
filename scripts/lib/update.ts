@@ -226,6 +226,8 @@ const getOracleInfo = async (oracle: YieldOracle) => {
     console.log(`[${i}]:`, o.timestamp.toString(), o.yieldCumulative.toString());
   });
   console.log('Latest yieldObservation:', latestObservation.timestamp.toString(), latestObservation.yieldCumulative.toString());
+  console.log('First observation index:', ((await oracle.observationIndexOf(block.timestamp)) + 1) % (granularity) );
+  console.log('Update observation index:', (await oracle.observationIndexOf(block.timestamp)) );
   console.log('---');
 
   return { windowSize, granularity, periodSize, observations, latestObservation, block };
