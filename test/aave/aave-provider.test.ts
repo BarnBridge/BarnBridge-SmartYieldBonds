@@ -203,4 +203,20 @@ describe('AaveProvider', async function () {
 
   });
 
+  describe('setController() ', async function () {
+
+    it('only controller or DAO can change controller', async function () {
+
+      const { pool, controller, deployerSign, rewardHolderSign, rewardToken, rewardHolderAddr } = await bbFixtures(fixture());
+
+      await expect(pool.connect(rewardHolderSign).setController(rewardHolderAddr), 'should throw if not dao/controller').revertedWith('AP: only controller/DAO');
+
+      expect(await pool.callStatic.controller(), controller.address);
+
+      pool.connect(deployerSign).setController(rewardHolderAddr);
+
+      expect(await pool.callStatic.controller(), rewardHolderAddr);
+    });
+  });
+
 });
