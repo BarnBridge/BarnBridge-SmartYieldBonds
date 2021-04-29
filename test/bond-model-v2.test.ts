@@ -57,6 +57,8 @@ describe('BondModel v2', async function () {
       expect(await bondModelV2Linear.callStatic.maxDailyRate(e18(1000), e18(1000), supplyRatePerBlock.mul(BLOCKS_PER_DAY)), 'maxDailyRate is correct (1)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY).mul(75).div(100));
 
       expect(await bondModelV2Linear.callStatic.maxDailyRate(e18(1000), e18(500), supplyRatePerBlock.mul(BLOCKS_PER_DAY)), 'maxDailyRate is correct (2)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY).mul(50).div(100));
+
+      expect(await bondModelV2Linear.callStatic.maxDailyRate(0, e18(500), supplyRatePerBlock.mul(BLOCKS_PER_DAY)), 'maxDailyRate is 0').deep.equal(BN.from(0));
     });
   });
 
@@ -104,6 +106,9 @@ describe('BondModel v2', async function () {
       principal = e18(1);
       gain = await bondModelV2Linear.gain(underlyingTotal, underlyingLoanable, supplyRatePerBlock.mul(BLOCKS_PER_DAY), principal, 365);
       expect(gain, 'gain should be correct (6)').deep.equal(BN.from('352492880435'));
+
+      gain = await bondModelV2Linear.gain(0, underlyingLoanable, supplyRatePerBlock.mul(BLOCKS_PER_DAY), 0, 365);
+      expect(gain, 'gain should be 0').deep.equal(BN.from(0));
     });
 
   });
@@ -152,6 +157,9 @@ describe('BondModel v2', async function () {
       principal = e18(1);
       gain = await bondModelV2Compounded.gain(underlyingTotal, underlyingLoanable, supplyRatePerBlock.mul(BLOCKS_PER_DAY), principal, 365);
       expect(gain, 'gain should be correct (6)').deep.equal(BN.from('352397044873'));
+
+      gain = await bondModelV2Compounded.gain(0, underlyingLoanable, supplyRatePerBlock.mul(BLOCKS_PER_DAY), 0, 365);
+      expect(gain, 'gain should be correct 0').deep.equal(BN.from(0));
     });
 
   });
