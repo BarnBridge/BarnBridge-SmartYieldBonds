@@ -25,7 +25,7 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
     uint256 public constant SECONDS_PER_YEAR = 365 days;
 
     // claimed aave rewards are sent to this address
-    address public REWARDS_COLLECTOR;
+    address public rewardsCollector;
 
     // last time we cumulated
     uint256 public prevCumulationTime;
@@ -66,14 +66,14 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
       public
       onlyDao
     {
-      REWARDS_COLLECTOR = newRewardsCollector_;
+      rewardsCollector = newRewardsCollector_;
     }
 
-    // claims pool rewards and sends them to REWARDS_COLLECTOR
+    // claims pool rewards and sends them to rewardsCollector
     function harvest(uint256)
       public
     {
-      uint256 amountRewarded = AaveProvider(pool).claimRewardsTo(MAX_UINT256, REWARDS_COLLECTOR);
+      uint256 amountRewarded = AaveProvider(pool).claimRewardsTo(MAX_UINT256, rewardsCollector);
 
       emit Harvest(msg.sender, amountRewarded, 0, 0, 0, 0);
     }
