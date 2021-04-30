@@ -172,7 +172,7 @@ contract CompoundProvider is IProvider {
         underlyingFees = underlyingFees.add(takeFees_);
 
         ICompoundCumulator(controller)._beforeCTokenBalanceChange();
-        IERC20(uToken).approve(address(cToken), underlyingAmount_);
+        IERC20(uToken).safeApprove(address(cToken), underlyingAmount_);
         uint256 err = ICToken(cToken).mint(underlyingAmount_);
         require(0 == err, "PPC: _depositProvider mint");
         ICompoundCumulator(controller)._afterCTokenBalanceChange(cTokenBalance);
