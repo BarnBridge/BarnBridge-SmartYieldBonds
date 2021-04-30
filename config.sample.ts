@@ -8,7 +8,7 @@ const config: HardhatUserConfig = {
     coverage: {
       forking: {
         url: 'https://eth-mainnet.alchemyapi.io/v2/yVzwGvPX6dd9TpUR4k4qWAk7ZliQcrWl',
-        blockNumber: 11966746, //
+        blockNumber: 12341398, //
       },
       allowUnlimitedContractSize: true,
       url: 'http://localhost:8555',
@@ -17,7 +17,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         url: 'https://eth-mainnet.alchemyapi.io/v2/yVzwGvPX6dd9TpUR4k4qWAk7ZliQcrWl',
-        blockNumber: 11966746, //
+        blockNumber: 12341398, //
       },
     },
 
