@@ -147,7 +147,7 @@ contract AaveProvider is IProvider {
         underlyingFees = underlyingFees.add(takeFees_);
 
         IAaveCumulator(controller)._beforeCTokenBalanceChange();
-        IERC20(uToken).approve(address(IAToken(cToken).POOL()), underlyingAmount_);
+        IERC20(uToken).safeApprove(address(IAToken(cToken).POOL()), underlyingAmount_);
         ILendingPool(IAToken(cToken).POOL()).deposit(uToken, underlyingAmount_, address(this), 0);
         IAaveCumulator(controller)._afterCTokenBalanceChange();
     }
@@ -175,13 +175,11 @@ contract AaveProvider is IProvider {
 
     // claim "amount" of rewards we have accumulated and send them to "to" address
     // only callable by controller
-    function claimRewardsTo(uint256 amount, address to)
+    function claimRewardsTo(address[] calldata assets, uint256 amount, address to)
       external
       onlyController
       returns (uint256)
     {
-      address[] memory assets = new address[](1);
-      assets[0] = uToken;
       return IStakedTokenIncentivesController(IAToken(cToken).getIncentivesController()).claimRewards(
         assets,
         amount,

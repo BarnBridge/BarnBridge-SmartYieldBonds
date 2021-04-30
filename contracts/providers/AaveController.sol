@@ -72,10 +72,17 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
     // claims pool rewards and sends them to rewardsCollector
     function harvest(uint256)
       public
+    returns (uint256 rewardAmountGot, uint256 underlyingHarvestReward)
     {
-      uint256 amountRewarded = AaveProvider(pool).claimRewardsTo(MAX_UINT256, rewardsCollector);
+
+      address[] memory assets = new address[](1);
+      assets[0] = AaveProvider(pool).cToken();
+
+      uint256 amountRewarded = AaveProvider(pool).claimRewardsTo(assets, MAX_UINT256, rewardsCollector);
 
       emit Harvest(msg.sender, amountRewarded, 0, 0, 0, 0);
+
+      return (amountRewarded, 0);
     }
 
     function _beforeCTokenBalanceChange()
