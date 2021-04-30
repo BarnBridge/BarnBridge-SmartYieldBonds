@@ -5,7 +5,7 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { ethers } from 'hardhat';
 
-import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY, e, deployAaveController, deployAaveProvider, dailyRate2APYAave, deployBondModelV2Linear, sellTokens } from '@testhelp/index';
+import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APYCompounding, e, deployAaveController, deployAaveProvider, dailyRate2APYLinear, deployBondModelV2Linear, sellTokens } from '@testhelp/index';
 
 import { ERC20Factory } from '@typechain/ERC20Factory';
 import { AToken } from '@typechain/AToken';
@@ -74,9 +74,9 @@ const dumpState = (aToken: AToken, controller: AaveController, smartYield: Smart
     console.log('underlyingFees    :', underlyingFees.toString());
     console.log('underlyingFull    :', underlyingBalance.add(underlyingFees).toString());
 
-    console.log('sy provider APY :', dailyRate2APYAave(providerRatePerDay));
-    console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APYAave(oracleRatePerDay), dailyRate2APYAave(spotDailyRate), dailyRate2APYAave(maxRatePerDay));
-    console.log('sy spot APY (supply) :', dailyRate2APYAave(spotDailyRate), `(${dailyRate2APYAave(spotDailySupplyRate)})`);
+    console.log('sy provider APY :', dailyRate2APYLinear(providerRatePerDay));
+    console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APYLinear(oracleRatePerDay), dailyRate2APYLinear(spotDailyRate), dailyRate2APYLinear(maxRatePerDay));
+    console.log('sy spot APY (supply) :', dailyRate2APYLinear(spotDailyRate), `(${dailyRate2APYLinear(spotDailySupplyRate)})`);
 
     console.log('---------');
   };

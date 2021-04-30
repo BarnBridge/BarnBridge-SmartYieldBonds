@@ -83,7 +83,7 @@ describe('AaveProvider', async function () {
       await expect(pool.connect(deployerSign)._withdrawProvider(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('AP: only smartYield');
       await expect(pool.connect(smartYieldSign)._depositProvider(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('AP: only smartYield/controller');
       await expect(pool.connect(smartYieldSign)._withdrawProvider(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('AP: only smartYield');
-      await expect(pool.connect(smartYieldSign).claimRewardsTo(BN.from(1), deployerAddr), 'should throw if not controller').revertedWith('AP: only controller');
+      await expect(pool.connect(smartYieldSign).claimRewardsTo([], BN.from(1), deployerAddr), 'should throw if not controller').revertedWith('AP: only controller');
     });
 
     it('_depositProvider deposits to provider', async function () {
