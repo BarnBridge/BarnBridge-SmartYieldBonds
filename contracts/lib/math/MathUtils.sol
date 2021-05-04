@@ -61,6 +61,16 @@ library MathUtils {
       return principal;
     }
 
+    function linearGain(
+      uint256 principal,
+      uint256 ratePerPeriod,
+      uint16 periods
+    ) internal pure returns (uint256) {
+      return principal.add(
+        fractionOf(principal, ratePerPeriod.mul(periods))
+      );
+    }
+
     // computes a * f / EXP_SCALE
     function fractionOf(uint256 a, uint256 f) internal pure returns (uint256) {
       return a.mul(f).div(EXP_SCALE);

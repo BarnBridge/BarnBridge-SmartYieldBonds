@@ -76,17 +76,23 @@ describe('buyBond() / redeemBond()', async function () {
 
     const mathTests = await deployMathTests(deployerSign as Wallet);
 
+    await mathTests.compoundingTest(e18(1), 0, 1);
+    expect(await mathTests.compoundingTestLast(), 'MathUtils.compound returns principal for 0 rate').deep.equal(BN.from(0));
+
     await mathTests.compoundingTest(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), 1);
     expect(await mathTests.compoundingTestLast(), 'MathUtils.compound not working (1)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
 
     await mathTests.compoundingTest(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), 365);
     expect(await mathTests.compoundingTestLast(), 'MathUtils.compound not working (2)').deep.equal(BN.from('89437198474492656'));
 
+    await mathTests.compoundingTest2(e18(1), 0, 1);
+    expect(await mathTests.compoundingTestLast(), 'MathUtils.compound2 returns principal for 0 rate').deep.equal(BN.from(0));
+
     await mathTests.compoundingTest2(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), 1);
-    expect(await mathTests.compoundingTestLast(), 'MathUtils.compound not working (1)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
+    expect(await mathTests.compoundingTestLast(), 'MathUtils.compound2 not working (1)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
 
     await mathTests.compoundingTest2(e18(1), supplyRatePerBlock.mul(BLOCKS_PER_DAY), 365);
-    expect(await mathTests.compoundingTestLast(), 'MathUtils.compound not working (2)').deep.equal(BN.from('89437198474492686'));
+    expect(await mathTests.compoundingTestLast(), 'MathUtils.compound2 not working (2)').deep.equal(BN.from('89437198474492686'));
 
   });
 

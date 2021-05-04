@@ -6,15 +6,16 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import "./../external-interfaces/compound-finance/ICToken.sol";
-import "./../external-interfaces/compound-finance/IComptroller.sol";
+import "./../external-interfaces/aave/IAToken.sol";
+import "./../external-interfaces/aave/ILendingPool.sol";
+import "./../external-interfaces/aave/IStakedTokenIncentivesController.sol";
 
-import "./CompoundController.sol";
+import "./AaveController.sol";
 
-import "./ICompoundCumulator.sol";
+import "./IAaveCumulator.sol";
 import "./../IProvider.sol";
 
-contract CompoundProvider is IProvider {
+contract AaveProvider is IProvider {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -31,14 +32,8 @@ contract CompoundProvider is IProvider {
     // underlying token (ie. DAI)
     address public uToken; // IERC20
 
-    // claim token (ie. cDAI)
+    // aave aToken
     address public cToken;
-
-    // cToken.balanceOf(this) measuring only deposits by users (excludes direct cToken transfers to pool)
-    uint256 public cTokenBalance;
-
-    uint256 public exchangeRateCurrentCached;
-    uint256 public exchangeRateCurrentCachedAt;
 
     bool public _setup;
 
@@ -47,7 +42,7 @@ contract CompoundProvider is IProvider {
     modifier onlySmartYield {
       require(
         msg.sender == smartYield,
-        "PPC: only smartYield"
+        "AP: only smartYield"
       );
       _;
     }
@@ -55,7 +50,7 @@ contract CompoundProvider is IProvider {
     modifier onlyController {
       require(
         msg.sender == controller,
-        "PPC: only controller"
+        "AP: only controller"
       );
       _;
     }
@@ -63,23 +58,23 @@ contract CompoundProvider is IProvider {
     modifier onlySmartYieldOrController {
       require(
         msg.sender == smartYield || msg.sender == controller,
-        "PPC: only smartYield/controller"
+        "AP: only smartYield/controller"
       );
       _;
     }
 
     modifier onlyControllerOrDao {
       require(
-        msg.sender == controller || msg.sender == CompoundController(controller).dao(),
-        "PPC: only controller/DAO"
+        msg.sender == controller || msg.sender == AaveController(controller).dao(),
+        "AP: only controller/DAO"
       );
       _;
     }
 
-    constructor(address cToken_)
+    constructor(address aToken_)
     {
-        cToken = cToken_;
-        uToken = ICToken(cToken_).underlying();
+        cToken = aToken_;
+        uToken = IAToken(aToken_).UNDERLYING_ASSET_ADDRESS();
     }
 
     function setup(
@@ -90,15 +85,11 @@ contract CompoundProvider is IProvider {
     {
         require(
           false == _setup,
-          "PPC: already setup"
+          "AP: already setup"
         );
 
         smartYield = smartYield_;
         controller = controller_;
-
-        _enterMarket();
-
-        updateAllowances();
 
         _setup = true;
     }
@@ -107,26 +98,10 @@ contract CompoundProvider is IProvider {
       external override
       onlyControllerOrDao
     {
-      // remove allowance on old controller
-      IERC20 rewardToken = IERC20(IComptroller(ICToken(cToken).comptroller()).getCompAddress());
-      rewardToken.safeApprove(controller, 0);
-
       controller = newController_;
-
-      // give allowance to new controler
-      updateAllowances();
     }
 
-    function updateAllowances()
-      public
-    {
-        IERC20 rewardToken = IERC20(IComptroller(ICToken(cToken).comptroller()).getCompAddress());
-
-        uint256 controllerRewardAllowance = rewardToken.allowance(address(this), controller);
-        rewardToken.safeIncreaseAllowance(controller, MAX_UINT256.sub(controllerRewardAllowance));
-    }
-
-  // externals
+   // externals
 
     // take underlyingAmount_ from from_
     function _takeUnderlying(address from_, uint256 underlyingAmount_)
@@ -138,7 +113,7 @@ contract CompoundProvider is IProvider {
         uint256 balanceAfter = IERC20(uToken).balanceOf(address(this));
         require(
           0 == (balanceAfter - balanceBefore - underlyingAmount_),
-          "PPC: _takeUnderlying amount"
+          "AP: _takeUnderlying amount"
         );
     }
 
@@ -152,7 +127,7 @@ contract CompoundProvider is IProvider {
         uint256 balanceAfter = IERC20(uToken).balanceOf(to_);
         require(
           0 == (balanceAfter - balanceBefore - underlyingAmount_),
-          "PPC: _sendUnderlying amount"
+          "AP: _sendUnderlying amount"
         );
     }
 
@@ -171,14 +146,10 @@ contract CompoundProvider is IProvider {
         // underlyingFees += takeFees_
         underlyingFees = underlyingFees.add(takeFees_);
 
-        ICompoundCumulator(controller)._beforeCTokenBalanceChange();
-        IERC20(uToken).safeApprove(address(cToken), underlyingAmount_);
-        uint256 err = ICToken(cToken).mint(underlyingAmount_);
-        require(0 == err, "PPC: _depositProvider mint");
-        ICompoundCumulator(controller)._afterCTokenBalanceChange(cTokenBalance);
-
-        // cTokenBalance is used to compute the pool yield, make sure no one interferes with the computations between deposits/withdrawls
-        cTokenBalance = ICTokenErc20(cToken).balanceOf(address(this));
+        IAaveCumulator(controller)._beforeCTokenBalanceChange();
+        IERC20(uToken).safeApprove(address(IAToken(cToken).POOL()), underlyingAmount_);
+        ILendingPool(IAToken(cToken).POOL()).deposit(uToken, underlyingAmount_, address(this), 0);
+        IAaveCumulator(controller)._afterCTokenBalanceChange();
     }
 
     // withdraw underlyingAmount_ from the liquidity provider, callable by smartYield
@@ -196,13 +167,24 @@ contract CompoundProvider is IProvider {
         // underlyingFees += takeFees_;
         underlyingFees = underlyingFees.add(takeFees_);
 
-        ICompoundCumulator(controller)._beforeCTokenBalanceChange();
-        uint256 err = ICToken(cToken).redeemUnderlying(underlyingAmount_);
-        require(0 == err, "PPC: _withdrawProvider redeemUnderlying");
-        ICompoundCumulator(controller)._afterCTokenBalanceChange(cTokenBalance);
+        IAaveCumulator(controller)._beforeCTokenBalanceChange();
+        uint256 actualUnderlyingAmount = ILendingPool(IAToken(cToken).POOL()).withdraw(uToken, underlyingAmount_, address(this));
+        require(actualUnderlyingAmount == underlyingAmount_, "AP: _withdrawProvider withdraw");
+        IAaveCumulator(controller)._afterCTokenBalanceChange();
+    }
 
-        // cTokenBalance is used to compute the pool yield, make sure no one interferes with the computations between deposits/withdrawls
-        cTokenBalance = ICTokenErc20(cToken).balanceOf(address(this));
+    // claim "amount" of rewards we have accumulated and send them to "to" address
+    // only callable by controller
+    function claimRewardsTo(address[] calldata assets, uint256 amount, address to)
+      external
+      onlyController
+      returns (uint256)
+    {
+      return IStakedTokenIncentivesController(IAToken(cToken).getIncentivesController()).claimRewards(
+        assets,
+        amount,
+        to
+      );
     }
 
     function transferFees()
@@ -213,7 +195,7 @@ contract CompoundProvider is IProvider {
       underlyingFees = 0;
 
       uint256 fees = IERC20(uToken).balanceOf(address(this));
-      address to = CompoundController(controller).feesOwner();
+      address to = AaveController(controller).feesOwner();
 
       IERC20(uToken).safeTransfer(to, fees);
 
@@ -225,41 +207,9 @@ contract CompoundProvider is IProvider {
       external virtual override
     returns (uint256)
     {
-        // https://compound.finance/docs#protocol-math
-        // (total balance in underlying) - underlyingFees
-        // cTokenBalance * exchangeRateCurrent() / EXP_SCALE - underlyingFees;
-        return cTokenBalance.mul(exchangeRateCurrent()).div(EXP_SCALE).sub(underlyingFees);
+        // https://docs.aave.com/developers/the-core-protocol/atokens#eip20-methods
+        // total underlying balance minus underlyingFees
+        return IAToken(cToken).balanceOf(address(this)).sub(underlyingFees);
     }
   // /externals
-
-  // public
-    // get exchangeRateCurrent from compound and cache it for the current block
-    function exchangeRateCurrent()
-      public virtual
-    returns (uint256)
-    {
-      // only once per block
-      if (block.timestamp > exchangeRateCurrentCachedAt) {
-        exchangeRateCurrentCachedAt = block.timestamp;
-        exchangeRateCurrentCached = ICToken(cToken).exchangeRateCurrent();
-      }
-      return exchangeRateCurrentCached;
-    }
-  // /public
-
-  // internals
-
-    // call comptroller.enterMarkets()
-    // needs to be called only once BUT before any interactions with the provider
-    function _enterMarket()
-      internal
-    {
-        address[] memory markets = new address[](1);
-        markets[0] = cToken;
-        uint256[] memory err = IComptroller(ICToken(cToken).comptroller()).enterMarkets(markets);
-        require(err[0] == 0, "PPC: _enterMarket");
-    }
-
-    // /internals
-
 }

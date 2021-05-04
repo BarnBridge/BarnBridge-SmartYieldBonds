@@ -35,13 +35,9 @@ export const e6 = (n: number | BN | BNj | string): BN => {
 };
 
 export const e18j = (n: number | BN | BNj | string): BNj => {
-  if (n instanceof BN) {
-    return new BNj(n.mul(BN.from(10).pow(18)).toString());
-  }
+  return ej(n, 18);
+};
 
-  if (n instanceof BNj) {
-    n.times(new BNj(10).pow(18));
-  }
-
-  return new BNj(n).times(new BNj(10).pow(18));;
+export const ej = (n: number | BN | BNj | string, pow: number): BNj => {
+  return (new BNj(n.toString())).times(new BNj(10).pow(pow));
 };

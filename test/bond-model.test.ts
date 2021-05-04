@@ -30,6 +30,18 @@ const fixture = (decimals: number) => {
 
 describe('BondModel bond rate computations', async function () {
 
+  describe('bondModel.maxDailyRate()', async function () {
+    it('expected values', async function () {
+      const { bondModel, deployerSign, ownerSign } = await bbFixtures(fixture(decimals));
+
+      expect(await bondModel.callStatic.maxDailyRate(e18(1000), e18(1000), supplyRatePerBlock.mul(BLOCKS_PER_DAY)), 'maxDailyRate is correct (1)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY));
+
+      expect(await bondModel.callStatic.maxDailyRate(e18(1000), e18(500), supplyRatePerBlock.mul(BLOCKS_PER_DAY)), 'maxDailyRate is correct (2)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY).mul(50).div(100));
+
+      expect(await bondModel.callStatic.maxDailyRate(0, e18(500), supplyRatePerBlock.mul(BLOCKS_PER_DAY)), 'maxDailyRate is 0').deep.equal(BN.from(0));
+    });
+  });
+
   describe('bondModel.gain()', async function () {
     it('expected values', async function () {
       const { bondModel, } = await bbFixtures(fixture(decimals));
@@ -72,6 +84,9 @@ describe('BondModel bond rate computations', async function () {
       principal = e18(1);
       gain = await bondModel.gain(underlyingTotal, underlyingLoanable, supplyRatePerBlock.mul(BLOCKS_PER_DAY), principal, 365);
       expect(gain, 'gain should be correct (6)').deep.equal(BN.from('352183326719'));
+
+      gain = await bondModel.gain(0, underlyingLoanable, supplyRatePerBlock.mul(BLOCKS_PER_DAY), principal, 365);
+      expect(gain, 'gain should be 0').deep.equal(BN.from(0));
     });
 
   });
