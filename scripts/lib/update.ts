@@ -226,14 +226,14 @@ const getOracleInfo = async (oracle: YieldOracle) => {
     console.log(`[${i}]:`, o.timestamp.toString(), o.yieldCumulative.toString());
   });
   console.log('Latest yieldObservation:', latestObservation.timestamp.toString(), latestObservation.yieldCumulative.toString());
-  console.log('First observation index:', ((await oracle.observationIndexOf(block.timestamp)) + 1) % (granularity) );
-  console.log('Update observation index:', (await oracle.observationIndexOf(block.timestamp)) );
+  console.log('First observation index:', ((await oracle.observationIndexOf(block.timestamp)) + 1) % (granularity));
+  console.log('Update observation index:', (await oracle.observationIndexOf(block.timestamp)));
   console.log('---');
 
   return { windowSize, granularity, periodSize, observations, latestObservation, block };
 };
 
-export const walletBalance = async(address: string): Promise<BN> => {
+export const walletBalance = async (address: string): Promise<BN> => {
   const balance = await ethers.provider.getBalance(address);
   if (balance.eq(0)) {
     console.error('no balance on address ' + address + '!');
@@ -242,16 +242,103 @@ export const walletBalance = async(address: string): Promise<BN> => {
   return balance;
 };
 
-export const getGasPriceMainnet = async(): Promise<BN> => {
-  if (undefined === process.env.GAS_STATION_URL) {
-    console.error('env var GAS_STATION_URL is not set!');
-    process.exit(-1);
-  }
-  const req = await axios.get(process.env.GAS_STATION_URL);
-  return BN.from(req.data['fast']).mul(10**9).div(10);
-};
-
-export const getGasPriceTest = async(): Promise<BN> => {
+export const getGasPriceWeb3 = async (): Promise<BN> => {
   return BN.from(await web3.eth.getGasPrice());
 };
 
+export const getGasPriceEthGasStation = async (): Promise<BN> => {
+  if (undefined === process.env.APIKEY_ETHGASSTATION) {
+    console.error('env var APIKEY_ETHGASSTATION is not set!');
+    process.exit(-1);
+  }
+  const url = 'https://ethgasstation.info/api/ethgasAPI.json?api-key=' + process.env.APIKEY_ETHGASSTATION;
+  const req = await axios.get(url);
+  return BN.from(req.data['fast']).mul(10 ** 9).div(10);
+};
+
+export const getGasPriceEtherscan = async (): Promise<BN> => {
+  if (undefined === process.env.APIKEY_ETHERSCAN) {
+    console.error('env var APIKEY_ETHERSCAN is not set!');
+    process.exit(-1);
+  }
+  const url = 'https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=' + process.env.APIKEY_ETHERSCAN;
+  const req = await axios.get(url);
+  return BN.from(req.data['result']['FastGasPrice']).mul(10 ** 9);
+};
+
+export const getGasPriceGasNow = async (): Promise<BN> => {
+  if (undefined === process.env.APIKEY_GASNOW) {
+    console.error('env var APIKEY_GASNOW is not set!');
+    process.exit(-1);
+  }
+  const url = 'https://www.gasnow.org/api/v3/gas/price?utm_source=' + process.env.APIKEY_GASNOW;
+  const req = await axios.get(url);
+  return BN.from(req.data['data']['fast']);
+};
+
+export const getGasPriceMainnet = async (): Promise<BN> => {
+
+  try {
+    return await getGasPriceEthGasStation();
+  } catch (e) {
+    console.error('Failed to get EthGasStation gas price:', e);
+  }
+
+  try {
+    return await getGasPriceEtherscan();
+  } catch (e) {
+    console.error('Failed to get Etherscan gas price:', e);
+  }
+
+  try {
+    return await getGasPriceGasNow();
+  } catch (e) {
+    console.error('Failed to get Gasnow gas price:', e);
+  }
+
+  try {
+    return await getGasPriceWeb3();
+  } catch (e) {
+    console.error('Failed to get Web3 gas price:', e);
+  }
+
+  console.error('getGasPriceMainnet failed to get any price!');
+  process.exit(-1);
+};
+
+export const getAllGasPrice = async (): Promise<{ EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null }> => {
+  const rez: { EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null } = {} as { EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null };
+
+  try {
+    rez.EthGasStation = await getGasPriceEthGasStation();
+  } catch (e) {
+    rez.EthGasStation = null;
+  }
+
+  try {
+    rez.Etherscan = await getGasPriceEtherscan();
+  } catch (e) {
+    rez.Etherscan = null;
+  }
+
+  try {
+    rez.GasNow = await getGasPriceGasNow();
+  } catch (e) {
+    rez.GasNow = null;
+  }
+
+  try {
+    rez.Web3 = await getGasPriceWeb3();
+  } catch (e) {
+    rez.Web3 = null;
+  }
+
+  return rez;
+};
+
+export const dumpAllGasPrices = async (): Promise<void> => {
+  const gasPrices = await getAllGasPrice();
+  // for (const [key, value] of Object.entries(object1)) {
+  // }
+  console.table(gasPrices);
+};

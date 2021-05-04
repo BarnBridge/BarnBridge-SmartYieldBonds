@@ -10,13 +10,13 @@ const smartYields = {
 // -----
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
 import { ethers } from 'hardhat';
-import { getGasPriceTest, walletBalance, Updater } from './lib/update';
+import { getGasPriceWeb3, walletBalance, Updater } from './lib/update';
 
 async function main() {
 
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
 
-  const gasPriceGetter = getGasPriceTest;
+  const gasPriceGetter = getGasPriceWeb3;
 
   console.log('Starting YieldOracle.update() bot ...');
   console.log('wallet     :', walletSign.address);
