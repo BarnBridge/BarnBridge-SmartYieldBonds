@@ -17,7 +17,7 @@ abstract contract ABondModelV2 is Governed
 
     function gain(uint256 total_, uint256 loanable_, uint256 dailyRate_, uint256 principal_, uint16 forDays_) external view virtual returns (uint256);
 
-    function setMaxPoolRation(uint256 newMaxPoolRatio_)
+    function setMaxPoolRatio(uint256 newMaxPoolRatio_)
       public
       onlyDao
     {

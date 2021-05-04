@@ -40,11 +40,11 @@ describe('BondModel v2', async function () {
 
       expect(deployedMaxPoolRatio, 'deployed MAX_POOL_RATIO is correct').deep.equal(e(750, 15));
 
-      await bondModelV2Linear.connect(deployerSign).setMaxPoolRation(e(500, 15));
+      await bondModelV2Linear.connect(deployerSign).setMaxPoolRatio(e(500, 15));
 
       expect(await bondModelV2Linear.callStatic.MAX_POOL_RATIO(), 'changed MAX_POOL_RATIO is correct').deep.equal(e(500, 15));
 
-      await expect(bondModelV2Linear.connect(ownerSign).setMaxPoolRation(e(100, 15)), 'if not DAO it reverts').revertedWith('GOV: not dao');
+      await expect(bondModelV2Linear.connect(ownerSign).setMaxPoolRatio(e(100, 15)), 'if not DAO it reverts').revertedWith('GOV: not dao');
     });
   });
 
@@ -52,7 +52,7 @@ describe('BondModel v2', async function () {
     it('expected values', async function () {
       const { bondModelV2Linear, deployerSign, ownerSign } = await bbFixtures(fixture(decimals));
 
-      await bondModelV2Linear.connect(deployerSign).setMaxPoolRation(e(750, 15));
+      await bondModelV2Linear.connect(deployerSign).setMaxPoolRatio(e(750, 15));
 
       expect(await bondModelV2Linear.callStatic.maxDailyRate(e18(1000), e18(1000), supplyRatePerBlock.mul(BLOCKS_PER_DAY)), 'maxDailyRate is correct (1)').deep.equal(supplyRatePerBlock.mul(BLOCKS_PER_DAY).mul(75).div(100));
 
@@ -66,7 +66,7 @@ describe('BondModel v2', async function () {
     it('expected values', async function () {
       const { bondModelV2Linear, deployerSign } = await bbFixtures(fixture(decimals));
 
-      await bondModelV2Linear.connect(deployerSign).setMaxPoolRation(e(750, 15));
+      await bondModelV2Linear.connect(deployerSign).setMaxPoolRatio(e(750, 15));
 
       let underlyingLoanable = e18(1000);
       let underlyingTotal = e18(1000);
@@ -117,7 +117,7 @@ describe('BondModel v2', async function () {
     it('expected values', async function () {
       const { bondModelV2Compounded, deployerSign } = await bbFixtures(fixture(decimals));
 
-      await bondModelV2Compounded.connect(deployerSign).setMaxPoolRation(e(750, 15));
+      await bondModelV2Compounded.connect(deployerSign).setMaxPoolRatio(e(750, 15));
 
       let underlyingLoanable = e18(1000);
       let underlyingTotal = e18(1000);
