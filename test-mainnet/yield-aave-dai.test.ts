@@ -5,17 +5,17 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { ethers } from 'hardhat';
 
-import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APYCompounding, e } from '@testhelp/index';
+import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APYCompounding, e, deployAaveController, deployAaveProvider, dailyRate2APYLinear, deployBondModelV2Linear, sellTokens } from '@testhelp/index';
 
 import { ERC20Factory } from '@typechain/ERC20Factory';
-import { ICTokenFactory } from '@typechain/ICTokenFactory';
-import { ICToken } from '@typechain/ICToken';
-import { IComptrollerFactory } from '@typechain/IComptrollerFactory';
+import { AToken } from '@typechain/AToken';
+import { ATokenFactory } from '@typechain/ATokenFactory';
 import { SmartYield } from '@typechain/SmartYield';
 import { CompoundProvider } from '@typechain/CompoundProvider';
 import { ERC20 } from '@typechain/ERC20';
 import { YieldOracle } from '@typechain/YieldOracle';
-import { CompoundController } from '@typechain/CompoundController';
+import { AaveController } from '@typechain/AaveController';
+import { AaveProvider } from '@typechain/AaveProvider';
 
 const A_HOUR = 60 * 60;
 const A_DAY = 24 * A_HOUR;
@@ -30,30 +30,22 @@ const BLOCKS_A_PERIOD = 4 * oracleCONF.windowSize / oracleCONF.granularity / 60;
 const BLOCKS_A_HOUR = 4 * 60;
 const BLOCKS_A_DAY = 24 * BLOCKS_A_HOUR;
 
-// ethereum / compound
+// ethereum / aave
 
-// block = 12154444
-// DAI supply APY 7.14%
-// DAI distribution APY 2.72% (2.6112%)
-// 1 COMP ~= 448 USD (comp oracle)
-// 1 COMP ~= 449 DAI (uniswap)
+// block = 12269908
+// DAI supply APY 5.63%
 
 // barnbridge
 const decimals = 18; // same as DAI
 
 // externals ---
 
-// compound
-const cDAI = '0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643';
-const COMP = '0xc00e94cb662c3520282e6f5717214004a7f26888';
-const cComptroller = '0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B';
+// aave
+const aDAI = '0x028171bCA77440897B824Ca71D1c56caC55b68A3';
 
-// uniswap https://uniswap.org/docs/v2/smart-contracts/router02/
 const DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F';
-const WETH = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
-const uniswapPath = [COMP, WETH, DAI];
 
-const DAIwhale = '0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8';
+const DAIwhale = '0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503';
 
 const getObservations = async (oracle: YieldOracle, granularity: number) => {
   return await Promise.all(
@@ -61,53 +53,39 @@ const getObservations = async (oracle: YieldOracle, granularity: number) => {
   );
 };
 
-const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: SmartYield, pool: CompoundProvider, oracle: YieldOracle, granularity: number) => {
+const dumpState = (aToken: AToken, controller: AaveController, smartYield: SmartYield, pool: AaveProvider, oracle: YieldOracle, granularity: number) => {
   return async () => {
 
-    const [spotCompToUnderlying, spotDailySupplyRate, spotDailyDistributionRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, compoundSupplyRate, providerRatePerDay, maxBondDailyRate] = await Promise.all([
-      controller.callStatic.quoteSpotCompToUnderlying(e18(1)),
+    const [spotDailySupplyRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, providerRatePerDay] = await Promise.all([
       controller.callStatic.spotDailySupplyRateProvider(),
-      controller.callStatic.spotDailyDistributionRateProvider(),
       controller.callStatic.spotDailyRate(),
       controller.callStatic.BOND_MAX_RATE_PER_DAY(),
       oracle.callStatic.consult(A_DAY),
 
       pool.callStatic.underlyingBalance(),
       pool.callStatic.underlyingFees(),
-      cToken.callStatic.supplyRatePerBlock(),
       controller.callStatic.providerRatePerDay(),
-
       smartYield.callStatic.maxBondDailyRate(),
     ]);
 
     console.log('---------');
-    console.log('compound APY      :', dailyRate2APYCompounding(compoundSupplyRate.mul(4).mul(60).mul(24)));
+    //console.log('compound APY      :', dailyRate2APY(compoundSupplyRate.mul(4).mul(60).mul(24)));
     console.log('underlyingBalance :', underlyingBalance.toString());
     console.log('underlyingFees    :', underlyingFees.toString());
     console.log('underlyingFull    :', underlyingBalance.add(underlyingFees).toString());
 
-    console.log('sy provider APY :', dailyRate2APYCompounding(providerRatePerDay));
-    console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APYCompounding(oracleRatePerDay), dailyRate2APYCompounding(spotDailyRate), dailyRate2APYCompounding(maxRatePerDay));
-    console.log('sy spot APY (supply + distri) :', dailyRate2APYCompounding(spotDailyRate), `(${dailyRate2APYCompounding(spotDailySupplyRate)} + ${dailyRate2APYCompounding(spotDailyDistributionRate)})`);
+    console.log('sy provider APY :', dailyRate2APYLinear(providerRatePerDay));
+    console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APYLinear(oracleRatePerDay), dailyRate2APYLinear(spotDailyRate), dailyRate2APYLinear(maxRatePerDay));
+    console.log('sy spot APY (supply) :', dailyRate2APYLinear(spotDailyRate), `(${dailyRate2APYLinear(spotDailySupplyRate)})`);
 
-    try {
-      const {compGot, underlyingHarvestReward} = await controller.callStatic.harvest(0);
-      console.log('harvestReward   :', underlyingHarvestReward.toString());
-      console.log('harvestCompGot  :', compGot.toString());
-    } catch (e) {
-      console.log('harvestReward   : FAILED.');
-    }
-
-    console.log('spotCompToUnderlying 1 COMP=', spotCompToUnderlying.toString());
     console.log('---------');
   };
 };
 
-const moveTime = (cToken: ICToken, whale: Wallet) => {
+const moveTime = (whale: Wallet) => {
   return async (seconds: number | BN | BNj): Promise<void> => {
     seconds = BN.from(seconds.toString());
     await ethers.provider.send('evm_increaseTime', [seconds.toNumber()]);
-    await cToken.connect(whale).mint(BN.from(1));
   };
 };
 
@@ -128,7 +106,7 @@ const impersonate = (ethWallet: Signer) => {
   };
 };
 
-export const buyTokens = (smartYield: SmartYield, pool: CompoundProvider, underlying: ERC20) => {
+export const buyTokens = (smartYield: SmartYield, pool: CompoundProvider | AaveProvider, underlying: ERC20) => {
   return async (user: Wallet, amountUnderlying: number | BN): Promise<void> => {
     amountUnderlying = toBN(amountUnderlying);
     await underlying.connect(user).approve(pool.address, amountUnderlying);
@@ -136,23 +114,11 @@ export const buyTokens = (smartYield: SmartYield, pool: CompoundProvider, underl
   };
 };
 
-export const buyBond = (smartYield: SmartYield, pool: CompoundProvider, underlying: ERC20) => {
+export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AaveProvider, underlying: ERC20) => {
   return async (user: Wallet, amountUnderlying: number | BN, forDays: number): Promise<void> => {
     amountUnderlying = toBN(amountUnderlying);
     await underlying.connect(user).approve(pool.address, amountUnderlying);
     await (await smartYield.connect(user).buyBond(amountUnderlying, 1, BN.from('2529935466'), forDays)).wait();
-  };
-};
-
-export const mintCtoken = (cToken: ICToken, whale: Wallet) => {
-  return async (underlyingAmount_: BN): Promise<void> => {
-    await cToken.connect(whale).mint(underlyingAmount_);
-  };
-};
-
-export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
-  return async (underlyingAmount_: BN): Promise<void> => {
-    await cToken.connect(whale).redeemUnderlying(underlyingAmount_);
   };
 };
 
@@ -163,20 +129,18 @@ export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
     const whaleSign = await impersonate(deployerSign)(DAIwhale);
 
     const underlying = ERC20Factory.connect(DAI, deployerSign);
-    const cToken = ICTokenFactory.connect(cDAI, deployerSign);
-    const comp = ERC20Factory.connect(COMP, deployerSign);
-    const compoundComptroller = IComptrollerFactory.connect(cComptroller, deployerSign);
+    const aToken = ATokenFactory.connect(aDAI, deployerSign);
 
-    await underlying.connect(whaleSign).approve(cToken.address, BN.from(e18(e18(e18(1)))));
+    await underlying.connect(whaleSign).approve(aToken.address, BN.from(e18(e18(e18(1)))));
 
     const [bondModel, pool, smartYield] = await Promise.all([
-      deployBondModel(deployerSign),
-      deployCompoundProvider(deployerSign, cDAI),
+      deployBondModelV2Linear(deployerSign),
+      deployAaveProvider(deployerSign, aDAI),
       deploySmartYield(deployerSign, juniorTokenCONF.name, juniorTokenCONF.symbol, BN.from(decimals)),
     ]);
 
     const [controller, seniorBond, juniorBond] = await Promise.all([
-      deployCompoundController(deployerSign, pool.address, smartYield.address, bondModel.address, uniswapPath),
+      deployAaveController(deployerSign, pool.address, smartYield.address, bondModel.address),
       deploySeniorBond(deployerSign, smartYield.address, seniorBondCONF.name, seniorBondCONF.symbol),
       deployJuniorBond(deployerSign, smartYield.address, juniorBondCONF.name, juniorBondCONF.symbol),
     ]);
@@ -193,18 +157,16 @@ export const redeemCtoken = (cToken: ICToken, whale: Wallet) => {
 
 
     return {
-      oracle, smartYield, cToken, bondModel, seniorBond, underlying, controller, pool, compoundComptroller, comp,
+      oracle, smartYield, aToken, bondModel, seniorBond, underlying, controller, pool,
       deployerSign: deployerSign as Signer,
       ownerSign: ownerSign as Signer,
       whaleSign,
       junior1, junior2, junior3, senior1, senior2, senior3,
-      moveTime: moveTime(cToken, whaleSign as unknown as Wallet),
+      moveTime: moveTime(whaleSign as unknown as Wallet),
       currentBlock: currentBlock(),
       buyTokens: buyTokens(smartYield, pool, underlying),
       buyBond: buyBond(smartYield, pool, underlying),
-      mintCtoken: mintCtoken(cToken, whaleSign as unknown as Wallet),
-      redeemCtoken: redeemCtoken(cToken, whaleSign as unknown as Wallet),
-      dumpState: dumpState(cToken, controller, smartYield, pool, oracle, oracleCONF.granularity),
+      dumpState: dumpState(aToken, controller, smartYield, pool, oracle, oracleCONF.granularity),
     };
   };
 };
@@ -214,9 +176,9 @@ describe('yield expected DAI', async function () {
 
   it('test yield', async function () {
 
-    const { whaleSign, pool, cToken, comp, oracle, currentBlock, moveTime, buyTokens, buyBond, mintCtoken, redeemCtoken, dumpState, controller } = await bbFixtures(fixture());
+    const { whaleSign, pool, aToken, oracle, currentBlock, moveTime, buyTokens, buyBond, dumpState, controller } = await bbFixtures(fixture());
 
-    await buyTokens(whaleSign as unknown as Wallet, e(1_000_000, decimals));
+    await buyTokens(whaleSign as unknown as Wallet, e(1_000, decimals));
 
     let skipBlocks = 0;
 
@@ -225,15 +187,6 @@ describe('yield expected DAI', async function () {
       skipBlocks = 0;
 
       //await (await cToken.connect(whaleSign).accrueInterest()).wait();
-
-      if (i % 20 == 19) {
-        skipBlocks++;
-        await forceNextTime();
-        console.log('+++ HARVEST!');
-        const harv = await (await controller.harvest(0)).wait();
-        console.log('harvest gas >>>>>>>>>>>>>>>>>>>>>>>>>> ', harv.gasUsed.toString());
-        console.log('--- HARVEST!');
-      }
 
       if (i % 5 == 4) {
         skipBlocks++;
@@ -247,13 +200,13 @@ describe('yield expected DAI', async function () {
       if (i % 20 == 1) {
         skipBlocks++;
         await forceNextTime();
-        await buyTokens(whaleSign as unknown as Wallet, e(1_000_000, decimals));
+        await buyTokens(whaleSign as unknown as Wallet, e(1_000, decimals));
       }
 
       if (i % 20 == 19) {
         skipBlocks++;
         await forceNextTime();
-        await buyBond(whaleSign as unknown as Wallet, e(100_000, decimals), 30);
+        await buyBond(whaleSign as unknown as Wallet, e(1_000, decimals), 30);
       }
 
       //await mineBlocks(1);
@@ -261,19 +214,8 @@ describe('yield expected DAI', async function () {
       console.log(`[${i}]`);
       skipBlocks++;
       await forceNextTime();
-      await (await cToken.connect(whaleSign).accrueInterest()).wait();
       await dumpState();
     }
-
-  }).timeout(500 * 1000);
-
-  it('works with multiple SY deposits between harvest', async function () {
-
-    const { whaleSign, pool, cToken, comp, currentBlock, moveTime, buyTokens } = await bbFixtures(fixture());
-
-    await buyTokens(whaleSign as unknown as Wallet, e(100_000, decimals));
-
-
 
   }).timeout(500 * 1000);
 

@@ -5,7 +5,7 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { ethers } from 'hardhat';
 
-import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APY, e } from '@testhelp/index';
+import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APYCompounding, e } from '@testhelp/index';
 
 import { ERC20Factory } from '@typechain/ERC20Factory';
 import { ICTokenFactory } from '@typechain/ICTokenFactory';
@@ -81,14 +81,14 @@ const dumpState = (cToken: ICToken, controller: CompoundController, smartYield: 
     ]);
 
     console.log('---------');
-    console.log('compound APY      :', dailyRate2APY(compoundSupplyRate.mul(4).mul(60).mul(24)));
+    console.log('compound APY      :', dailyRate2APYCompounding(compoundSupplyRate.mul(4).mul(60).mul(24)));
     console.log('underlyingBalance :', underlyingBalance.toString());
     console.log('underlyingFees    :', underlyingFees.toString());
     console.log('underlyingFull    :', underlyingBalance.add(underlyingFees).toString());
 
-    console.log('sy provider APY :', dailyRate2APY(providerRatePerDay));
-    console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APY(oracleRatePerDay), dailyRate2APY(spotDailyRate), dailyRate2APY(maxRatePerDay));
-    console.log('sy spot APY (supply + distri) :', dailyRate2APY(spotDailyRate), `(${dailyRate2APY(spotDailySupplyRate)} + ${dailyRate2APY(spotDailyDistributionRate)})`);
+    console.log('sy provider APY :', dailyRate2APYCompounding(providerRatePerDay));
+    console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APYCompounding(oracleRatePerDay), dailyRate2APYCompounding(spotDailyRate), dailyRate2APYCompounding(maxRatePerDay));
+    console.log('sy spot APY (supply + distri) :', dailyRate2APYCompounding(spotDailyRate), `(${dailyRate2APYCompounding(spotDailySupplyRate)} + ${dailyRate2APYCompounding(spotDailyDistributionRate)})`);
 
     try {
       const {compGot, underlyingHarvestReward} = await controller.callStatic.harvest(0);

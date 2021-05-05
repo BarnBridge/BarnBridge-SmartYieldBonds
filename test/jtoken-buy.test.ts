@@ -4,7 +4,7 @@ import 'tsconfig-paths/register';
 import { expect } from 'chai';
 import { Signer, Wallet, BigNumber as BN } from 'ethers';
 
-import { bbFixtures, e18, A_DAY, BLOCKS_PER_DAY, deployBondModel, deploySmartYieldMock, deployYieldOracle, buyTokens, buyBond, redeemBond, deployCTokenWorldMock, deployCompoundProvider, deployCompoundControllerMock, deploySeniorBond, deployJuniorBond, buyJuniorBond, redeemJuniorBond, sellTokens, forceTime, forceNextTime, dailyRate2APY, e6 } from '@testhelp/index';
+import { bbFixtures, e18, A_DAY, BLOCKS_PER_DAY, deployBondModel, deploySmartYieldMock, deployYieldOracle, buyTokens, buyBond, redeemBond, deployCTokenWorldMock, deployCompoundProvider, deployCompoundControllerMock, deploySeniorBond, deployJuniorBond, buyJuniorBond, redeemJuniorBond, sellTokens, forceTime, forceNextTime, dailyRate2APYCompounding, e6 } from '@testhelp/index';
 import { Erc20MockFactory } from '@typechain/Erc20MockFactory';
 import { CompOracleMockFactory } from '@typechain/CompOracleMockFactory';
 
