@@ -338,7 +338,8 @@ export const getAllGasPrice = async (): Promise<{ EthGasStation: BN | null, Ethe
 
 export const dumpAllGasPrices = async (): Promise<void> => {
   const gasPrices = await getAllGasPrice();
-  // for (const [key, value] of Object.entries(object1)) {
-  // }
+  for (const [provider, price] of Object.entries(gasPrices)) {
+    (gasPrices as any)[provider] = price?.toString();
+  }
   console.table(gasPrices);
 };

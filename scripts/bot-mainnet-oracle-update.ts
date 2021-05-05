@@ -31,7 +31,7 @@ async function main() {
 
   const updater = new Updater(smartYields, walletSign, 50000, gasPriceGetter);
 
-  //await updater.updateLoop();
+  await updater.updateLoop();
 }
 
 main()
