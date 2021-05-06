@@ -21,10 +21,10 @@ const feesOwner = dao;
 // externals ---
 
 // compound
-const cUSDC = '0x4a92e71227d294f041bd82dd8f78591b75140d63';
-const COMP = '0x61460874a7196d6a22d1ee4922473664b3e95270';
+const cUSDC = '0x39aa39c021dfbae8fac545936693ac917d5e7563';
+const COMP = '0xc00e94Cb662C3520282E6f5717214004A7f26888';
 
-const USDC = '0xb7a4f3e9097c08da09517b5ab877f7a917224ede';
+const USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
 const WETH = '0xd0A1E359811322d97991E03f863a0C30C2cF029C';
 const uniswapPath = [COMP, WETH, USDC];
 
