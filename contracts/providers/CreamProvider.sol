@@ -6,8 +6,8 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import "./../external-interfaces/cream-finance/ICToken.sol";
-import "./../external-interfaces/cream-finance/IComptroller.sol";
+import "./../external-interfaces/cream-finance/ICrCToken.sol";
+import "./../external-interfaces/cream-finance/ICrComptroller.sol";
 
 import "./../IController.sol";
 import "./../IProvider.sol";
@@ -79,7 +79,7 @@ contract CreamProvider is IProvider {
     constructor(address cToken_)
     {
         cToken = cToken_;
-        uToken = ICToken(cToken_).underlying();
+        uToken = ICrCToken(cToken_).underlying();
     }
 
     function setup(
@@ -108,7 +108,7 @@ contract CreamProvider is IProvider {
       onlyControllerOrDao
     {
       // remove allowance on old controller
-      IERC20 rewardToken = IERC20(IComptroller(ICToken(cToken).comptroller()).getCompAddress());
+      IERC20 rewardToken = IERC20(ICrComptroller(ICrCToken(cToken).comptroller()).getCompAddress());
       rewardToken.safeApprove(controller, 0);
 
       controller = newController_;
@@ -120,7 +120,7 @@ contract CreamProvider is IProvider {
     function updateAllowances()
       public
     {
-        IERC20 rewardToken = IERC20(IComptroller(ICToken(cToken).comptroller()).getCompAddress());
+        IERC20 rewardToken = IERC20(ICrComptroller(ICrCToken(cToken).comptroller()).getCompAddress());
 
         uint256 controllerRewardAllowance = rewardToken.allowance(address(this), controller);
         rewardToken.safeIncreaseAllowance(controller, MAX_UINT256.sub(controllerRewardAllowance));
@@ -173,12 +173,12 @@ contract CreamProvider is IProvider {
 
         ICreamCumulator(controller)._beforeCTokenBalanceChange();
         IERC20(uToken).safeApprove(address(cToken), underlyingAmount_);
-        uint256 err = ICToken(cToken).mint(underlyingAmount_);
+        uint256 err = ICrCToken(cToken).mint(underlyingAmount_);
         require(0 == err, "CrP: _depositProvider mint");
         ICreamCumulator(controller)._afterCTokenBalanceChange(cTokenBalance);
 
         // cTokenBalance is used to compute the pool yield, make sure no one interferes with the computations between deposits/withdrawls
-        cTokenBalance = ICTokenErc20(cToken).balanceOf(address(this));
+        cTokenBalance = IERC20(cToken).balanceOf(address(this));
     }
 
     // withdraw underlyingAmount_ from the liquidity provider, callable by smartYield
@@ -197,12 +197,12 @@ contract CreamProvider is IProvider {
         underlyingFees = underlyingFees.add(takeFees_);
 
         ICreamCumulator(controller)._beforeCTokenBalanceChange();
-        uint256 err = ICToken(cToken).redeemUnderlying(underlyingAmount_);
+        uint256 err = ICrCToken(cToken).redeemUnderlying(underlyingAmount_);
         require(0 == err, "CrP: _withdrawProvider redeemUnderlying");
         ICreamCumulator(controller)._afterCTokenBalanceChange(cTokenBalance);
 
         // cTokenBalance is used to compute the pool yield, make sure no one interferes with the computations between deposits/withdrawls
-        cTokenBalance = ICTokenErc20(cToken).balanceOf(address(this));
+        cTokenBalance = IERC20(cToken).balanceOf(address(this));
     }
 
     // claims rewards we have accumulated and sends them to "to" address
@@ -217,7 +217,7 @@ contract CreamProvider is IProvider {
       address[] memory cTokens = new address[](1);
       cTokens[0] = cToken;
 
-      IComptroller comptroller = IComptroller(ICToken(cToken).comptroller());
+      ICrComptroller comptroller = ICrComptroller(ICrCToken(cToken).comptroller());
       IERC20 Comp = IERC20(comptroller.getCompAddress());
 
       comptroller.claimComp(
@@ -258,7 +258,7 @@ contract CreamProvider is IProvider {
   // /externals
 
   // public
-    // get exchangeRateCurrent from compound and cache it for the current block
+    // get exchangeRateCurrent from cream and cache it for the current block
     function exchangeRateCurrent()
       public virtual
     returns (uint256)
@@ -266,7 +266,7 @@ contract CreamProvider is IProvider {
       // only once per block
       if (block.timestamp > exchangeRateCurrentCachedAt) {
         exchangeRateCurrentCachedAt = block.timestamp;
-        exchangeRateCurrentCached = ICToken(cToken).exchangeRateCurrent();
+        exchangeRateCurrentCached = ICrCToken(cToken).exchangeRateCurrent();
       }
       return exchangeRateCurrentCached;
     }
@@ -281,7 +281,7 @@ contract CreamProvider is IProvider {
     {
         address[] memory markets = new address[](1);
         markets[0] = cToken;
-        uint256[] memory err = IComptroller(ICToken(cToken).comptroller()).enterMarkets(markets);
+        uint256[] memory err = ICrComptroller(ICrCToken(cToken).comptroller()).enterMarkets(markets);
         require(err[0] == 0, "CrP: _enterMarket");
     }
 

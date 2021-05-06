@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.7.6;
 
-interface IComptroller {
+interface ICrComptroller {
     struct CompMarketState {
         uint224 index;
         uint32 block;
