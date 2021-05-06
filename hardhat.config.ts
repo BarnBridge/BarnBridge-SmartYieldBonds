@@ -166,25 +166,25 @@ task('verify-testnet-compound-usdc', 'verifies', async (args, hre) => {
       name: 'cUSDC provider',
       addr: _compoundProvider,
       args: [cUSDC],
-      skip: false,
+      skip: true,
     },
     {
       name: 'smartYield',
       addr: _smartYield,
       args: [juniorTokenCONF.name, juniorTokenCONF.symbol, hre.ethers.BigNumber.from(decimals)],
-      skip: false,
+      skip: true,
     },
     {
       name: 'seniorBond',
       addr: '0x84Aa759082C660de2FC4Fa905a1c599e3eeFCcD0',
       args: [ _smartYield, seniorBondCONF.name, seniorBondCONF.symbol],
-      skip: false,
+      skip: true,
     },
     {
       name: 'juniorBond',
       addr: '0xCf7e717EF904EAb9023c7b16779C7a08527Ac37e',
       args: [_smartYield, juniorBondCONF.name, juniorBondCONF.symbol],
-      skip: false,
+      skip: true,
     },
     {
       name: 'controller',
@@ -196,7 +196,7 @@ task('verify-testnet-compound-usdc', 'verifies', async (args, hre) => {
       name: 'oracle',
       addr: '0x3E03F2351Bf77fc79d3D91ac603349a67D272aeF',
       args: [_controller, oracleCONF.windowSize, oracleCONF.granularity],
-      skip: false,
+      skip: true,
     },
   ];
 
