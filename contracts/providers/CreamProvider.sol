@@ -6,8 +6,8 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import "./../external-interfaces/compound-finance/ICToken.sol";
-import "./../external-interfaces/compound-finance/IComptroller.sol";
+import "./../external-interfaces/cream-finance/ICToken.sol";
+import "./../external-interfaces/cream-finance/IComptroller.sol";
 
 import "./../IController.sol";
 import "./../IProvider.sol";
@@ -203,6 +203,31 @@ contract CreamProvider is IProvider {
 
         // cTokenBalance is used to compute the pool yield, make sure no one interferes with the computations between deposits/withdrawls
         cTokenBalance = ICTokenErc20(cToken).balanceOf(address(this));
+    }
+
+    // claims rewards we have accumulated and sends them to "to" address
+    // only callable by controller
+    function claimRewardsTo(address to)
+      external
+      onlyController
+    {
+      address[] memory holders = new address[](1);
+      holders[0] = address(this);
+
+      address[] memory cTokens = new address[](1);
+      cTokens[0] = cToken;
+
+      IComptroller comptroller = IComptroller(ICToken(cToken).comptroller());
+      IERC20 Comp = IERC20(comptroller.getCompAddress());
+
+      comptroller.claimComp(
+        holders,
+        cTokens,
+        false,
+        true
+      );
+
+      Comp.safeTransfer(to, Comp.balanceOf(address(this)));
     }
 
     function transferFees()
