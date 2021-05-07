@@ -9,7 +9,7 @@ import { CompoundControllerFactory } from '@typechain/CompoundControllerFactory'
 import { SmartYield } from '@typechain/SmartYield';
 import { CompoundController } from '@typechain/CompoundController';
 
-export type PoolName = 'USDC/compound/v1' | 'DAI/compound/v1';
+export type PoolName = string;
 export type SmartYields = { [key in PoolName]: string };
 export type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 export type Observation = ThenArg<ReturnType<YieldOracle['yieldObservations']>>;
