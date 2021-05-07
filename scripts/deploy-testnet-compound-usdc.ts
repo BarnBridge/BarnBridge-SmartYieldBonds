@@ -15,7 +15,7 @@ const oracleCONF = { windowSize: A_HOUR, granularity: 4 };
 
 // barnbridge
 const decimals = 6; // same as USDC
-const dao = '0x59E2bC2E34EEeA09BfB99C2069Bfadf872D5F56f';
+const dao = '0x88C072c6B78a05D8Bbd8629fE7CA88287e12B211';
 const feesOwner = dao;
 
 // externals ---
