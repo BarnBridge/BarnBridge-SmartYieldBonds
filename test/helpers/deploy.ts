@@ -18,6 +18,9 @@ import { YieldOracleMock } from '@typechain/YieldOracleMock';
 import CompoundControllerArtifact from './../../artifacts/contracts/providers/CompoundController.sol/CompoundController.json';
 import { CompoundController } from '@typechain/CompoundController';
 
+import CreamControllerArtifact from './../../artifacts/contracts/providers/CreamController.sol/CreamController.json';
+import { CreamController } from '@typechain/CreamController';
+
 import AaveControllerArtifact from './../../artifacts/contracts/providers/AaveController.sol/AaveController.json';
 import { AaveController } from '@typechain/AaveController';
 
@@ -44,6 +47,9 @@ import { UniswapMock } from '@typechain/UniswapMock';
 
 import CompoundProviderArtifact from './../../artifacts/contracts/providers/CompoundProvider.sol/CompoundProvider.json';
 import { CompoundProvider } from '@typechain/CompoundProvider';
+
+import CreamProviderArtifact from './../../artifacts/contracts/providers/CreamProvider.sol/CreamProvider.json';
+import { CreamProvider } from '@typechain/CreamProvider';
 
 import AaveProviderArtifact from './../../artifacts/contracts/providers/AaveProvider.sol/AaveProvider.json';
 import { AaveProvider } from '@typechain/AaveProvider';
@@ -91,6 +97,10 @@ export const deployCompoundController = (deployerSign: Wallet, poolAddress: stri
   return (deployContract(deployerSign, CompoundControllerArtifact, [poolAddress, smartYieldAddress, bondModelAddress, uniswapPath])) as Promise<CompoundController>;
 };
 
+export const deployCreamController = (deployerSign: Wallet, poolAddress: string, smartYieldAddress: string, bondModelAddress: string): Promise<CreamController> => {
+  return (deployContract(deployerSign, CreamControllerArtifact, [poolAddress, smartYieldAddress, bondModelAddress])) as Promise<CreamController>;
+};
+
 export const deployAaveController = (deployerSign: Wallet, poolAddress: string, smartYieldAddress: string, bondModelAddress: string, rewardsCollectorAddress: string): Promise<AaveController> => {
   return (deployContract(deployerSign, AaveControllerArtifact, [poolAddress, smartYieldAddress, bondModelAddress, rewardsCollectorAddress])) as Promise<AaveController>;
 };
@@ -125,6 +135,10 @@ export const deployUniswapMock = (deployerSign: Wallet): Promise<UniswapMock> =>
 
 export const deployCompoundProvider = (deployerSign: Wallet, cTokenAddress: string): Promise<CompoundProvider> => {
   return (deployContract(deployerSign, CompoundProviderArtifact, [cTokenAddress])) as Promise<CompoundProvider>;
+};
+
+export const deployCreamProvider = (deployerSign: Wallet, crTokenAddress: string): Promise<CreamProvider> => {
+  return (deployContract(deployerSign, CreamProviderArtifact, [crTokenAddress])) as Promise<CreamProvider>;
 };
 
 export const deployAaveProvider = (deployerSign: Wallet, aTokenAddress: string): Promise<AaveProvider> => {
