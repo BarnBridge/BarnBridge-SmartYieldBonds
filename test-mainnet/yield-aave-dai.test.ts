@@ -8,8 +8,8 @@ import { ethers } from 'hardhat';
 import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APYCompounding, e, deployAaveController, deployAaveProvider, dailyRate2APYLinear, deployBondModelV2Linear, sellTokens } from '@testhelp/index';
 
 import { ERC20Factory } from '@typechain/ERC20Factory';
-import { AToken } from '@typechain/AToken';
-import { ATokenFactory } from '@typechain/ATokenFactory';
+import { IAToken } from '@typechain/IAToken';
+import { IATokenFactory } from '@typechain/IATokenFactory';
 import { SmartYield } from '@typechain/SmartYield';
 import { CompoundProvider } from '@typechain/CompoundProvider';
 import { ERC20 } from '@typechain/ERC20';
@@ -53,7 +53,7 @@ const getObservations = async (oracle: YieldOracle, granularity: number) => {
   );
 };
 
-const dumpState = (aToken: AToken, controller: AaveController, smartYield: SmartYield, pool: AaveProvider, oracle: YieldOracle, granularity: number) => {
+const dumpState = (aToken: IAToken, controller: AaveController, smartYield: SmartYield, pool: AaveProvider, oracle: YieldOracle, granularity: number) => {
   return async () => {
 
     const [spotDailySupplyRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, providerRatePerDay] = await Promise.all([
@@ -129,7 +129,7 @@ export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AavePro
     const whaleSign = await impersonate(deployerSign)(DAIwhale);
 
     const underlying = ERC20Factory.connect(DAI, deployerSign);
-    const aToken = ATokenFactory.connect(aDAI, deployerSign);
+    const aToken = IATokenFactory.connect(aDAI, deployerSign);
 
     await underlying.connect(whaleSign).approve(aToken.address, BN.from(e18(e18(e18(1)))));
 
@@ -140,7 +140,7 @@ export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AavePro
     ]);
 
     const [controller, seniorBond, juniorBond] = await Promise.all([
-      deployAaveController(deployerSign, pool.address, smartYield.address, bondModel.address),
+      deployAaveController(deployerSign, pool.address, smartYield.address, bondModel.address, deployerSign.address),
       deploySeniorBond(deployerSign, smartYield.address, seniorBondCONF.name, seniorBondCONF.symbol),
       deployJuniorBond(deployerSign, smartYield.address, juniorBondCONF.name, juniorBondCONF.symbol),
     ]);
