@@ -22,6 +22,11 @@ contract CreamController is IController, ICreamCumulator, IYieldOraclelizable {
 
     uint256 public constant BLOCKS_PER_DAY = 5760; // 4 * 60 * 24 (assuming 4 blocks per minute)
 
+    uint256 public constant MAX_UINT256 = uint256(-1);
+
+    // claimed aave rewards are sent to this address
+    address public rewardsCollector;
+
     // last time we cumulated
     uint256 public prevCumulationTime;
 
@@ -31,7 +36,7 @@ contract CreamController is IController, ICreamCumulator, IYieldOraclelizable {
     // cumulative supply rate += ((new underlying) / underlying)
     uint256 public cumulativeSupplyRate;
 
-    event Harvest(address indexed caller, uint256 compRewardTotal, uint256 compRewardSold, uint256 underlyingPoolShare, uint256 underlyingReward, uint256 harvestCost);
+    event Harvest(address indexed caller, uint256 rewardTotal, uint256 rewardSold, uint256 underlyingPoolShare, uint256 underlyingReward, uint256 harvestCost);
 
     modifier onlyPool {
       require(
@@ -44,23 +49,34 @@ contract CreamController is IController, ICreamCumulator, IYieldOraclelizable {
     constructor(
       address pool_,
       address smartYield_,
-      address bondModel_
+      address bondModel_,
+      address rewardsCollector_
     )
       IController()
     {
       pool = pool_;
       smartYield = smartYield_;
-      setHarvestCost(0);
       setBondModel(bondModel_);
+      setHarvestCost(0);
+      setRewardsCollector(rewardsCollector_);
+    }
+
+    function setRewardsCollector(address newRewardsCollector_)
+      public
+      onlyDao
+    {
+      rewardsCollector = newRewardsCollector_;
     }
 
     // claims and sells COMP on uniswap, returns total received comp and caller reward
     function harvest(uint256)
       public
-    returns (uint256 compGot, uint256 underlyingHarvestReward)
+    returns (uint256 rewardAmountGot, uint256 underlyingHarvestReward)
     {
-        emit Harvest(msg.sender, 0, 0, 0, 0, HARVEST_COST);
-        return (0, 0);
+        uint256 amountRewarded = CreamProvider(pool).claimRewardsTo(MAX_UINT256, rewardsCollector);
+
+        emit Harvest(msg.sender, amountRewarded, 0, 0, 0, HARVEST_COST);
+        return (amountRewarded, 0);
     }
 
     function _beforeCTokenBalanceChange()
@@ -117,7 +133,7 @@ contract CreamController is IController, ICreamCumulator, IYieldOraclelizable {
       ICrCToken cToken = ICrCToken(CreamProvider(pool).cToken());
 
       if (pingCompound_) {
-        // echangeRateStored will be up to date below
+        // exchangeRateStored will be up to date below
         cToken.accrueInterest();
       }
 

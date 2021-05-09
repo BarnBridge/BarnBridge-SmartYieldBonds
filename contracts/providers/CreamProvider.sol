@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
+import "./../lib/math/MathUtils.sol";
+
 import "./../external-interfaces/cream-finance/ICrCToken.sol";
 import "./../external-interfaces/cream-finance/ICrComptroller.sol";
 
@@ -98,8 +100,6 @@ contract CreamProvider is IProvider {
 
         _enterMarket();
 
-        updateAllowances();
-
         _setup = true;
     }
 
@@ -107,23 +107,7 @@ contract CreamProvider is IProvider {
       external override
       onlyControllerOrDao
     {
-      // remove allowance on old controller
-      IERC20 rewardToken = IERC20(ICrComptroller(ICrCToken(cToken).comptroller()).getCompAddress());
-      rewardToken.safeApprove(controller, 0);
-
       controller = newController_;
-
-      // give allowance to new controler
-      updateAllowances();
-    }
-
-    function updateAllowances()
-      public
-    {
-        IERC20 rewardToken = IERC20(ICrComptroller(ICrCToken(cToken).comptroller()).getCompAddress());
-
-        uint256 controllerRewardAllowance = rewardToken.allowance(address(this), controller);
-        rewardToken.safeIncreaseAllowance(controller, MAX_UINT256.sub(controllerRewardAllowance));
     }
 
   // externals
@@ -207,9 +191,10 @@ contract CreamProvider is IProvider {
 
     // claims rewards we have accumulated and sends them to "to" address
     // only callable by controller
-    function claimRewardsTo(address to)
+    function claimRewardsTo(uint256 amount, address to)
       external
       onlyController
+      returns (uint256)
     {
       address[] memory holders = new address[](1);
       holders[0] = address(this);
@@ -227,7 +212,11 @@ contract CreamProvider is IProvider {
         true
       );
 
-      Comp.safeTransfer(to, Comp.balanceOf(address(this)));
+      amount = MathUtils.min(amount, Comp.balanceOf(address(this)));
+
+      Comp.safeTransfer(to, amount);
+
+      return amount;
     }
 
     function transferFees()

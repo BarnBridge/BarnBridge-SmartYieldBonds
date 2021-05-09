@@ -59,6 +59,7 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
       // 30% per year linear
       setBondMaxRatePerDay(821917808219178);
       setBondModel(bondModel_);
+      setHarvestCost(0);
       setRewardsCollector(rewardsCollector_);
     }
 
@@ -80,7 +81,7 @@ contract AaveController is IController, IAaveCumulator, IYieldOraclelizable {
 
       uint256 amountRewarded = AaveProvider(pool).claimRewardsTo(assets, MAX_UINT256, rewardsCollector);
 
-      emit Harvest(msg.sender, amountRewarded, 0, 0, 0, 0);
+      emit Harvest(msg.sender, amountRewarded, 0, 0, 0, HARVEST_COST);
 
       return (amountRewarded, 0);
     }
