@@ -71,7 +71,7 @@ const dumpState = (crToken: ICrCToken, controller: CreamController, smartYield: 
     ]);
 
     console.log('---------');
-    console.log('cream APY         :', dailyRate2APYCompounding(creamSupplyRatePerBlock.mul(4).mul(60).mul(24)));
+    console.log('CREAM APY         :', dailyRate2APYCompounding(creamSupplyRatePerBlock.mul(4).mul(60).mul(24)));
     console.log('underlyingBalance :', underlyingBalance.toString());
     console.log('underlyingFees    :', underlyingFees.toString());
     console.log('underlyingFull    :', underlyingBalance.add(underlyingFees).toString());
