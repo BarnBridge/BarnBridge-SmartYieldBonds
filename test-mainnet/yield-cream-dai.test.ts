@@ -21,9 +21,9 @@ import { CreamProvider } from '@typechain/CreamProvider';
 const A_HOUR = 60 * 60;
 const A_DAY = 24 * A_HOUR;
 
-const seniorBondCONF = { name: 'BarnBridge crUSDT sBOND', symbol: 'bb_sBOND_crUSDT' };
-const juniorBondCONF = { name: 'BarnBridge crUSDT jBOND', symbol: 'bb_jBOND_crUSDT' };
-const juniorTokenCONF = { name: 'BarnBridge crUSDT', symbol: 'bb_crUSDT' };
+const seniorBondCONF = { name: 'BarnBridge crDAI sBOND', symbol: 'bb_sBOND_crDAI' };
+const juniorBondCONF = { name: 'BarnBridge crDAI jBOND', symbol: 'bb_jBOND_crDAI' };
+const juniorTokenCONF = { name: 'BarnBridge crDAI', symbol: 'bb_crDAI' };
 
 const oracleCONF = { windowSize: A_HOUR, granularity: 4 };
 
@@ -33,20 +33,17 @@ const BLOCKS_A_DAY = 24 * BLOCKS_A_HOUR;
 
 // ethereum / cream
 
-// block = 12399504
-// USDT supply APY 11.39%
-
 // barnbridge
-const decimals = 6; // same as USDT
+const decimals = 18; // same as DAI
 
 // externals ---
 
 // cream
-const crUSDT = '0x797AAB1ce7c01eB727ab980762bA88e7133d2157';
+const crDAI = '0x92B767185fB3B04F881e3aC8e5B0662a027A1D9f';
 
-const USDT = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
+const DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F';
 
-const USDTwhale = '0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503';
+const DAIwhale = '0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503';
 
 const getObservations = async (oracle: YieldOracle, granularity: number) => {
   return await Promise.all(
@@ -128,16 +125,16 @@ export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AavePro
   return async (wallets: Wallet[]) => {
     const [deployerSign, ownerSign, junior1, junior2, junior3, senior1, senior2, senior3] = wallets;
 
-    const whaleSign = await impersonate(deployerSign)(USDTwhale);
+    const whaleSign = await impersonate(deployerSign)(DAIwhale);
 
-    const underlying = ERC20Factory.connect(USDT, deployerSign);
-    const crToken = ICrCTokenFactory.connect(crUSDT, deployerSign);
+    const underlying = ERC20Factory.connect(DAI, deployerSign);
+    const crToken = ICrCTokenFactory.connect(crDAI, deployerSign);
 
     await underlying.connect(whaleSign).approve(crToken.address, BN.from(e18(e18(e18(1)))));
 
     const [bondModel, pool, smartYield] = await Promise.all([
       deployBondModelV2Compounded(deployerSign),
-      deployCreamProvider(deployerSign, crUSDT),
+      deployCreamProvider(deployerSign, crDAI),
       deploySmartYield(deployerSign, juniorTokenCONF.name, juniorTokenCONF.symbol, BN.from(decimals)),
     ]);
 
@@ -174,7 +171,7 @@ export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AavePro
 };
 
 
-describe('Cream yield expected USDT', async function () {
+describe('Cream yield expected DAI', async function () {
 
   it('test yield', async function () {
 
