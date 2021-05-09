@@ -70,10 +70,10 @@ const dumpState = (crToken: ICrCToken, controller: CreamController, smartYield: 
       smartYield.callStatic.maxBondDailyRate(),
     ]);
 
-    let { compGot, underlyingHarvestReward } = { compGot: BN.from(0), underlyingHarvestReward: BN.from(0) };
+    let { rewardAmountGot, underlyingHarvestReward } = { rewardAmountGot: BN.from(0), underlyingHarvestReward: BN.from(0) };
 
     try {
-      ({ compGot, underlyingHarvestReward } = await controller.callStatic.harvest(0));
+      ({ rewardAmountGot, underlyingHarvestReward } = await controller.callStatic.harvest(0));
     } catch(e) {
       console.log('harvest error');
     }
@@ -89,7 +89,7 @@ const dumpState = (crToken: ICrCToken, controller: CreamController, smartYield: 
     console.log('sy spot APY (supply + distri) :', dailyRate2APYCompounding(spotDailyRate), `(${dailyRate2APYCompounding(spotDailySupplyRate)} + ${dailyRate2APYCompounding(spotDailyDistributionRate)})`);
 
     console.log('harvestReward     :', underlyingHarvestReward.toString());
-    console.log('harvestCompGot    :', compGot.toString());
+    console.log('harvestCompGot    :', rewardAmountGot.toString());
     console.log('---------');
   };
 };
@@ -169,7 +169,7 @@ const fixture = () => {
     ]);
 
     const [controller, seniorBond, juniorBond] = await Promise.all([
-      deployCreamController(deployerSign, pool.address, smartYield.address, bondModel.address),
+      deployCreamController(deployerSign, pool.address, smartYield.address, bondModel.address, deployerSign.address),
       deploySeniorBond(deployerSign, smartYield.address, seniorBondCONF.name, seniorBondCONF.symbol),
       deployJuniorBond(deployerSign, smartYield.address, juniorBondCONF.name, juniorBondCONF.symbol),
     ]);
@@ -286,7 +286,7 @@ describe('CREAM flow tests', async function () {
     await controller.setDao(user1.address);
 
     const newBondModel = await deployBondModelV2Compounded(deployerSign as unknown as Wallet);
-    const newController = await deployCreamController(deployerSign as unknown as Wallet, pool.address, smartYield.address, newBondModel.address);
+    const newController = await deployCreamController(deployerSign as unknown as Wallet, pool.address, smartYield.address, newBondModel.address, await deployerSign.getAddress());
     const newOracle = await deployYieldOracle(deployerSign as unknown as Wallet, newController.address, oracleCONF.windowSize, oracleCONF.granularity);
     await newController.setOracle(newOracle.address);
 
