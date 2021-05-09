@@ -142,7 +142,7 @@ export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AavePro
     ]);
 
     const [controller, seniorBond, juniorBond] = await Promise.all([
-      deployCreamController(deployerSign, pool.address, smartYield.address, bondModel.address),
+      deployCreamController(deployerSign, pool.address, smartYield.address, bondModel.address, deployerSign.address),
       deploySeniorBond(deployerSign, smartYield.address, seniorBondCONF.name, seniorBondCONF.symbol),
       deployJuniorBond(deployerSign, smartYield.address, juniorBondCONF.name, juniorBondCONF.symbol),
     ]);
