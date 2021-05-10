@@ -5,24 +5,25 @@ import { Signer, Wallet, BigNumber as BN } from 'ethers';
 import { BigNumber as BNj } from 'bignumber.js';
 import { ethers } from 'hardhat';
 
-import { bbFixtures, e18, e18j, e6, deployCompoundController, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, deployBondModel, deployCompoundProvider, toBN, forceNextTime, mineBlocks, dailyRate2APYCompounding, e, deployAaveController, deployAaveProvider, dailyRate2APYLinear, deployBondModelV2Linear, sellTokens } from '@testhelp/index';
+import { bbFixtures, e18, deployJuniorBond, deploySeniorBond, deployYieldOracle, deploySmartYield, toBN, forceNextTime, mineBlocks, e, deployCreamController, deployCreamProvider, deployBondModelV2Compounded, dailyRate2APYCompounding } from '@testhelp/index';
 
 import { ERC20Factory } from '@typechain/ERC20Factory';
-import { IAToken } from '@typechain/IAToken';
-import { IATokenFactory } from '@typechain/IATokenFactory';
+import { ICrCToken } from '@typechain/ICrCToken';
+import { ICrCTokenFactory } from '@typechain/ICrCTokenFactory';
 import { SmartYield } from '@typechain/SmartYield';
 import { CompoundProvider } from '@typechain/CompoundProvider';
 import { ERC20 } from '@typechain/ERC20';
 import { YieldOracle } from '@typechain/YieldOracle';
-import { AaveController } from '@typechain/AaveController';
 import { AaveProvider } from '@typechain/AaveProvider';
+import { CreamController } from '@typechain/CreamController';
+import { CreamProvider } from '@typechain/CreamProvider';
 
 const A_HOUR = 60 * 60;
 const A_DAY = 24 * A_HOUR;
 
-const seniorBondCONF = { name: 'BarnBridge cDAI sBOND', symbol: 'bb_sBOND_cDAI' };
-const juniorBondCONF = { name: 'BarnBridge cDAI jBOND', symbol: 'bb_jBOND_cDAI' };
-const juniorTokenCONF = { name: 'BarnBridge cDAI', symbol: 'bb_cDAI' };
+const seniorBondCONF = { name: 'BarnBridge crDAI sBOND', symbol: 'bb_sBOND_crDAI' };
+const juniorBondCONF = { name: 'BarnBridge crDAI jBOND', symbol: 'bb_jBOND_crDAI' };
+const juniorTokenCONF = { name: 'BarnBridge crDAI', symbol: 'bb_crDAI' };
 
 const oracleCONF = { windowSize: A_HOUR, granularity: 4 };
 
@@ -30,22 +31,19 @@ const BLOCKS_A_PERIOD = 4 * oracleCONF.windowSize / oracleCONF.granularity / 60;
 const BLOCKS_A_HOUR = 4 * 60;
 const BLOCKS_A_DAY = 24 * BLOCKS_A_HOUR;
 
-// ethereum / aave
-
-// block = 12269908
-// DAI supply APY 5.63%
+// ethereum / cream
 
 // barnbridge
 const decimals = 18; // same as DAI
 
 // externals ---
 
-// aave
-const aDAI = '0x028171bCA77440897B824Ca71D1c56caC55b68A3';
+// cream
+const crDAI = '0x92B767185fB3B04F881e3aC8e5B0662a027A1D9f';
 
 const DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F';
 
-const DAIwhale = '0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503';
+const DAIwhale = '0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503';
 
 const getObservations = async (oracle: YieldOracle, granularity: number) => {
   return await Promise.all(
@@ -53,10 +51,11 @@ const getObservations = async (oracle: YieldOracle, granularity: number) => {
   );
 };
 
-const dumpState = (aToken: IAToken, controller: AaveController, smartYield: SmartYield, pool: AaveProvider, oracle: YieldOracle, granularity: number) => {
+const dumpState = (crToken: ICrCToken, controller: CreamController, smartYield: SmartYield, pool: CreamProvider, oracle: YieldOracle, granularity: number) => {
   return async () => {
 
-    const [spotDailySupplyRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, providerRatePerDay] = await Promise.all([
+    const [creamSupplyRatePerBlock, spotDailySupplyRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, providerRatePerDay] = await Promise.all([
+      crToken.callStatic.supplyRatePerBlock(),
       controller.callStatic.spotDailySupplyRateProvider(),
       controller.callStatic.spotDailyRate(),
       controller.callStatic.BOND_MAX_RATE_PER_DAY(),
@@ -69,14 +68,14 @@ const dumpState = (aToken: IAToken, controller: AaveController, smartYield: Smar
     ]);
 
     console.log('---------');
-    //console.log('compound APY      :', dailyRate2APY(compoundSupplyRate.mul(4).mul(60).mul(24)));
+    console.log('CREAM APY         :', dailyRate2APYCompounding(creamSupplyRatePerBlock.mul(4).mul(60).mul(24)));
     console.log('underlyingBalance :', underlyingBalance.toString());
     console.log('underlyingFees    :', underlyingFees.toString());
     console.log('underlyingFull    :', underlyingBalance.add(underlyingFees).toString());
 
-    console.log('sy provider APY :', dailyRate2APYLinear(providerRatePerDay));
-    console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APYLinear(oracleRatePerDay), dailyRate2APYLinear(spotDailyRate), dailyRate2APYLinear(maxRatePerDay));
-    console.log('sy spot APY (supply) :', dailyRate2APYLinear(spotDailyRate), `(${dailyRate2APYLinear(spotDailySupplyRate)})`);
+    console.log('sy provider APY :', dailyRate2APYCompounding(providerRatePerDay));
+    console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APYCompounding(oracleRatePerDay), dailyRate2APYCompounding(spotDailyRate), dailyRate2APYCompounding(maxRatePerDay));
+    console.log('sy spot APY (supply) :', dailyRate2APYCompounding(spotDailyRate), `(${dailyRate2APYCompounding(spotDailySupplyRate)})`);
 
     console.log('---------');
   };
@@ -106,7 +105,7 @@ const impersonate = (ethWallet: Signer) => {
   };
 };
 
-export const buyTokens = (smartYield: SmartYield, pool: CompoundProvider | AaveProvider, underlying: ERC20) => {
+export const buyTokens = (smartYield: SmartYield, pool: CompoundProvider | AaveProvider | CreamProvider, underlying: ERC20) => {
   return async (user: Wallet, amountUnderlying: number | BN): Promise<void> => {
     amountUnderlying = toBN(amountUnderlying);
     await underlying.connect(user).approve(pool.address, amountUnderlying);
@@ -114,7 +113,7 @@ export const buyTokens = (smartYield: SmartYield, pool: CompoundProvider | AaveP
   };
 };
 
-export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AaveProvider, underlying: ERC20) => {
+export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AaveProvider | CreamProvider, underlying: ERC20) => {
   return async (user: Wallet, amountUnderlying: number | BN, forDays: number): Promise<void> => {
     amountUnderlying = toBN(amountUnderlying);
     await underlying.connect(user).approve(pool.address, amountUnderlying);
@@ -129,18 +128,18 @@ export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AavePro
     const whaleSign = await impersonate(deployerSign)(DAIwhale);
 
     const underlying = ERC20Factory.connect(DAI, deployerSign);
-    const aToken = IATokenFactory.connect(aDAI, deployerSign);
+    const crToken = ICrCTokenFactory.connect(crDAI, deployerSign);
 
-    await underlying.connect(whaleSign).approve(aToken.address, BN.from(e18(e18(e18(1)))));
+    await underlying.connect(whaleSign).approve(crToken.address, BN.from(e18(e18(e18(1)))));
 
     const [bondModel, pool, smartYield] = await Promise.all([
-      deployBondModelV2Linear(deployerSign),
-      deployAaveProvider(deployerSign, aDAI),
+      deployBondModelV2Compounded(deployerSign),
+      deployCreamProvider(deployerSign, crDAI),
       deploySmartYield(deployerSign, juniorTokenCONF.name, juniorTokenCONF.symbol, BN.from(decimals)),
     ]);
 
     const [controller, seniorBond, juniorBond] = await Promise.all([
-      deployAaveController(deployerSign, pool.address, smartYield.address, bondModel.address, deployerSign.address),
+      deployCreamController(deployerSign, pool.address, smartYield.address, bondModel.address, deployerSign.address),
       deploySeniorBond(deployerSign, smartYield.address, seniorBondCONF.name, seniorBondCONF.symbol),
       deployJuniorBond(deployerSign, smartYield.address, juniorBondCONF.name, juniorBondCONF.symbol),
     ]);
@@ -157,7 +156,7 @@ export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AavePro
 
 
     return {
-      oracle, smartYield, aToken, bondModel, seniorBond, underlying, controller, pool,
+      oracle, smartYield, crToken, bondModel, seniorBond, underlying, controller, pool,
       deployerSign: deployerSign as Signer,
       ownerSign: ownerSign as Signer,
       whaleSign,
@@ -166,17 +165,17 @@ export const buyBond = (smartYield: SmartYield, pool: CompoundProvider | AavePro
       currentBlock: currentBlock(),
       buyTokens: buyTokens(smartYield, pool, underlying),
       buyBond: buyBond(smartYield, pool, underlying),
-      dumpState: dumpState(aToken, controller, smartYield, pool, oracle, oracleCONF.granularity),
+      dumpState: dumpState(crToken, controller, smartYield, pool, oracle, oracleCONF.granularity),
     };
   };
 };
 
 
-describe('yield expected DAI', async function () {
+describe('Cream yield expected DAI', async function () {
 
   it('test yield', async function () {
 
-    const { whaleSign, pool, aToken, oracle, currentBlock, moveTime, buyTokens, buyBond, dumpState, controller } = await bbFixtures(fixture());
+    const { whaleSign, oracle, currentBlock, moveTime, buyTokens, buyBond, dumpState, controller } = await bbFixtures(fixture());
 
     await buyTokens(whaleSign as unknown as Wallet, e(1_000, decimals));
 
