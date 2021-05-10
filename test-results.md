@@ -276,3 +276,4 @@ All files                                        |    97.36 |    72.55 |    97.6
 > Istanbul reports written to ./coverage/ and ./coverage.json
 
 ```
+
