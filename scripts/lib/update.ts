@@ -34,6 +34,100 @@ type OraclesInfo = {
   }
 };
 
+
+type OracleData = {
+  id: string,
+  smartYieldAddr: string,
+  oracleAddr: string,
+
+  windowSize: BN,
+  granularity: number,
+  periodSize: BN,
+  observations: Observation[],
+
+  oracle: YieldOracle,
+  smartYield: SmartYield,
+  controller: CompoundController,
+
+  lastUpdatePeriodStart: BN,
+}
+
+export class UpdaterFast {
+
+  public oracles: OracleData[] = [];
+
+  public signer: Wallet;
+  public periodWaitPercent: number;
+  public maxSleepSec: number;
+  public gasPriceGetter: () => Promise<BN>;
+
+  constructor(signer: Wallet, periodWaitPercent: number, maxSleepSec: number, gasPriceGetter: () => Promise<BN>) {
+    this.signer = signer;
+    this.periodWaitPercent = periodWaitPercent;
+    this.maxSleepSec = maxSleepSec;
+    this.gasPriceGetter = gasPriceGetter;
+  }
+
+  public async initialize(sy: SmartYields): Promise<void> {
+
+    for (const key in sy) {
+      const connections = (await connect(sy[key], this.signer));
+      const properties = (await getOracleInfo(connections.oracle));
+      const oracle: OracleData = {
+        id: key,
+        lastUpdatePeriodStart: BN.from(0),
+        smartYieldAddr: sy[key],
+        oracleAddr: connections.oracle.address,
+        ...connections,
+        ...properties,
+      };
+
+      this.oracles.push(oracle);
+    }
+  }
+
+  public async getSleepSec(blockTimestamp: BN): Promise<number> {
+    return this.oracles.reduce((sleepSec: number, oracle: OracleData): number => {
+      const sleepNeeded = this.canWait(blockTimestamp, oracle);
+      return Math.min(sleepNeeded, sleepSec);
+    }, this.maxSleepSec);
+  }
+
+  private canWait(blockTimestamp: BN, oracle: OracleData): number {
+    const periodStart = blockTimestamp.div(oracle.periodSize).mul(oracle.periodSize);
+    if (oracle.lastUpdatePeriodStart.eq(periodStart)) {
+      return oracle.periodSize.toNumber();
+    }
+    const periodElapsed = blockTimestamp.sub(periodStart);
+    const periodWait = oracle.periodSize.mul(BN.from(Math.floor(this.periodWaitPercent * 100000))).div(100000);
+
+    const sleepNeeded = periodWait.sub(periodElapsed).toNumber();
+
+    if (0 >= sleepNeeded) {
+      return 0;
+    }
+
+    return sleepNeeded;
+  }
+
+  private canUpdate(): number {
+
+  }
+
+  public async getOraclesInUpdateWindow(blockTimestamp: BN): Promise<OracleData[]> {
+    const oraclesInUpdateWindow = [];
+    for (let i = 0; i < this.oracles.length; i++ ) {
+      const sleepNeeded = this.canWait(blockTimestamp, this.oracles[i]);
+      if (sleepNeeded > 0) {
+        continue;
+      }
+
+    }
+  }
+
+}
+
+
 export class Updater {
   public maxSleepSec = 10000;
   public signer: Wallet;
