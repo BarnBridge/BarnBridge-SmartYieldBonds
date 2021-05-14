@@ -13,7 +13,7 @@ abstract contract ABondModelV2 is Governed
 
     uint256 public constant EXP_SCALE = 1e18;
 
-    uint256 public MAX_POOL_RATIO = 750 * 1e15; // 75%
+    uint256 public MAX_POOL_RATIO = 650 * 1e15; // 65%
 
     function gain(uint256 total_, uint256 loanable_, uint256 dailyRate_, uint256 principal_, uint16 forDays_) external view virtual returns (uint256);
 
