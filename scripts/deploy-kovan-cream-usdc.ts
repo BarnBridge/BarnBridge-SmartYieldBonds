@@ -21,7 +21,7 @@ const feesOwner = dao;
 // externals ---
 
 // cream
-const crUSDC = '0x378630f9e1968Aa76b299636A837E737fa476037';
+const crUSDC = '0x488eD4f74E81070DFAA5672aEFB4fd1743a003C5';
 
 const USDC = '0xb7a4f3e9097c08da09517b5ab877f7a917224ede';
 
@@ -57,12 +57,12 @@ async function main() {
   console.log('');
   console.log('DEPLOYED ----');
   console.log('bondModel:', bondModel.address);
-  console.log('provider:', pool.address);
-  console.log('smartYield:', smartYield.address);
-  console.log('seniorBond:', seniorBond.address);
-  console.log('juniorBond:', juniorBond.address);
-  console.log('controller:', controller.address);
-  console.log('oracle:', oracle.address);
+  console.log('provider:', pool.address, '[', crUSDC, ']');
+  console.log('smartYield:', smartYield.address, '[', juniorTokenCONF.name, juniorTokenCONF.symbol, decimals, ']');
+  console.log('seniorBond:', seniorBond.address, '[', smartYield.address, seniorBondCONF.name, seniorBondCONF.symbol, ']');
+  console.log('juniorBond:', juniorBond.address, '[', smartYield.address, juniorBondCONF.name, juniorBondCONF.symbol, ']');
+  console.log('controller:', controller.address, '[', pool.address, smartYield.address, bondModel.address, deployerSign.address, ']');
+  console.log('oracle:', oracle.address, '[', controller.address, oracleCONF.windowSize, oracleCONF.granularity, ']');
 }
 
 main()
