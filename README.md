@@ -58,4 +58,4 @@ Solidity 0.7.6 contracts are found in `contracts/`.
 
 ## Deploy Scripts
 
-TBD.
+`scripts/deploy-*`
