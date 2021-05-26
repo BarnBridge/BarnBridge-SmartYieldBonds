@@ -256,7 +256,7 @@ contract IdleProvider is IProvider {
       // only once per block
       if (block.timestamp > exchangeRateCurrentCachedAt) {
         exchangeRateCurrentCachedAt = block.timestamp;
-        exchangeRateCurrentCached = IIdleToken(cToken).tokenPrice();
+        exchangeRateCurrentCached = IIdleToken(cToken).tokenPriceWithFee(address(this));
       }
       return exchangeRateCurrentCached;
     }
