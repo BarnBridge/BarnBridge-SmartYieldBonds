@@ -148,8 +148,8 @@ contract IdleProvider is IProvider {
         IERC20(uToken).safeTransferFrom(from_, address(this), underlyingAmount_);
         uint256 balanceAfter = IERC20(uToken).balanceOf(address(this));
         require(
-          0 == (balanceAfter - balanceBefore - underlyingAmount_),
-          "PPC: _takeUnderlying amount"
+            0 == (balanceAfter - balanceBefore - underlyingAmount_),
+            "PPC: _takeUnderlying amount"
         );
     }
 

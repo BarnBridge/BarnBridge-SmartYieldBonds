@@ -119,7 +119,7 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
             return;
         }
 
-        uint256 exchangeRateStoredNow = IIdleToken(cToken).getAvgAPR().div(36525);
+        uint256 exchangeRateStoredNow = IIdleToken(cToken).tokenPriceWithFee(address(pool));
 
         if (prevExchangeRateCurrent > 0) {
           // cumulate a new supplyRate delta: cumulativeSupplyRate += (cToken.exchangeRateCurrent() - prevExchnageRateCurrent) / prevExchnageRateCurrent
@@ -141,8 +141,14 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     }
 
     function cumulatives() public override returns (uint256) {
-        uint256 apr = IIdleToken(cToken).getAvgAPR();
-        return apr;
+        uint256 timeElapsed = block.timestamp - prevCumulationTime;
+        // only cumulate once per block
+        if (0 == timeElapsed) {
+          return cumulativeSupplyRate;
+        }
+        uint256 cTokenBalance = IdleProvider(pool).cTokenBalance();
+        updateCumulativesInternal(cTokenBalance, false);
+        return cumulativeSupplyRate;
     }
 
     function cTokensToUnderlying(
