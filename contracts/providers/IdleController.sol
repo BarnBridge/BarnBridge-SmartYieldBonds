@@ -4,6 +4,7 @@ pragma abicoder v2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./../lib/uniswap/UniswapV2Library.sol";
@@ -17,7 +18,6 @@ import "../IController.sol";
 import "./../oracle/IYieldOracle.sol";
 import "./../oracle/IYieldOraclelizable.sol";
 import "./IdleProvider.sol";
-//import "hardhat/console.sol";
 
 contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     using SafeMath for uint256;
@@ -31,8 +31,11 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
 
     uint256 public constant BLOCKS_PER_DAY = 5760; // 4 * 60 * 24 (assuming 4 blocks per minute)
 
-    uint256 public harvestedLast;
+    address public uToken;
+    address public cToken;
 
+    uint256 public harvestedLast;
+    address public rewardsCollector;
     // last time we cumulated
     uint256 public prevCumulationTime;
 
@@ -67,30 +70,32 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     constructor(
       address pool_,
       address smartYield_,
-      address bondModel_
+      address bondModel_,
+      address rewardsCollector_
     )
       IController()
     {
       pool = pool_;
       smartYield = smartYield_;
-      //underlyingDecimals = ERC20(ICToken(CompoundProvider(pool).cToken()).underlying()).decimals();
-      underlyingDecimals = 18;
+      rewardsCollector = rewardsCollector_;
+      uToken = IdleProvider(pool).uToken();
+      cToken = IdleProvider(pool).cToken();
+      underlyingDecimals = ERC20(uToken).decimals();
       //setUniswapPaths(pool_);
       setBondModel(bondModel_);
       updateAllowances();
     }
 
     function updateAllowances() public {
-        IIdleToken cToken = IIdleToken(IdleProvider(pool).cToken());
-        address[] memory rewardTokens = IdleProvider(pool).getGovTokens();
-        IERC20 uToken = IERC20(IdleProvider(pool).uToken());
+        address[] memory rewardTokens = IIdleToken(cToken).getGovTokens();
         uint256 routerRewardAllowance;
-        for (uint i=0; i<rewardTokens.length; i++) {
+        uint256 rewardTokensLength = rewardTokens.length;
+        for (uint i=0; i<rewardTokensLength; i++) {
             routerRewardAllowance = IERC20(rewardTokens[i]).allowance(address(this), uniswapRouter());
             IERC20(rewardTokens[i]).safeIncreaseAllowance(uniswapRouter(), MAX_UINT256.sub(routerRewardAllowance));
         }
-        uint256 poolUnderlyingAllowance = uToken.allowance(address(this), address(pool));
-        uToken.safeIncreaseAllowance(address(pool), MAX_UINT256.sub(poolUnderlyingAllowance));
+        uint256 poolUnderlyingAllowance = IERC20(uToken).allowance(address(this), address(pool));
+        IERC20(uToken).safeIncreaseAllowance(address(pool), MAX_UINT256.sub(poolUnderlyingAllowance));
     }
 
     function uniswapRouter() public view virtual returns(address) {
@@ -102,27 +107,41 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
 
     function _afterCTokenBalanceChange(uint256 prevCTokenBalance_) external override onlyPool {
         // at this point compound.finance state is updated since the pool did a deposit or withdrawl just before, so no need to ping
-        //updateCumulativesInternal(prevCTokenBalance_, false);
+        updateCumulativesInternal(prevCTokenBalance_, false);
         IYieldOracle(oracle).update();
     }
 
-    /* function updateCumulativesInternal(uint256 val, bool val2) internal {
+    function updateCumulativesInternal(uint256 val, bool pingIdle_) internal {
+        uint256 timeElapsed = block.timestamp - prevCumulationTime;
 
-    } */
+        // only cumulate once per block
+        if (0 == timeElapsed) {
+            return;
+        }
+
+        uint256 exchangeRateStoredNow = IIdleToken(cToken).getAvgAPR().div(36525);
+
+        if (prevExchangeRateCurrent > 0) {
+          // cumulate a new supplyRate delta: cumulativeSupplyRate += (cToken.exchangeRateCurrent() - prevExchnageRateCurrent) / prevExchnageRateCurrent
+          // cumulativeSupplyRate eventually overflows, but that's ok due to the way it's used in the oracle
+          cumulativeSupplyRate += exchangeRateStoredNow.sub(prevExchangeRateCurrent).mul(EXP_SCALE).div(prevExchangeRateCurrent);
+        }
+
+        prevCumulationTime = block.timestamp;
+
+        // exchangeRateStored can increase multiple times per block
+        prevExchangeRateCurrent = exchangeRateStoredNow;
+    }
 
     function providerRatePerDay() public override returns (uint256) {
-        if (IYieldOracle(oracle).consult(1 days) == 0) {
-            return MathUtils.min(BOND_MAX_RATE_PER_DAY, (IIdleToken(IdleProvider(pool).cToken()).getAvgAPR()).div(365));
-        }
-        else {
-            return MathUtils.min(
-            MathUtils.min(BOND_MAX_RATE_PER_DAY, (IIdleToken(IdleProvider(pool).cToken()).getAvgAPR()).div(365)),
-            IYieldOracle(oracle).consult(1 days));
-        }
+        return MathUtils.min(
+            MathUtils.min(BOND_MAX_RATE_PER_DAY, (IIdleToken(cToken).getAvgAPR()).div(36525)),
+            IYieldOracle(oracle).consult(1 days)
+        );
     }
 
     function cumulatives() public override returns (uint256) {
-        uint256 apr = IIdleToken(IdleProvider(pool).cToken()).getAvgAPR();
+        uint256 apr = IIdleToken(cToken).getAvgAPR();
         return apr;
     }
 
@@ -130,6 +149,69 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
       uint256 cTokens_, uint256 exchangeRate_
     ) public pure returns (uint256) {
       return cTokens_.mul(exchangeRate_).div(EXP_SCALE);
+    }
+
+    function harvest(uint256) public returns (uint256 rewardAmountGot, uint256 underlyingHarvestReward) {
+        require(
+          harvestedLast < block.timestamp,
+          "PPC: harvest later"
+        );
+
+        address[] memory govTokens = IdleProvider(pool).getGovTokens();
+
+        address caller = msg.sender;
+
+        //redeem gov tokens from idle
+        IdleProvider(pool).controllerRedeemGovTokens();
+        address[] memory uniswapPath;
+        uint256 govTokenAmount;
+        for (uint i=0; i<govTokens.length; i++) {
+            //transfer all gov token from pool to self
+            govTokenAmount = IERC20(govTokens[i]).balanceOf(pool);
+            IERC20(govTokens[i]).safeTransferFrom(pool, address(this), govTokenAmount);
+            //sell all gov tokens on uniswap
+            uniswapPath = IdleProvider(pool).getUniswapPath(govTokens[i]);
+            //require(IERC20(govTokens[i]).approve(address(UNISWAP_ROUTER_V2), govTokenAmount), 'approve failed.');
+
+            IUniswapV2Router(uniswapRouter()).
+            swapExactTokensForTokens(IERC20(govTokens[i]).balanceOf(address(this)),
+            0, uniswapPath, address(this), block.timestamp);
+        }
+
+        uint256 totalRewards = IERC20(uToken).balanceOf(address(this));
+
+        uint256 poolShare = MathUtils.fractionOf(
+          totalRewards,
+          EXP_SCALE.sub(HARVEST_COST)
+        );
+
+        //IERC20(IdleProvider(pool).uToken()).balanceOf(address(this))
+
+        // deposit pool reward share with liquidity provider
+        IdleProvider(pool)._takeUnderlying(address(this), poolShare);
+        IdleProvider(pool)._depositProvider(poolShare, 0);
+
+        // pay caller
+        uint256 callerReward = IERC20(uToken).balanceOf(address(this));
+        IERC20(uToken).safeTransfer(caller, callerReward);
+
+        harvestedLast = block.timestamp;
+
+        emit Harvest(caller, totalRewards, totalRewards, poolShare, callerReward, HARVEST_COST);
+
+        return (totalRewards, callerReward);
+    }
+
+    function spotDailySupplyRateProvider() public view returns (uint256) {
+        return (IIdleToken(cToken).getAvgAPR()).div(36525);
+    }
+
+    function spotDailyDistributionRateProvider() public view returns (uint256) {
+        return 0;
+    }
+
+    function spotDailyRate() public view returns (uint256) {
+        return spotDailySupplyRateProvider().add(spotDailySupplyRateProvider());
     }
 
 }
