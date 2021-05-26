@@ -53,18 +53,17 @@ async function main() {
   await (await controller.setDao(dao)).wait(2);
 
   console.log('CONF --------');
-  console.log('DAO:', dao);
   console.log('aUSDC:', aUSDC);
-  console.log('USDC:', underlyingTOKEN);
+  console.log('feesOwner', feesOwner);
   console.log('');
   console.log('DEPLOYED ----');
   console.log('bondModel:', bondModel.address);
-  console.log('provider:', pool.address);
-  console.log('smartYield:', smartYield.address);
-  console.log('seniorBond:', seniorBond.address);
-  console.log('juniorBond:', juniorBond.address);
-  console.log('controller:', controller.address);
-  console.log('oracle:', oracle.address);
+  console.log('provider:', pool.address, '[', aUSDC, ']');
+  console.log('smartYield:', smartYield.address, '[', juniorTokenCONF.name, juniorTokenCONF.symbol, decimals, ']');
+  console.log('seniorBond:', seniorBond.address, '[', smartYield.address, seniorBondCONF.name, seniorBondCONF.symbol, ']');
+  console.log('juniorBond:', juniorBond.address, '[', smartYield.address, juniorBondCONF.name, juniorBondCONF.symbol, ']');
+  console.log('controller:', controller.address, '[', pool.address, smartYield.address, bondModel.address, deployerSign.address, ']');
+  console.log('oracle:', oracle.address, '[', controller.address, oracleCONF.windowSize, oracleCONF.granularity, ']');
 }
 
 main()
