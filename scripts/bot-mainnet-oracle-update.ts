@@ -18,6 +18,10 @@ const smartYields = {
   'GUSD/aave/v1': '0x6324538cc222b43490dd95CEBF72cf09d98D9dAe',
 };
 
+const harvestable = [
+  'USDC/aave/v1', 'USDT/aave/v1', 'DAI/aave/v1', 'GUSD/aave/v1',
+];
+
 const gasStationUrl = process.env.GAS_STATION_URL;
 
 // -----
@@ -26,6 +30,9 @@ import { ethers } from 'hardhat';
 import { walletBalance, UpdaterFast, getGasPriceMainnet, dumpAllGasPrices, getProviderMainnet } from './lib/update';
 
 async function main() {
+
+  const DAYS_5 = 5 * 24 * 60 * 60;
+  const harvestMin = BN.from(10).pow(17).mul(1);
 
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
 
@@ -42,8 +49,8 @@ async function main() {
   console.log('pools:');
   console.table(smartYields);
 
-  const updater = new UpdaterFast(0.7, providerGetter, gasPriceGetter);
-  await updater.initialize(smartYields);
+  const updater = new UpdaterFast(0.7, DAYS_5, harvestMin, providerGetter, gasPriceGetter);
+  await updater.initialize(smartYields, harvestable);
 
   await updater.updateLoop();
 }

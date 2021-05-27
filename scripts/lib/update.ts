@@ -36,7 +36,12 @@ import { SmartYieldFactory } from '@typechain/SmartYieldFactory';
 import { CompoundControllerFactory } from '@typechain/CompoundControllerFactory';
 import { SmartYield } from '@typechain/SmartYield';
 import { CompoundController } from '@typechain/CompoundController';
-import { HardhatConfig } from 'hardhat/types';
+import { EthereumProvider, HardhatConfig } from 'hardhat/types';
+import { A_DAY } from '@testhelp/index';
+
+import { createUpdatableTargetProxy } from './updatable-target-proxy';
+import { HARDHAT_NETWORK_RESET_EVENT } from 'hardhat/internal/constants';
+import { EthersProviderWrapper } from './ethers-provider-wrapper';
 
 export type PoolName = string;
 export type SmartYields = { [key in PoolName]: string };
@@ -58,18 +63,30 @@ type OracleData = {
   controller: CompoundController,
 }
 
+type HarvestableData = {
+  id: string,
+  controller: CompoundController,
+  lastHarvestedAt: number,
+}
+
 export class UpdaterFast {
 
   public oracles: OracleData[] = [];
-  public providerGetter: () => Promise<providers.JsonRpcProvider>;
+  public harvestables: HarvestableData[] = [];
+
+  public providerGetter: () => Promise<providers.JsonRpcSigner>;
   public gasPriceGetter: () => Promise<BN>;
 
-  public periodWaitPercent: number;
+  public updatePeriodWaitPercent: number;
   public maxSleepSec = 0;
+  public harvestInterval: number;
+  public harvestMin: BN;
 
-  constructor(periodWaitPercent: number, providerGetter: () => Promise<providers.JsonRpcProvider>, gasPriceGetter: () => Promise<BN>) {
+  constructor(updatePeriodWaitPercent: number, harvestInterval: number, harvestMin: BN, providerGetter: () => Promise<providers.JsonRpcSigner>, gasPriceGetter: () => Promise<BN>) {
+    this.updatePeriodWaitPercent = updatePeriodWaitPercent;
+    this.harvestInterval = harvestInterval;
+    this.harvestMin = harvestMin;
     this.providerGetter = providerGetter;
-    this.periodWaitPercent = periodWaitPercent;
     this.gasPriceGetter = gasPriceGetter;
   }
 
@@ -78,11 +95,13 @@ export class UpdaterFast {
   }
 
   private async getCurrentBlock(): Promise<providers.Block> {
-    const block = await (await this.providerGetter()).getBlock('latest');
+    const block = await (await this.providerGetter()).provider.getBlock('latest');
     return block;
   }
 
-  public async initialize(sy: SmartYields): Promise<void> {
+  public async initialize(sy: SmartYields, harvestable: string[]): Promise<void> {
+
+    const block = await this.getCurrentBlock();
 
     for (const key in sy) {
       const connections = (await connect(sy[key], await this.providerGetter()));
@@ -96,6 +115,18 @@ export class UpdaterFast {
       };
 
       this.oracles.push(oracle);
+
+      if (harvestable.includes(key)) {
+
+        const h = {
+          id: key,
+          controller: oracle.controller,
+          lastHarvestedAt: block.timestamp,
+          //lastHarvestedAt: 0,
+        };
+
+        this.harvestables.push(h);
+      }
     }
 
     this.maxSleepSec = this.oracles.reduce((maxSleep, o) => {
@@ -108,10 +139,45 @@ export class UpdaterFast {
     this.maxSleepSec = Math.ceil(this.maxSleepSec / 2);
   }
 
+  private secondsUntilHarvest(blockTimestamp: BN, harvestable: HarvestableData): number {
+    const harvestTimeElapsed = blockTimestamp.sub(harvestable.lastHarvestedAt);
+    const secToHarvest = BN.from(this.harvestInterval).sub(harvestTimeElapsed).toNumber();
+    if (0 > secToHarvest) {
+      // can harvest
+      return 0;
+    }
+
+    return secToHarvest;
+  }
+
+  private async shouldHarvest(harvestable: HarvestableData): Promise<number> {
+    try {
+      const { 0: rewardExpected } = await harvestable.controller.connect(await this.providerGetter()).callStatic.harvest(0);
+      console.log(`... harvest reward: ${rewardExpected.toString()} (min: ${this.harvestMin.toString()})`);
+      if (rewardExpected.gte(this.harvestMin)) {
+        // harvest
+        return 0;
+      }
+      return A_DAY;
+    } catch (e) {
+      console.log('... harvest call fails:', e);
+      // failed to read contract
+      return this.harvestInterval;
+    }
+  }
+
+  private async doHarvest(harvestable: HarvestableData) {
+    const gasPrice = await this.gasPriceGetter();
+    console.log(`... gasPrice=${gasPrice.toString()}`);
+    await (await harvestable.controller.connect(await this.providerGetter()).harvest(0, { gasLimit: 1_000_000, gasPrice })).wait(1);
+    const block = await this.getCurrentBlock();
+    harvestable.lastHarvestedAt = block.timestamp;
+  }
+
   private secondsUntilShouldUpdate(blockTimestamp: BN, oracle: OracleData): number {
     const periodStart = periodStartOf(blockTimestamp, oracle.periodSize);
     const periodElapsed = blockTimestamp.sub(periodStart);
-    const periodWait = oracle.periodSize.mul(BN.from(Math.floor(this.periodWaitPercent * 100000))).div(100000);
+    const periodWait = oracle.periodSize.mul(BN.from(Math.floor(this.updatePeriodWaitPercent * 100000))).div(100000);
 
     const sleepNeeded = periodWait.sub(periodElapsed).toNumber();
 
@@ -137,7 +203,7 @@ export class UpdaterFast {
   private async doOracleUpdate(oracle: OracleData) {
     const gasPrice = await this.gasPriceGetter();
     console.log(`... gasPrice=${gasPrice.toString()}`);
-    await (await oracle.oracle.connect(await (await this.providerGetter()).getSigner()).update({ gasLimit: 400_000, gasPrice })).wait(1);
+    await (await oracle.oracle.connect(await this.providerGetter()).update({ gasLimit: 400_000, gasPrice })).wait(1);
   }
 
   public async updateLoop(): Promise<void> {
@@ -171,13 +237,36 @@ export class UpdaterFast {
         sleepSeconds = Math.min(sleep, sleepSeconds);
       }
 
+      for (let f = 0; f < this.harvestables.length; f++) {
+        console.log(`Harvestable ${this.harvestables[f].controller.address} ${this.harvestables[f].id} ...`);
+        const block = await this.getCurrentBlock();
+        console.log(`... block ${block.number} (@${block.timestamp})`);
+
+        let sleep = this.secondsUntilHarvest(BN.from(block.timestamp), this.harvestables[f]);
+        console.log(`... sleep until harvest ${sleep}s`);
+
+        if (0 === sleep) {
+          sleep = await this.shouldHarvest(this.harvestables[f]);
+          console.log(`... will harvest ${sleep}s (${0 === sleep ? 'yes' : 'skip, wait'})`);
+        }
+
+        if (0 === sleep) {
+          console.log('... harvesting');
+          await this.doHarvest(this.harvestables[f]);
+          console.log('... done.');
+          continue;
+        }
+
+        sleepSeconds = Math.min(sleep, sleepSeconds);
+      }
+
       console.log(`Sleeping ${sleepSeconds}s ...`);
       await sleep(sleepSeconds * 1000);
     }
   }
 }
 
-export const getProviderMainnet = async (): Promise<providers.JsonRpcProvider> => {
+export const getProviderMainnet = async (): Promise<providers.JsonRpcSigner> => {
 
   const provider = await buildProvider(mainnetRpcProviderUrls[mainnetProviderIndex]);
   mainnetProviderIndex = (++mainnetProviderIndex) % mainnetRpcProviderUrls.length;
@@ -185,7 +274,7 @@ export const getProviderMainnet = async (): Promise<providers.JsonRpcProvider> =
   return provider;
 };
 
-export const getProviderTestnet = async (): Promise<providers.JsonRpcProvider> => {
+export const getProviderTestnet = async (): Promise<providers.JsonRpcSigner> => {
 
   const provider = await buildProvider(testnetRpcProviderUrls[testnetProviderIndex]);
   testnetProviderIndex = (++testnetProviderIndex) % testnetRpcProviderUrls.length;
@@ -193,7 +282,25 @@ export const getProviderTestnet = async (): Promise<providers.JsonRpcProvider> =
   return provider;
 };
 
-const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcProvider> => {
+const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcSigner> => {
+
+  function createProviderProxy(
+    hardhatProvider: EthereumProvider
+  ): EthersProviderWrapper {
+    const initialProvider = new EthersProviderWrapper(hardhatProvider);
+
+    const { proxy: providerProxy, setTarget } = createUpdatableTargetProxy(
+      initialProvider
+    );
+
+    hardhatProvider.on(HARDHAT_NETWORK_RESET_EVENT, () => {
+      setTarget(new EthersProviderWrapper(hardhatProvider));
+    });
+
+    return providerProxy;
+  }
+
+
   if (masterProvider === undefined) {
     masterProvider = _.cloneDeep(ethers.provider);
   }
@@ -202,18 +309,17 @@ const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcProv
     masterConfig = _.cloneDeep(config);
   }
 
+  const networkName = 'homestead' === masterProvider.network.name ? 'mainnet' : masterProvider.network.name;
+
   const provider = createProvider(
     masterProvider.network.name,
     {
-      ...masterConfig.networks[masterProvider.network.name],
+      ...masterConfig.networks[networkName],
       url: providerUrl,
     }
   );
 
-  (provider as any)._isProvider = true;
-  (provider as any)._isSigner = true;
-
-  return new providers.Web3Provider(provider as any);
+  return await createProviderProxy(provider).getSigner();
 };
 
 const sleep = (ms: number) => {

@@ -23,6 +23,11 @@ const smartYields = {
   'USDT/aave/v1/testnetpub': '0x73d82Cd31CEe823B75E2078dbf16e11C7C174a6E',
 };
 
+const harvestable = [
+  'DAI/aave/v1/testnetint', 'USDC/aave/v1/testnetint', 'USDT/aave/v1/testnetint',
+  'DAI/aave/v1/testnetpub', 'USDC/aave/v1/testnetpub', 'USDT/aave/v1/testnetpub',
+];
+
 // -----
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
 import { ethers } from 'hardhat';
@@ -42,8 +47,8 @@ async function main() {
   console.log('pools:');
   console.table(smartYields);
 
-  const updater = new UpdaterFast(0.5, providerGetter, gasPriceGetter);
-  await updater.initialize(smartYields);
+  const updater = new UpdaterFast(0.5, 60 * 10, BN.from(10), providerGetter, gasPriceGetter);
+  await updater.initialize(smartYields, harvestable);
 
   await updater.updateLoop();
 }
