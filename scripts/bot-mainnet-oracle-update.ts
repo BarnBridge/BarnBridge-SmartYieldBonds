@@ -32,7 +32,7 @@ import { walletBalance, UpdaterFast, getGasPriceMainnet, dumpAllGasPrices, getPr
 async function main() {
 
   const DAYS_5 = 5 * 24 * 60 * 60;
-  const harvestMin = BN.from(10).pow(17).mul(1);
+  const harvestMin = BN.from(10).pow(18).mul(1);
 
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
 
