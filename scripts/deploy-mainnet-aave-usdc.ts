@@ -1,29 +1,26 @@
 import 'tsconfig-paths/register';
 
-import { deployBondModelV2Compounded, deployCreamController, deployCreamProvider, deployJuniorBond, deploySeniorBond, deploySmartYield, deployYieldOracle } from '@testhelp/index';
+import { deployAaveController, deployAaveProvider, deployBondModelV2Linear, deployJuniorBond, deploySeniorBond, deploySmartYield, deployYieldOracle } from '@testhelp/index';
 import { Wallet, BigNumber as BN } from 'ethers';
 import { run, ethers } from 'hardhat';
-import { ERC20Factory } from '@typechain/ERC20Factory';
 
 const A_HOUR = 60 * 60;
+const A_DAY = A_HOUR * 24;
 
-const seniorBondCONF = { name: 'BarnBridge crUSDC sBOND', symbol: 'bb_sBOND_crUSDC' };
-const juniorBondCONF = { name: 'BarnBridge crUSDC jBOND', symbol: 'bb_jBOND_crUSDC' };
-const juniorTokenCONF = { name: 'BarnBridge crUSDC', symbol: 'bb_crUSDC' };
+const seniorBondCONF = { name: 'BarnBridge aUSDC sBOND', symbol: 'bb_sBOND_aUSDC' };
+const juniorBondCONF = { name: 'BarnBridge aUSDC jBOND', symbol: 'bb_jBOND_aUSDC' };
+const juniorTokenCONF = { name: 'BarnBridge junior aUSDC', symbol: 'bb_aUSDC' };
 
-const oracleCONF = { windowSize: A_HOUR, granularity: 4 };
+const oracleCONF = { windowSize: 3 * A_DAY, granularity: 4 };
 
 // barnbridge
 const decimals = 6; // same as USDC
-const dao = '0x930e52B96320d7dBbfb6be458e5EE0Cd3E5E5Dac';
-const feesOwner = dao;
+const feesOwner = '0x4cAE362D7F227e3d306f70ce4878E245563F3069';
 
 // externals ---
 
-// cream
-const crUSDC = '0x488eD4f74E81070DFAA5672aEFB4fd1743a003C5';
-
-const USDC = '0xb7a4f3e9097c08da09517b5ab877f7a917224ede';
+// aave
+const aUSDC = '0xBcca60bB61934080951369a648Fb03DF4F96263C';
 
 async function main() {
 
@@ -32,14 +29,16 @@ async function main() {
   console.log('Deployer:', deployerSign.address);
   console.log('Others:', signers.map(a => a.address));
 
-  const bondModel = await deployBondModelV2Compounded(deployerSign);
-  const pool = await deployCreamProvider(deployerSign, crUSDC);
+  const bondModel = await deployBondModelV2Linear(deployerSign);
+  const pool = await deployAaveProvider(deployerSign, aUSDC);
 
   const smartYield = await deploySmartYield(deployerSign, juniorTokenCONF.name, juniorTokenCONF.symbol, BN.from(decimals));
+
   const seniorBond = await deploySeniorBond(deployerSign, smartYield.address, seniorBondCONF.name, seniorBondCONF.symbol);
   const juniorBond = await deployJuniorBond(deployerSign, smartYield.address, juniorBondCONF.name, juniorBondCONF.symbol);
 
-  const controller = await deployCreamController(deployerSign, pool.address, smartYield.address, bondModel.address, deployerSign.address);
+  const controller = await deployAaveController(deployerSign, pool.address, smartYield.address, bondModel.address, deployerSign.address);
+
   const oracle = await deployYieldOracle(deployerSign, controller.address, oracleCONF.windowSize, oracleCONF.granularity);
 
   await controller.setOracle(oracle.address);
@@ -47,17 +46,19 @@ async function main() {
   await smartYield.setup(controller.address, pool.address, seniorBond.address, juniorBond.address);
   await pool.setup(smartYield.address, controller.address);
 
-  await controller.setGuardian(dao);
-  await controller.setDao(dao);
+  await controller.setBondLifeMax(365);
+  await controller.setFeeBuyJuniorToken(BN.from('5000000000000000'));
+  await controller.setFeeRedeemSeniorBond(BN.from('50000000000000000'));
+  await controller.setGuardian('0x54e6a2f9991b6b6d57d152d21427e8cb80b25e91');
+  await bondModel.setGuardian('0x54e6a2f9991b6b6d57d152d21427e8cb80b25e91');
 
   console.log('CONF --------');
-  console.log('DAO:', dao);
-  console.log('crUSDC:', crUSDC);
-  console.log('USDC:', USDC);
+  console.log('aUSDC:', aUSDC);
+  console.log('feesOwner', feesOwner);
   console.log('');
   console.log('DEPLOYED ----');
   console.log('bondModel:', bondModel.address);
-  console.log('provider:', pool.address, '[', crUSDC, ']');
+  console.log('provider:', pool.address, '[', aUSDC, ']');
   console.log('smartYield:', smartYield.address, '[', juniorTokenCONF.name, juniorTokenCONF.symbol, decimals, ']');
   console.log('seniorBond:', seniorBond.address, '[', smartYield.address, seniorBondCONF.name, seniorBondCONF.symbol, ']');
   console.log('juniorBond:', juniorBond.address, '[', smartYield.address, juniorBondCONF.name, juniorBondCONF.symbol, ']');
