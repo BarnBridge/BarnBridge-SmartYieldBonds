@@ -123,8 +123,8 @@ contract IdleTokenWorldMock is IIdleToken, ERC20 {
         return govTokensAmounts; */
         amounts = new uint256[](3);
         amounts[0] = 0;
-        amounts[0] = 0;
-        amounts[0] = 0;
+        amounts[1] = 0;
+        amounts[2] = 0;
     }
 
     /* function openRebalance(uint256[] calldata _newAllocations) external override returns (bool, uint256 avgApr) {
@@ -174,6 +174,6 @@ contract IdleTokenWorldMock is IIdleToken, ERC20 {
     }
 
     function tokenPriceWithFee(address user) external view override returns (uint256 priceWFee) {
-        return 0;
+        return _tokenPrice;
     }
 }

@@ -52,7 +52,7 @@ const getObservations = async (oracle: YieldOracle, granularity: number) => {
 const dumpState = (idleToken: IIdleToken, controller: IdleController, smartYield: SmartYield, pool: IdleProvider, oracle: YieldOracle, granularity: number, underlying: ERC20) => {
   return async () => {
 
-    const [idleApr, spotDailySupplyRate, spotDailyDistributionRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, providerRatePerDay, maxBondDailyRate] = await Promise.all([
+    const [idleApr, spotDailySupplyRate, spotDailyDistributionRate, spotDailyRate, maxRatePerDay, oracleRatePerDay, underlyingBalance, underlyingFees, providerRatePerDay, maxBondDailyRate, exchangeRateCurrent, cTokenBalance] = await Promise.all([
       idleToken.callStatic.getAvgAPR(),
       controller.callStatic.spotDailySupplyRateProvider(),
       controller.callStatic.spotDailyDistributionRateProvider(),
@@ -65,6 +65,9 @@ const dumpState = (idleToken: IIdleToken, controller: IdleController, smartYield
       controller.callStatic.providerRatePerDay(),
 
       smartYield.callStatic.maxBondDailyRate(),
+      pool.callStatic.exchangeRateCurrent(),
+      pool.callStatic.cTokenBalance(),
+     // controller.callStatic.poosh()
     ]);
 
     let { rewardAmountGot, underlyingHarvestReward } = { rewardAmountGot: BN.from(0), underlyingHarvestReward: BN.from(0) };
@@ -81,7 +84,9 @@ const dumpState = (idleToken: IIdleToken, controller: IdleController, smartYield
     console.log('underlyingBalance :', underlyingBalance.toString());
     console.log('underlyingFees    :', underlyingFees.toString());
     console.log('underlyingFull    :', underlyingBalance.add(underlyingFees).toString());
-
+    console.log('pool exchangeratecurrent: ', exchangeRateCurrent.toString());
+    console.log('cTokenBalance: ', cTokenBalance.toString());
+    //console.log('poosh: ', poosh.toString());
     console.log('sy provider APY   :', dailyRate2APYCompounding(providerRatePerDay));
     console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APYCompounding(oracleRatePerDay), dailyRate2APYCompounding(spotDailyRate), dailyRate2APYCompounding(maxRatePerDay));
     console.log('sy spot APY (supply + distri) :', dailyRate2APYCompounding(spotDailyRate), `(${dailyRate2APYCompounding(spotDailySupplyRate)} + ${dailyRate2APYCompounding(spotDailyDistributionRate)})`);

@@ -194,10 +194,8 @@ contract IdleProvider is IProvider {
         // underlyingFees += takeFees_;
         underlyingFees = underlyingFees.add(takeFees_);
 
-        //ICompoundCumulator(controller)._beforeCTokenBalanceChange();
         IIdleCumulator(controller)._beforeCTokenBalanceChange();
-        //uint256 err = ICToken(cToken).redeemUnderlying(underlyingAmount_);
-        //require(0 == err, "PPC: _withdrawProvider redeemUnderlying");
+
         IIdleToken(cToken).redeemIdleToken(underlyingAmount_);
         convertGovTokensToUnderlying();
         IIdleCumulator(controller)._afterCTokenBalanceChange(cTokenBalance);
@@ -261,19 +259,6 @@ contract IdleProvider is IProvider {
       return exchangeRateCurrentCached;
     }
 
-    /* function updateGovTokensList() public {
-        uint256 govTokensLength = IIdleToken(cToken).getGovTokensAmounts(address(1)).length;
-        delete govTokens;
-
-        for (uint i=0; i<govTokensLength; i++) {
-            govTokens.push(IIdleToken(cToken).govTokens(i));
-        }
-        setUniswapPathsAndApprove();
-        address[] memory govTokens_ = IIdleToken(cToken).getGovTokens();
-
-
-    } */
-
     function getGovTokens() public view returns (address[] memory) {
         return IIdleToken(cToken).getGovTokens();
     }
@@ -285,5 +270,21 @@ contract IdleProvider is IProvider {
 
     function getUniswapPath(address token) public view returns (address[] memory) {
         return uniswapPaths[token];
+    }
+
+    function claimRewardsTo(uint256 amount, address to)
+      external
+      onlyController
+      returns (uint256) {
+
+      IIdleToken(cToken).redeemIdleToken(0);
+      address[] memory govTokens = getGovTokens();
+      uint256 _amount;
+      for (uint256 i = 0; i < govTokens.length; i++) {
+          _amount = IERC20(govTokens[i]).balanceOf(address(this));
+          IERC20(govTokens[i]).safeTransfer(to, IERC20(govTokens[i]).balanceOf(address(this)));
+      }
+      return _amount;
+
     }
 }

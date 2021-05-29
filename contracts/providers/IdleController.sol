@@ -134,8 +134,11 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     }
 
     function providerRatePerDay() public override returns (uint256) {
+        if (IYieldOracle(oracle).consult(1 days) == 0) {
+            return MathUtils.min(BOND_MAX_RATE_PER_DAY, spotDailyRate());
+        }
         return MathUtils.min(
-            MathUtils.min(BOND_MAX_RATE_PER_DAY, (IIdleToken(cToken).getAvgAPR()).div(36525)),
+            MathUtils.min(BOND_MAX_RATE_PER_DAY, spotDailyRate()),
             IYieldOracle(oracle).consult(1 days)
         );
     }
@@ -151,9 +154,7 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
         return cumulativeSupplyRate;
     }
 
-    function cTokensToUnderlying(
-      uint256 cTokens_, uint256 exchangeRate_
-    ) public pure returns (uint256) {
+    function cTokensToUnderlying(uint256 cTokens_, uint256 exchangeRate_) public pure returns (uint256) {
       return cTokens_.mul(exchangeRate_).div(EXP_SCALE);
     }
 
@@ -207,6 +208,16 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
 
         return (totalRewards, callerReward);
     }
+
+    /* function harvest(uint256)
+      public
+    returns (uint256 rewardAmountGot, uint256 underlyingHarvestReward)
+    {
+        uint256 amountRewarded = IdleProvider(pool).claimRewardsTo(MAX_UINT256, rewardsCollector);
+
+        emit Harvest(msg.sender, amountRewarded, 0, 0, 0, HARVEST_COST);
+        return (amountRewarded, 0);
+    } */
 
     function spotDailySupplyRateProvider() public view returns (uint256) {
         return (IIdleToken(cToken).getAvgAPR()).div(36525);

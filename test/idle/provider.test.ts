@@ -203,7 +203,7 @@ describe('IdleProvider', async function () {
       //TODO: Gov tokens
       const { pool, controller, underlying, smartYieldAddr, smartYieldSign, feesOwnerAddr, rewardHolderAddr, idletokenWorld } = await bbFixtures(fixture());
 
-      await idletokenWorld.expectClaimComp(pool.address);
+      //await idletokenWorld.expectClaimComp(pool.address);
 
       // calls claimRewardsTo
       await controller.harvest(0);
