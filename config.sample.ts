@@ -7,7 +7,7 @@ const config: HardhatUserConfig = {
     // Needed for `solidity-coverage`
     coverage: {
       forking: {
-        url: 'https://eth-mainnet.alchemyapi.io/v2/ALCHEMY-API-KEY-HERE',
+        url: 'https://eth-mainnet.alchemyapi.io/v2/yVzwGvPX6dd9TpUR4k4qWAk7ZliQcrWl',
         blockNumber: 12525794, //
       },
       allowUnlimitedContractSize: true,
@@ -16,7 +16,7 @@ const config: HardhatUserConfig = {
 
     hardhat: {
       forking: {
-        url: 'https://eth-mainnet.alchemyapi.io/v2/ALCHEMY-API-KEY-HERE',
+        url: 'https://eth-mainnet.alchemyapi.io/v2/yVzwGvPX6dd9TpUR4k4qWAk7ZliQcrWl',
         blockNumber: 12525794, //
       },
     },
