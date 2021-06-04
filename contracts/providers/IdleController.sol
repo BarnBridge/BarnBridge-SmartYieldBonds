@@ -6,11 +6,6 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-
-import "./../lib/uniswap/UniswapV2Library.sol";
-import "./../lib/uniswap/UniswapV2OracleLibrary.sol";
-import "./../external-interfaces/uniswap/IUniswapV2Router.sol";
-import "./../lib/uniswap/FixedPoint.sol";
 import "./../lib/math/MathUtils.sol";
 import "./../external-interfaces/idle/IIdleToken.sol";
 import "./IIdleCumulator.sol";
@@ -22,9 +17,6 @@ import "./IdleProvider.sol";
 contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
-
-    address public constant UNISWAP_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
-    address public constant UNISWAP_ROUTER_V2 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 
     uint256 public constant MAX_UINT256 = uint256(-1);
     uint256 public constant DOUBLE_SCALE = 1e36;
@@ -53,9 +45,6 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
 
     uint256 public underlyingDecimals;
 
-    // uniswap path for Gov tokens to underlying
-    //mapping(address=>address[]) public uniswapPaths;
-
     event Harvest(address indexed caller, uint256 compRewardTotal, uint256 compRewardSold, uint256 underlyingPoolShare, uint256 underlyingReward, uint256 harvestCost); //TODO
 
 
@@ -81,26 +70,7 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
       uToken = IdleProvider(pool).uToken();
       cToken = IdleProvider(pool).cToken();
       underlyingDecimals = ERC20(uToken).decimals();
-      //setUniswapPaths(pool_);
       setBondModel(bondModel_);
-      updateAllowances();
-    }
-
-    function updateAllowances() public {
-        address[] memory rewardTokens = IIdleToken(cToken).getGovTokens();
-        uint256 routerRewardAllowance;
-        uint256 rewardTokensLength = rewardTokens.length;
-        for (uint i=0; i<rewardTokensLength; i++) {
-            routerRewardAllowance = IERC20(rewardTokens[i]).allowance(address(this), uniswapRouter());
-            IERC20(rewardTokens[i]).safeIncreaseAllowance(uniswapRouter(), MAX_UINT256.sub(routerRewardAllowance));
-        }
-        uint256 poolUnderlyingAllowance = IERC20(uToken).allowance(address(this), address(pool));
-        IERC20(uToken).safeIncreaseAllowance(address(pool), MAX_UINT256.sub(poolUnderlyingAllowance));
-    }
-
-    function uniswapRouter() public view virtual returns(address) {
-        // mockable
-        return UNISWAP_ROUTER_V2;
     }
 
     function _beforeCTokenBalanceChange() external override onlyPool {}
@@ -158,58 +128,7 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
       return cTokens_.mul(exchangeRate_).div(EXP_SCALE);
     }
 
-    function harvest(uint256) public returns (uint256 rewardAmountGot, uint256 underlyingHarvestReward) {
-        require(
-          harvestedLast < block.timestamp,
-          "PPC: harvest later"
-        );
-
-        address[] memory govTokens = IdleProvider(pool).getGovTokens();
-
-        address caller = msg.sender;
-
-        //redeem gov tokens from idle
-        IdleProvider(pool).controllerRedeemGovTokens();
-        address[] memory uniswapPath;
-        uint256 govTokenAmount;
-        for (uint i=0; i<govTokens.length; i++) {
-            //transfer all gov token from pool to self
-            govTokenAmount = IERC20(govTokens[i]).balanceOf(pool);
-            IERC20(govTokens[i]).safeTransferFrom(pool, address(this), govTokenAmount);
-            //sell all gov tokens on uniswap
-            uniswapPath = IdleProvider(pool).getUniswapPath(govTokens[i]);
-            //require(IERC20(govTokens[i]).approve(address(UNISWAP_ROUTER_V2), govTokenAmount), 'approve failed.');
-
-            IUniswapV2Router(uniswapRouter()).
-            swapExactTokensForTokens(IERC20(govTokens[i]).balanceOf(address(this)),
-            0, uniswapPath, address(this), block.timestamp);
-        }
-
-        uint256 totalRewards = IERC20(uToken).balanceOf(address(this));
-
-        uint256 poolShare = MathUtils.fractionOf(
-          totalRewards,
-          EXP_SCALE.sub(HARVEST_COST)
-        );
-
-        //IERC20(IdleProvider(pool).uToken()).balanceOf(address(this))
-
-        // deposit pool reward share with liquidity provider
-        IdleProvider(pool)._takeUnderlying(address(this), poolShare);
-        IdleProvider(pool)._depositProvider(poolShare, 0);
-
-        // pay caller
-        uint256 callerReward = IERC20(uToken).balanceOf(address(this));
-        IERC20(uToken).safeTransfer(caller, callerReward);
-
-        harvestedLast = block.timestamp;
-
-        emit Harvest(caller, totalRewards, totalRewards, poolShare, callerReward, HARVEST_COST);
-
-        return (totalRewards, callerReward);
-    }
-
-    /* function harvest(uint256)
+    function harvest(uint256)
       public
     returns (uint256 rewardAmountGot, uint256 underlyingHarvestReward)
     {
@@ -217,7 +136,7 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
 
         emit Harvest(msg.sender, amountRewarded, 0, 0, 0, HARVEST_COST);
         return (amountRewarded, 0);
-    } */
+    }
 
     function spotDailySupplyRateProvider() public view returns (uint256) {
         return (IIdleToken(cToken).getAvgAPR()).div(36525);
@@ -228,7 +147,7 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     }
 
     function spotDailyRate() public view returns (uint256) {
-        return spotDailySupplyRateProvider().add(spotDailySupplyRateProvider());
+        return spotDailySupplyRateProvider();
     }
 
 }

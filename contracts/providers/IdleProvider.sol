@@ -21,8 +21,6 @@ contract IdleProvider is IProvider {
     address public referral;
     uint256 public constant MAX_UINT256 = uint256(-1);
     uint256 public constant EXP_SCALE = 1e18;
-    address public constant UNISWAP_ROUTER_V2 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     address public override smartYield;
 
@@ -44,10 +42,6 @@ contract IdleProvider is IProvider {
     uint256 public exchangeRateCurrentCachedAt;
 
     bool public _setup;
-
-    address[] public govTokens;
-
-    mapping(address=>address[]) public uniswapPaths;
 
     event TransferFees(address indexed caller, address indexed feesOwner, uint256 fees);
 
@@ -85,10 +79,7 @@ contract IdleProvider is IProvider {
 
     constructor(address cToken_) {
         cToken = cToken_;
-        //uToken = uToken_;
         uToken = IIdleToken(cToken_).token();
-        //updateGovTokensList();
-        //setUniswapPathsAndApprove();
     }
 
     function setup(
@@ -103,13 +94,6 @@ contract IdleProvider is IProvider {
         smartYield = smartYield_;
         controller = controller_;
 
-        //_enterMarket();
-
-        //updateGovTokensList();
-        //setUniswapPathsAndApprove();
-
-        updateAllowances();
-
         _setup = true;
     }
 
@@ -117,27 +101,7 @@ contract IdleProvider is IProvider {
       external override
       onlyControllerOrDao
     {
-      // remove allowance on old controller
-      for (uint i=0; i<govTokens.length; i++) {
-          IERC20(govTokens[i]).safeApprove(controller, 0);
-      }
-
       controller = newController_;
-
-      // give allowance to new controler
-      updateAllowances();
-    }
-
-    function updateAllowances() public {
-        //IERC20 rewardToken = IERC20(IComptroller(ICToken(cToken).comptroller()).getCompAddress());
-
-        uint256 controllerRewardAllowance;
-        for (uint i=0; i<govTokens.length; i++) {
-            controllerRewardAllowance = IERC20(govTokens[i]).allowance(address(this), controller);
-            IERC20(govTokens[i]).safeIncreaseAllowance(controller, MAX_UINT256.sub(controllerRewardAllowance));
-        }
-        //uint256 controllerRewardAllowance = rewardToken.allowance(address(this), controller);
-        //rewardToken.safeIncreaseAllowance(controller, MAX_UINT256.sub(controllerRewardAllowance));
     }
 
   // externals
@@ -197,7 +161,7 @@ contract IdleProvider is IProvider {
         IIdleCumulator(controller)._beforeCTokenBalanceChange();
 
         IIdleToken(cToken).redeemIdleToken(underlyingAmount_);
-        convertGovTokensToUnderlying();
+
         IIdleCumulator(controller)._afterCTokenBalanceChange(cTokenBalance);
 
         // cTokenBalance is used to compute the pool yield, make sure no one interferes with the computations between deposits/withdrawls
@@ -223,26 +187,6 @@ contract IdleProvider is IProvider {
         return cTokenBalance.mul(exchangeRateCurrent()).div(EXP_SCALE).sub(underlyingFees);
     }
 
-    function setUniswapPathsAndApprove() internal {
-        address[] memory rewardTokens = IIdleToken(cToken).getGovTokens();
-        for (uint i=0; i<rewardTokens.length; i++) {
-            address[] memory path = new address[](3);
-            path[0] = rewardTokens[i];
-            path[1] = WETH;
-            path[2] = uToken;
-            uniswapPaths[rewardTokens[i]] = path;
-            require(IERC20(rewardTokens[i]).approve(address(UNISWAP_ROUTER_V2), MAX_UINT256), 'approve failed.');
-        }
-    }
-
-    function convertGovTokensToUnderlying() internal {
-        for (uint i=0; i<govTokens.length; i++) {
-            IUniswapV2Router(UNISWAP_ROUTER_V2).
-            swapExactTokensForTokens(IERC20(govTokens[i]).balanceOf(address(this)),
-            0, uniswapPaths[govTokens[i]], msg.sender, block.timestamp);
-        }
-    }
-
     function controllerRedeemGovTokens() external onlyController {
         IIdleToken(cToken).redeemIdleToken(0);
     }
@@ -259,32 +203,18 @@ contract IdleProvider is IProvider {
       return exchangeRateCurrentCached;
     }
 
-    function getGovTokens() public view returns (address[] memory) {
-        return IIdleToken(cToken).getGovTokens();
-    }
-
-    function uniswapRouter() public view virtual returns(address) {
-        // mockable
-        return UNISWAP_ROUTER_V2;
-    }
-
-    function getUniswapPath(address token) public view returns (address[] memory) {
-        return uniswapPaths[token];
-    }
-
     function claimRewardsTo(uint256 amount, address to)
       external
       onlyController
       returns (uint256) {
 
       IIdleToken(cToken).redeemIdleToken(0);
-      address[] memory govTokens = getGovTokens();
+      address[] memory govTokens = IIdleToken(cToken).getGovTokens();
       uint256 _amount;
       for (uint256 i = 0; i < govTokens.length; i++) {
           _amount = IERC20(govTokens[i]).balanceOf(address(this));
           IERC20(govTokens[i]).safeTransfer(to, IERC20(govTokens[i]).balanceOf(address(this)));
       }
       return _amount;
-
     }
 }
