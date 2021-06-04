@@ -65,7 +65,6 @@ Check out more detailed smart contract Slither graphs with all the dependecies: 
 
 
 ## Initial Setup
-
 ### Install NVM and the latest version of NodeJS 12.x
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash 
     # Restart terminal and/or run commands given at the end of the installation script
@@ -76,7 +75,6 @@ Check out more detailed smart contract Slither graphs with all the dependecies: 
     cd BarnBridge-SmartYieldBonds
     
 ## Updating the .env file
-
 ### Create an API key with Alchemy Labs to run Mainnet Forking tests
 Alchemy.io can be used to fork the current state of the Mainnet into your development environment. A free account will suffice. 
 
