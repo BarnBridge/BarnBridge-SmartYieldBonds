@@ -37,6 +37,8 @@ const cDAI = process.env.CDAI;
 const COMP = process.env.COMP;
 const aUSDC = process.env.AUSDC;
 const aUSDT = process.env.AUSDT;
+const aGUSD = process.env.AGUSD;
+const aDAI = process.env.ADAI;
 const crUSDC = process.env.CRUSDC;
 const crDAI = process.env.CRDAI;
 const crUSDT = process.env.CRUSDT;
@@ -83,6 +85,8 @@ async function main() {
   console.log('cDAI:', cDAI);
   console.log('aUSDC:', aUSDC);
   console.log('aUSDT:', aUSDT);
+  console.log('aGUSD:', aGUSD);
+  console.log('aDAI:', aDAI);
   console.log('crUSDC:', crUSDC);
   console.log('crUSDC:', crDAI);
   console.log('crUSDT:', crUSDT);

@@ -12,6 +12,8 @@ declare global {
       DEPLOY_CDAI: string;
       DEPLOY_AUSDC: string;
       DEPLOY_AUSDT: string;
+      DEPLOY_AGUSD: string;
+      DEPLOY_ADAI: string;
       DEPLOY_CRUSDC: string;
       DEPLOY_CRUSDT: string;
       DEPLOY_CRDAI: string;
