@@ -1,165 +1,325 @@
+let masterProvider: providers.JsonRpcProvider | undefined = undefined;
+let masterConfig: HardhatConfig | undefined = undefined;
+let mainnetProviderIndex = 0;
+let testnetProviderIndex = 0;
+
+const mainnetRpcProviderUrls = [
+  'https://mainnet.infura.io/v3/bcb0d67752d84ccfaf5a27d7d7084b03',
+  'https://mainnet.infura.io/v3/7980b6bc9a9a4804877acae78e214525', // +infura1
+  'https://mainnet.infura.io/v3/302f37044934401b8a6f8fdc6b8e56a3', // +infura2
+  'https://mainnet.infura.io/v3/94d26fc947464eb89c247f92a42d1737', // +infura3
+  'https://mainnet.infura.io/v3/c9a9e22e7a934e97ba1a4e29b90de102', // +infura4
+  'https://mainnet.infura.io/v3/10c4bf16332e48a78681c09aed0696f9', // +infura5
+  'https://mainnet.infura.io/v3/cf6780a68a6a49cb9049e22173a0b9c8', // +infura6
+  'https://mainnet.infura.io/v3/7b5995940eb4442daf64118978606568', // +infura7
+];
+
+const testnetRpcProviderUrls = [
+  'https://kovan.infura.io/v3/1e73db2462f44260b1708a31a331bfd6',
+  'https://kovan.infura.io/v3/bdb7e97c01cc48819dca502db609d3c5', // +infura1
+  'https://kovan.infura.io/v3/386879bd99f1464784912d63a449960b', // +infura2
+  'https://kovan.infura.io/v3/38297b14e8644962aed82190f18ee80a', // +infura3
+  'https://kovan.infura.io/v3/287dca8801ca46b6b496188ad077d2a1', // +infura4
+  'https://kovan.infura.io/v3/dec7f10727064199a5c23c7a2c33bfbe', // +infura5
+  'https://kovan.infura.io/v3/946b15e7b8d14ec8b8b9dc0e7ec1ee32', // +infura6
+  'https://kovan.infura.io/v3/40c9673d401a40c994c5110c6a0b7317', // +infura7
+];
+
 import axios from 'axios';
-import { Wallet, BigNumber as BN, Signer } from 'ethers';
-import { ethers, web3 } from 'hardhat';
-import { Block } from '@ethersproject/abstract-provider';
+import _ from 'lodash';
+import { BigNumber as BN, Signer, providers, Wallet } from 'ethers';
+import { createProvider } from 'hardhat/internal/core/providers/construction';
+import { ethers, web3, config } from 'hardhat';
 import { YieldOracleFactory } from '@typechain/YieldOracleFactory';
 import { YieldOracle } from '@typechain/YieldOracle';
 import { SmartYieldFactory } from '@typechain/SmartYieldFactory';
 import { CompoundControllerFactory } from '@typechain/CompoundControllerFactory';
 import { SmartYield } from '@typechain/SmartYield';
 import { CompoundController } from '@typechain/CompoundController';
+import { EthereumProvider, HardhatConfig } from 'hardhat/types';
+import { A_DAY } from '@testhelp/index';
 
-export type PoolName = 'USDC/compound/v1' | 'DAI/compound/v1';
+import { createUpdatableTargetProxy } from './updatable-target-proxy';
+import { HARDHAT_NETWORK_RESET_EVENT } from 'hardhat/internal/constants';
+import { EthersProviderWrapper } from './ethers-provider-wrapper';
+
+export type PoolName = string;
 export type SmartYields = { [key in PoolName]: string };
 export type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 export type Observation = ThenArg<ReturnType<YieldOracle['yieldObservations']>>;
 
-type OraclesConnection = {
-  [prop in PoolName]: {
-    smartYieldAddr: string,
-    oracle: YieldOracle,
-    smartYield: SmartYield,
-    controller: CompoundController,
-  }
-};
+type OracleData = {
+  id: string,
+  smartYieldAddr: string,
+  oracleAddr: string,
 
-type OraclesInfo = {
-  [prop in PoolName]: {
-    windowSize: BN,
-    granularity: number,
-    periodSize: BN,
-    observations: Observation[],
-    latestObservation: Observation,
-    block: Block
-  }
-};
+  windowSize: BN,
+  granularity: number,
+  periodSize: BN,
+  observations: Observation[],
 
-export class Updater {
-  public maxSleepSec = 10000;
-  public signer: Wallet;
-  public smartYields: SmartYields;
-  public oraclesInfo: OraclesInfo;
-  public oraclesConnection: OraclesConnection;
+  oracle: YieldOracle,
+  smartYield: SmartYield,
+  controller: CompoundController,
+}
+
+type HarvestableData = {
+  id: string,
+  controller: CompoundController,
+  lastHarvestedAt: number,
+}
+
+export class UpdaterFast {
+
+  public oracles: OracleData[] = [];
+  public harvestables: HarvestableData[] = [];
+
+  public providerGetter: () => Promise<providers.JsonRpcSigner>;
   public gasPriceGetter: () => Promise<BN>;
 
-  constructor(sy: SmartYields, signer: Wallet, maxSleepSec: number, gasPriceGetter: () => Promise<BN>) {
-    this.smartYields = sy;
-    this.signer = signer;
-    this.maxSleepSec = maxSleepSec;
-    this.oraclesConnection = {} as OraclesConnection;
-    this.oraclesInfo = {} as OraclesInfo;
+  public updatePeriodWaitPercent: number;
+  public maxSleepSec = 0;
+  public harvestInterval: number;
+  public harvestMin: BN;
+
+  constructor(updatePeriodWaitPercent: number, harvestInterval: number, harvestMin: BN, providerGetter: () => Promise<providers.JsonRpcSigner>, gasPriceGetter: () => Promise<BN>) {
+    this.updatePeriodWaitPercent = updatePeriodWaitPercent;
+    this.harvestInterval = harvestInterval;
+    this.harvestMin = harvestMin;
+    this.providerGetter = providerGetter;
     this.gasPriceGetter = gasPriceGetter;
   }
 
-  public async connect(): Promise<void> {
-    for (const pool in this.smartYields) {
-      console.log(`Connecting "${pool}" (${this.smartYields[pool as PoolName]})  ...`);
-      this.oraclesConnection[pool as PoolName] = {
-        smartYieldAddr: this.smartYields[pool as PoolName],
-        ...(await connect(this.smartYields[pool as PoolName], this.signer)),
+  private async yieldObservations(oracleData: OracleData, index: number): Promise<{ timestamp: BN, yieldCumulative: BN }> {
+    return await oracleData.oracle.connect(await this.providerGetter()).yieldObservations(index);
+  }
+
+  private async getCurrentBlock(): Promise<providers.Block> {
+    const block = await (await this.providerGetter()).provider.getBlock('latest');
+    return block;
+  }
+
+  public async initialize(sy: SmartYields, harvestable: string[]): Promise<void> {
+
+    const block = await this.getCurrentBlock();
+
+    for (const key in sy) {
+      const connections = (await connect(sy[key], await this.providerGetter()));
+      const properties = (await getOracleInfo(connections.oracle.connect(await this.providerGetter())));
+      const oracle: OracleData = {
+        id: key,
+        smartYieldAddr: sy[key],
+        oracleAddr: connections.oracle.address,
+        ...connections,
+        ...properties,
       };
-    }
-  }
 
-  public async getOraclesInfo(): Promise<void> {
-    console.log('\nORACLE INFOS:');
-    for (const pool in this.smartYields) {
-      console.log(`"${pool}" (${this.smartYields[pool as PoolName]}) ...`);
-      this.oraclesInfo[pool as PoolName] = {
-        ...(await getOracleInfo(this.oraclesConnection[pool as PoolName].oracle)),
-      };
-    }
-  }
+      this.oracles.push(oracle);
 
-  public async getSleepSec(): Promise<{ [prop in PoolName]: number }> {
-    const ret = {} as { [prop in PoolName]: number };
-    console.log('\nSLEEP TIMES:');
-    for (const pool in this.smartYields) {
-      ret[pool as PoolName] = shouldSleep(
-        this.oraclesInfo[pool as PoolName].latestObservation,
-        this.oraclesInfo[pool as PoolName].periodSize,
-        this.oraclesInfo[pool as PoolName].block.timestamp,
-        1
-      );
-      console.log(`"${pool}" (${this.smartYields[pool as PoolName]}): ${ret[pool as PoolName]} sec.  ...`);
-    }
-    return ret;
-  }
+      if (harvestable.includes(key)) {
 
-  public needsUpdate(sleeps: { [prop in PoolName]: number }): boolean {
-    for (const pool in sleeps) {
-      if (0 === sleeps[pool as PoolName]) {
-        return true;
+        const h = {
+          id: key,
+          controller: oracle.controller,
+          lastHarvestedAt: block.timestamp,
+          //lastHarvestedAt: 0,
+        };
+
+        this.harvestables.push(h);
       }
     }
-    return false;
+
+    this.maxSleepSec = this.oracles.reduce((maxSleep, o) => {
+      if (maxSleep === 0) {
+        return o.periodSize.toNumber();
+      }
+      return Math.min(maxSleep, o.periodSize.toNumber());
+    }, 0);
+
+    this.maxSleepSec = Math.ceil(this.maxSleepSec / 2);
   }
 
-  public async sleep(sleeps: { [prop in PoolName]: number }): Promise<void> {
-    let sleepSec: number = this.maxSleepSec;
-    for (const pool in sleeps) {
-      if (sleeps[pool as PoolName] < sleepSec) {
-        sleepSec = sleeps[pool as PoolName];
-      }
+  private secondsUntilHarvest(blockTimestamp: BN, harvestable: HarvestableData): number {
+    const harvestTimeElapsed = blockTimestamp.sub(harvestable.lastHarvestedAt);
+    const secToHarvest = BN.from(this.harvestInterval).sub(harvestTimeElapsed).toNumber();
+    if (0 > secToHarvest) {
+      // can harvest
+      return 0;
     }
-    console.log(`\nSLEEP: sleeping ${sleepSec} sec. ...`);
-    await sleep(sleepSec * 1000);
+
+    return secToHarvest;
   }
 
-  public async doUpdates(sleeps: { [prop in PoolName]: number }): Promise<void> {
-    for (const pool in sleeps) {
-      if (0 === sleeps[pool as PoolName]) {
-
-        console.log(`\nUPDATE: "${pool}" (${this.smartYields[pool as PoolName]}) in update window ...`);
-
-        const oracle = this.oraclesConnection[pool as PoolName].oracle;
-        const periodSize = this.oraclesInfo[pool as PoolName].periodSize;
-        const now = this.oraclesInfo[pool as PoolName].block.timestamp;
-
-        if (!(await willUpdate(oracle, periodSize, now))) {
-          console.log(`... skipping pool "${pool}" (${this.smartYields[pool as PoolName]}) as it wont update.`);
-          continue;
-        }
-
-        const gasPrice = await this.gasPriceGetter();
-
-        console.log(`... gas price is ${gasPrice.toString()}.`);
-        console.log(`... calling update on "${pool}" (${this.smartYields[pool as PoolName]}).`);
-        await doOracleUpdate(oracle, gasPrice);
+  private async shouldHarvest(harvestable: HarvestableData): Promise<number> {
+    try {
+      const { 0: rewardExpected } = await harvestable.controller.connect(await this.providerGetter()).callStatic.harvest(0);
+      console.log(`... harvest reward: ${rewardExpected.toString()} (min: ${this.harvestMin.toString()})`);
+      if (rewardExpected.gte(this.harvestMin)) {
+        // harvest
+        return 0;
       }
+      return A_DAY;
+    } catch (e) {
+      console.log('... harvest call fails:', e);
+      // failed to read contract
+      return this.harvestInterval;
     }
-    console.log('... updates done.');
+  }
+
+  private async doHarvest(harvestable: HarvestableData) {
+    const gasPrice = await this.gasPriceGetter();
+    console.log(`... gasPrice=${gasPrice.toString()}`);
+    await (await harvestable.controller.connect(await this.providerGetter()).harvest(0, { gasLimit: 1_000_000, gasPrice })).wait(1);
+    const block = await this.getCurrentBlock();
+    harvestable.lastHarvestedAt = block.timestamp;
+  }
+
+  private secondsUntilShouldUpdate(blockTimestamp: BN, oracle: OracleData): number {
+    const periodStart = periodStartOf(blockTimestamp, oracle.periodSize);
+    const periodElapsed = blockTimestamp.sub(periodStart);
+    const periodWait = oracle.periodSize.mul(BN.from(Math.floor(this.updatePeriodWaitPercent * 100000))).div(100000);
+
+    const sleepNeeded = periodWait.sub(periodElapsed).toNumber();
+
+    if (0 >= sleepNeeded) {
+      return 0;
+    }
+
+    return sleepNeeded;
+  }
+
+  private async willUpdate(blockTimestamp: BN, oracle: OracleData): Promise<number> {
+    const index = observationIndexOf(blockTimestamp, oracle.periodSize, oracle.granularity);
+    const { timestamp: observationTimestamp } = await this.yieldObservations(oracle, index);
+    const observationElapsed = blockTimestamp.sub(observationTimestamp);
+    if (observationElapsed.lte(oracle.periodSize)) {
+      // updated, wakeup after period end
+      return periodEndOf(blockTimestamp, oracle.periodSize).sub(blockTimestamp).toNumber();
+    }
+    // can be updated
+    return 0;
+  }
+
+  private async doOracleUpdate(oracle: OracleData) {
+    const gasPrice = await this.gasPriceGetter();
+    console.log(`... gasPrice=${gasPrice.toString()}`);
+    await (await oracle.oracle.connect(await this.providerGetter()).update({ gasLimit: 400_000, gasPrice })).wait(1);
   }
 
   public async updateLoop(): Promise<void> {
-    await this.connect();
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      await this.getOraclesInfo();
 
-      const sleeps = await this.getSleepSec();
+      let sleepSeconds = this.maxSleepSec;
 
-      if (this.needsUpdate(sleeps)) {
-        await this.doUpdates(sleeps);
-        continue;
+      for (let f = 0; f < this.oracles.length; f++) {
+        console.log(`Oracle ${this.oracles[f].oracleAddr} (${this.oracles[f].smartYieldAddr} ${this.oracles[f].id}) ...`);
+        const block = await this.getCurrentBlock();
+        console.log(`... block ${block.number} (@${block.timestamp}), period ${periodStartOf(BN.from(block.timestamp), this.oracles[f].periodSize)} - ${periodEndOf(BN.from(block.timestamp), this.oracles[f].periodSize)}`);
+        // how long to wait for others to updated the oracle. 0 == in update window
+        let sleep = this.secondsUntilShouldUpdate(BN.from(block.timestamp), this.oracles[f]);
+        console.log(`... sleep until update window ${sleep}s`);
+        if (0 === sleep) {
+          // has it already been updated. 0 == yes
+          sleep = await this.willUpdate(BN.from(block.timestamp), this.oracles[f]);
+          console.log(`... will update ${sleep}s (${0 === sleep ? 'yes' : 'skip, wait until next period'})`);
+        }
+
+        if (0 === sleep) {
+          // update
+          console.log('... updating');
+          await this.doOracleUpdate(this.oracles[f]);
+          console.log('... done.');
+          continue;
+        }
+
+        sleepSeconds = Math.min(sleep, sleepSeconds);
       }
 
-      await this.sleep(sleeps);
+      for (let f = 0; f < this.harvestables.length; f++) {
+        console.log(`Harvestable ${this.harvestables[f].controller.address} ${this.harvestables[f].id} ...`);
+        const block = await this.getCurrentBlock();
+        console.log(`... block ${block.number} (@${block.timestamp})`);
+
+        let sleep = this.secondsUntilHarvest(BN.from(block.timestamp), this.harvestables[f]);
+        console.log(`... sleep until harvest ${sleep}s`);
+
+        if (0 === sleep) {
+          sleep = await this.shouldHarvest(this.harvestables[f]);
+          console.log(`... will harvest ${sleep}s (${0 === sleep ? 'yes' : 'skip, wait'})`);
+        }
+
+        if (0 === sleep) {
+          console.log('... harvesting');
+          await this.doHarvest(this.harvestables[f]);
+          console.log('... done.');
+          continue;
+        }
+
+        sleepSeconds = Math.min(sleep, sleepSeconds);
+      }
+
+      console.log(`Sleeping ${sleepSeconds}s ...`);
+      await sleep(sleepSeconds * 1000);
     }
   }
 }
 
-const willUpdate = async (oracle: YieldOracle, periodSize: BN, now: number): Promise<boolean> => {
-  const observationIndex = await oracle.observationIndexOf(now);
-  const observation = await oracle.yieldObservations(observationIndex);
-  const timeElapsed = BN.from(now).sub(observation.timestamp);
-  console.log('timeElapsed is: ', timeElapsed.toString());
-  console.log('periodSize  is: ', periodSize.toString());
-  if (timeElapsed.gt(periodSize)) {
-    return true;
+export const getProviderMainnet = async (): Promise<providers.JsonRpcSigner> => {
+
+  const provider = await buildProvider(mainnetRpcProviderUrls[mainnetProviderIndex]);
+  mainnetProviderIndex = (++mainnetProviderIndex) % mainnetRpcProviderUrls.length;
+
+  return provider;
+};
+
+export const getProviderTestnet = async (): Promise<providers.JsonRpcSigner> => {
+
+  const provider = await buildProvider(testnetRpcProviderUrls[testnetProviderIndex]);
+  testnetProviderIndex = (++testnetProviderIndex) % testnetRpcProviderUrls.length;
+
+  return provider;
+};
+
+const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcSigner> => {
+
+  function createProviderProxy(
+    hardhatProvider: EthereumProvider
+  ): EthersProviderWrapper {
+    const initialProvider = new EthersProviderWrapper(hardhatProvider);
+
+    const { proxy: providerProxy, setTarget } = createUpdatableTargetProxy(
+      initialProvider
+    );
+
+    hardhatProvider.on(HARDHAT_NETWORK_RESET_EVENT, () => {
+      setTarget(new EthersProviderWrapper(hardhatProvider));
+    });
+
+    return providerProxy;
   }
-  return false;
+
+
+  if (masterProvider === undefined) {
+    masterProvider = _.cloneDeep(ethers.provider);
+  }
+
+  if (undefined === masterConfig) {
+    masterConfig = _.cloneDeep(config);
+  }
+
+  const networkName = 'homestead' === masterProvider.network.name ? 'mainnet' : masterProvider.network.name;
+
+  const provider = createProvider(
+    masterProvider.network.name,
+    {
+      ...masterConfig.networks[networkName],
+      url: providerUrl,
+    }
+  );
+
+  return await createProviderProxy(provider).getSigner();
 };
 
 const sleep = (ms: number) => {
@@ -181,24 +341,20 @@ const mostRecentObservation = (observations: Observation[]) => {
   );
 };
 
-// 0 - should update
-// n>0 - should sleep n seconds
-const shouldSleep = (mostRecentObs: Observation, periodSize: BN, now: number, periodSizeSleepRatio: number): number => {
-  const since = BN.from(now).sub(mostRecentObs.timestamp);
-  const r = BN.from(Math.floor(periodSizeSleepRatio * 100));
-
-  if (since.gte(periodSize.mul(r).div(100))) {
-    return 0;
-  }
-
-  return periodSize.mul(r).div(100).sub(since).toNumber();
+const observationIndexOf = (timestamp: BN, periodSize: BN, granularity: number): number => {
+  const epochPeriod = timestamp.div(periodSize);
+  return epochPeriod.mod(granularity).toNumber();
 };
 
-const doOracleUpdate = async (oracle: YieldOracle, gasPrice: BN) => {
-  await (await oracle.update({ gasLimit: 500_000, gasPrice })).wait(3);
+const periodStartOf = (timestamp: BN, periodSize: BN): BN => {
+  return timestamp.div(periodSize).mul(periodSize);
 };
 
-const connect = async (syAddr: string, sign: Signer) => {
+const periodEndOf = (timestamp: BN, periodSize: BN): BN => {
+  return periodStartOf(timestamp, periodSize).add(periodSize).sub(1);
+};
+
+const connect = async (syAddr: string, sign: Signer | providers.Provider) => {
   const smartYield = SmartYieldFactory.connect(syAddr, sign);
   const controller = CompoundControllerFactory.connect(await smartYield.controller(), sign);
   const oracle = YieldOracleFactory.connect(await controller.oracle(), sign);
