@@ -199,7 +199,11 @@ Alchemy.io can be used to fork the current state of the Mainnet into your develo
     npx hardhat run --network kovan scripts/bot-kovan-oracle-update.ts 
 
     # Press ctl+c to stop
-
+    
+## Audits
+* [Open Zeppelin](https://github.com/BarnBridge/BarnBridge-PM/blob/master/audits/BarnBridge%20SMART%20Yield%20audit%20by%20Open%20Zeppelin.pdf)
+* [Hacken (Compound)](https://github.com/BarnBridge/BarnBridge-PM/blob/master/audits/BarnBridge%20SMART%20Yield%20(compound)%20audit%20by%20Hacken.pdf)
+* [Hacken (Aave & Cream)](https://github.com/BarnBridge/BarnBridge-PM/blob/master/audits/BarnBridge%20SMART%20Yield%20(aave%2Bcream)%20audit%20by%20Hacken.pdf)
 
 ## Discussion
 For any concerns with the platform, open an issue on GitHub or visit us on [Discord](https://discord.gg/9TTQNUzg) to discuss.
