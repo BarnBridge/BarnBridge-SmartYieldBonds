@@ -8,7 +8,7 @@ const config: HardhatUserConfig = {
     coverage: {
       forking: {
         url: 'https://eth-mainnet.alchemyapi.io/v2/yVzwGvPX6dd9TpUR4k4qWAk7ZliQcrWl',
-        blockNumber: 12341398, //
+        blockNumber: 12525794, //
       },
       allowUnlimitedContractSize: true,
       url: 'http://localhost:8555',
@@ -17,16 +17,16 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         url: 'https://eth-mainnet.alchemyapi.io/v2/yVzwGvPX6dd9TpUR4k4qWAk7ZliQcrWl',
-        blockNumber: 12341398, //
+        blockNumber: 12525794, //
       },
     },
 
-    // Rinkeby
-    rinkeby: {
-      url: 'https://rinkeby.infura.io/v3/API-KEY-HERE',
-      chainId: 4,
+    // Kovan 
+    kovan: {
+      url: 'https://kovan.infura.io/v3/INFURA-API-KEY-HERE',
+      chainId: 42,
       accounts: {
-        mnemonic: '...',
+        mnemonic: 'kovan test wallet mnemonic goes here get kovan eth from faucet first',
         path: 'm/44\'/60\'/0\'/0',
         initialIndex: 0,
         count: 10,
@@ -38,10 +38,10 @@ const config: HardhatUserConfig = {
 
     // Mainnet
     mainnet: {
-      url: 'https://mainnet.infura.io/v3/API-KEY-HERE',
+      url: 'https://mainnet.infura.io/v3/INFURA-API-KEY-HERE',
       chainId: 1,
       accounts: {
-        mnemonic: '...',
+        mnemonic: 'mainnet deployments only, not required for mainnet forking tests',
         path: 'm/44\'/60\'/0\'/0',
         initialIndex: 1,
         count: 10,
@@ -54,7 +54,7 @@ const config: HardhatUserConfig = {
   // Use to verify contracts on Etherscan
   // https://buidler.dev/plugins/nomiclabs-buidler-etherscan.html
   etherscan: {
-    apiKey: 'API-KEY-HERE',
+    apiKey: 'ETHERSCAN-API-KEY-HERE',
   },
 
 };
