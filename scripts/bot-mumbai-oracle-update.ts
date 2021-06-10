@@ -13,7 +13,7 @@ const harvestable = [
 // -----
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
 import { ethers } from 'hardhat';
-import { getGasPriceWeb3, walletBalance, UpdaterFast, getProviderMumbai } from "./lib/update";
+import { getGasPriceWeb3, walletBalance, UpdaterFast, getProviderMumbai } from './lib/update';
 
 async function main() {
 
