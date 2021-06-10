@@ -3,7 +3,7 @@ import 'tsconfig-paths/register';
 
 const smartYields = {
   // public testnet
-  'USDC/aave/v1/testnetpub': '0xb74Ba15e2A9BF352661974eF6E52d510D48Dab47',
+  'USDC/aave/v1/testnetpub': '0x7Baa74D3091fA1d0FE2d05046EF4C9789b4451a3',
 };
 
 const harvestable = [
@@ -13,14 +13,14 @@ const harvestable = [
 // -----
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
 import { ethers } from 'hardhat';
-import { getGasPriceWeb3, walletBalance, UpdaterFast, getProviderTestnet } from './lib/update';
+import { getGasPriceWeb3, walletBalance, UpdaterFast, getProviderMumbai } from "./lib/update";
 
 async function main() {
 
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
 
   const gasPriceGetter = getGasPriceWeb3;
-  const providerGetter = getProviderTestnet;
+  const providerGetter = getProviderMumbai;
 
   console.log('Starting YieldOracle.update() bot ...');
   console.log('wallet     :', walletSign.address);

@@ -11,7 +11,7 @@ const seniorBondCONF = { name: 'BarnBridge amUSDC sBOND', symbol: 'bb_sBOND_amUS
 const juniorBondCONF = { name: 'BarnBridge amUSDC jBOND', symbol: 'bb_jBOND_amUSDC' };
 const juniorTokenCONF = { name: 'BarnBridge junior amUSDC', symbol: 'bb_amUSDC' };
 
-const oracleCONF = { windowSize: 3 * A_DAY, granularity: 4 };
+const oracleCONF = { windowSize: A_HOUR, granularity: 4 };
 
 // barnbridge
 const decimals = 6; // same as USDC
