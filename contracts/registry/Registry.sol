@@ -3,6 +3,8 @@ pragma solidity ^0.7.6;
 pragma abicoder v2;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
+
 
 import "../Governed.sol";
 import "../SmartYield.sol";
@@ -21,7 +23,7 @@ interface IRegisteredController {
   function harvest(uint256) external returns (uint256, uint256);
 }
 
-contract Registry is Governed {
+contract Registry is Initializable, Governed {
   struct Entry {
     string yieldProviderName;
     uint8 version;
