@@ -86,7 +86,7 @@ Alchemy.io can be used to fork the current state of the Mainnet into your develo
 ### Create an API key with a Provider to deploy to Ethereum Public Testnets. In this guide, we are using Infura on Kovan.
 4. Navigate to [Infura.io](https://infura.io/) and create an account
 5. Log in and select "Get started and create your first project to access the Ethereum network"
-6. Create a project and name it appropriately. On the Settings page, note the project URL ie https://kovan.infura.io/v3/INFURA-API-KEY
+6. Create a project and name it appropriately. On the Settings page, switch the Network to Kovan and note the project URL ie https://kovan.infura.io/v3/INFURA-API-KEY
 7. Copy the Project URL and paste it into the section labeled PROVIDER in the `.env` file.
 
 ### Create an API key with Etherscan 
