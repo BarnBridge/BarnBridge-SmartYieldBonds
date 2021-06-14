@@ -3,9 +3,10 @@ declare global {
     interface ProcessEnv {
       CHAIN: string;
       CHAINID: string;
-      INFURA: string;
+      PROVIDER: string;
       ETHERSCAN: string;
-      ALCHEMY: string;
+      PROVIDER_FORKING: string;
+      BLOCKNUMBER: string;
       MNEMONIC: string;
       DEPLOY_ALL: string;
       DEPLOY_CUSDC: string;

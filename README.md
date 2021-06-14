@@ -75,18 +75,19 @@ Check out more detailed smart contract Slither graphs with all the dependecies: 
     cd BarnBridge-SmartYieldBonds
     
 ## Updating the .env file
-### Create an API key with Alchemy Labs to run Mainnet Forking tests
+### Create an API key with a Provider that supports Forking such as Alchemy Labs to run Mainnet Forking tests
 Alchemy.io can be used to fork the current state of the Mainnet into your development environment. A free account will suffice. 
 
 1. Navigate to [Alchemy](https://alchemyapi.io) and create an account.
 2. Log in and create a new Project on Mainnet. 
-3. Navigate to the [Dashboard](https://dashboard.alchemyapi.io/) and copy the last section of the HTTPS string after the "/v2/"  Paste it into the section labeled ALCHEMY in the `.env` file. (Optional: update sectionlabeled BLOCKNUMBER in the `.env` file to fork a more recent state, at time of writing it is `12488859`)
+3. Navigate to the [Dashboard](https://dashboard.alchemyapi.io/) and click View Key.  Paste the URL into the section labeled PROVIDER_FORKING in the `.env` file. 
+(Optional: update sectionlabeled BLOCKNUMBER in the `.env` file to fork a more recent state, at time of writing it is `12488859`)
 
-### Create an API key with Infura to deploy to Ethereum Public Testnets. In this guide, we are using Kovan.
+### Create an API key with a Provider to deploy to Ethereum Public Testnets. In this guide, we are using Infura on Kovan.
 4. Navigate to [Infura.io](https://infura.io/) and create an account
 5. Log in and select "Get started and create your first project to access the Ethereum network"
-6. Create a project and name it appropriately
-7. On the Settings page, copy the Project ID and paste it into the section labeled INFURA in the `.env` file.
+6. Create a project and name it appropriately. On the Settings page, note the project URL ie https://kovan.infura.io/v3/INFURA-API-KEY
+7. Copy the Project URL and paste it into the section labeled PROVIDER in the `.env` file.
 
 ### Create an API key with Etherscan 
 8. Navigate to [EtherScan](https://etherscan.io/) and create an account 
