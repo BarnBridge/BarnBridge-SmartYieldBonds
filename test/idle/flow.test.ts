@@ -67,13 +67,20 @@ const dumpState = (idleToken: IIdleToken, controller: IdleController, smartYield
       smartYield.callStatic.maxBondDailyRate(),
       pool.callStatic.exchangeRateCurrent(),
       pool.callStatic.cTokenBalance(),
-     // controller.callStatic.poosh()
     ]);
 
-    let { rewardAmountGot, underlyingHarvestReward } = { rewardAmountGot: BN.from(0), underlyingHarvestReward: BN.from(0) };
+    // let { rewardAmountGot, underlyingHarvestReward } = { rewardAmountGot: BN.from(0), underlyingHarvestReward: BN.from(0) };
+    //
+    // try {
+    //   ({ rewardAmountGot, underlyingHarvestReward } = await controller.callStatic.harvest(0));
+    // } catch(e) {
+    //   console.log('harvest error');
+    // }
+
+    let { tokens, rewardAmounts, underlyingHarvestReward } = { tokens: ['0x'], rewardAmounts: [BN.from(0)], underlyingHarvestReward: BN.from(0) };
 
     try {
-      ({ rewardAmountGot, underlyingHarvestReward } = await controller.callStatic.harvest(0));
+      ({ tokens, rewardAmounts, underlyingHarvestReward } = await controller.callStatic.harvest(0));
     } catch(e) {
       console.log('harvest error');
     }
@@ -86,13 +93,14 @@ const dumpState = (idleToken: IIdleToken, controller: IdleController, smartYield
     console.log('underlyingFull    :', underlyingBalance.add(underlyingFees).toString());
     console.log('pool exchangeratecurrent: ', exchangeRateCurrent.toString());
     console.log('cTokenBalance: ', cTokenBalance.toString());
-    //console.log('poosh: ', poosh.toString());
     console.log('sy provider APY   :', dailyRate2APYCompounding(providerRatePerDay));
     console.log('min(oracleAPY, spotAPY, BOND_MAX_RATE_PER_DAY) :', dailyRate2APYCompounding(oracleRatePerDay), dailyRate2APYCompounding(spotDailyRate), dailyRate2APYCompounding(maxRatePerDay));
     console.log('sy spot APY (supply + distri) :', dailyRate2APYCompounding(spotDailyRate), `(${dailyRate2APYCompounding(spotDailySupplyRate)} + ${dailyRate2APYCompounding(spotDailyDistributionRate)})`);
 
     console.log('harvestReward     :', underlyingHarvestReward.toString());
-    console.log('harvestRewardGot    :', rewardAmountGot.toString());
+    for (let i = 0; i < tokens.length; i++) {
+        console.log('token    :', tokens[i].toString(), 'harvestRewardGot    :', rewardAmounts[i].toString());
+    }
     console.log('---------');
   };
 };

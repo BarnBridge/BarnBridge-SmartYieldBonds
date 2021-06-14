@@ -206,15 +206,18 @@ contract IdleProvider is IProvider {
     function claimRewardsTo(uint256 amount, address to)
       external
       onlyController
-      returns (uint256) {
+      returns (address[] memory, uint256[] memory, uint256[] memory) {
 
       IIdleToken(cToken).redeemIdleToken(0);
       address[] memory govTokens = IIdleToken(cToken).getGovTokens();
-      uint256 _amount;
+      uint256 govTokensLength = govTokens.length;
+      uint256[] memory rewardAmount = new uint256[](govTokensLength);
+      uint256[] memory rewardSold = new uint256[](govTokensLength);
       for (uint256 i = 0; i < govTokens.length; i++) {
-          _amount = IERC20(govTokens[i]).balanceOf(address(this));
+          rewardAmount[i] = IERC20(govTokens[i]).balanceOf(address(this));
+          rewardSold[i] = 0;
           IERC20(govTokens[i]).safeTransfer(to, IERC20(govTokens[i]).balanceOf(address(this)));
       }
-      return _amount;
+      return (govTokens, rewardAmount, rewardSold);
     }
 }

@@ -154,11 +154,13 @@ export class UpdaterFast {
 
   private async shouldHarvest(harvestable: HarvestableData): Promise<number> {
     try {
-      const { 0: rewardExpected } = await harvestable.controller.connect(await this.providerGetter()).callStatic.harvest(0);
-      console.log(`... harvest reward: ${rewardExpected.toString()} (min: ${this.harvestMin.toString()})`);
-      if (rewardExpected.gte(this.harvestMin)) {
-        // harvest
-        return 0;
+      const { tokens, rewardAmounts, underlyingHarvestReward } = await harvestable.controller.connect(await this.providerGetter()).callStatic.harvest(0);
+      for (let i = 0; i < tokens.length; i++) {
+          console.log(`... harvest reward: ${rewardAmounts[i].toString()} (min: ${this.harvestMin.toString()})`);
+          if (rewardAmounts[i].gte(this.harvestMin)) {
+            // harvest
+            return 0;
+          }
       }
       return A_DAY;
     } catch (e) {

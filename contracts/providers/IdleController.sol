@@ -45,8 +45,9 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
 
     uint256 public underlyingDecimals;
 
-    event Harvest(address indexed caller, uint256 compRewardTotal, uint256 compRewardSold, uint256 underlyingPoolShare, uint256 underlyingReward, uint256 harvestCost); //TODO
+    //event Harvest(address indexed caller, uint256 compRewardTotal, uint256 compRewardSold, uint256 underlyingPoolShare, uint256 underlyingReward, uint256 harvestCost); //TODO
 
+    event Harvest(address indexed caller, address[] token, uint256[] rewardTotal, uint256[] rewardSold, uint256 underlyingReward, uint256 harvestCost);
 
     modifier onlyPool {
       require(
@@ -128,14 +129,27 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
       return cTokens_.mul(exchangeRate_).div(EXP_SCALE);
     }
 
-    function harvest(uint256)
+    /* function harvest(uint256)
       public
     returns (uint256 rewardAmountGot, uint256 underlyingHarvestReward)
     {
-        uint256 amountRewarded = IdleProvider(pool).claimRewardsTo(MAX_UINT256, rewardsCollector);
+        //uint256 amountRewarded = IdleProvider(pool).claimRewardsTo(MAX_UINT256, rewardsCollector);
+        (address[] memory tokens, uint256[] memory rewardTotal, uint256[] memory rewardSold) = IdleProvider(pool).claimRewardsTo(MAX_UINT256, rewardsCollector);
 
-        emit Harvest(msg.sender, amountRewarded, 0, 0, 0, HARVEST_COST);
-        return (amountRewarded, 0);
+        //emit Harvest(msg.sender, amountRewarded, 0, 0, 0, HARVEST_COST);
+        emit Harvest(msg.sender, tokens, rewardTotal, rewardSold, underlyingReward, HARVEST_COST);
+        //return (amountRewarded, 0);
+        return (underlyingReward, 0);
+    } */
+
+    function harvest(uint256)
+      public
+      returns (address[] memory tokens, uint256[] memory rewardAmounts, uint256 underlyingHarvestReward)
+    {
+        (address[] memory tokens, uint256[] memory rewardTotal, uint256[] memory rewardSold)
+          = IdleProvider(pool).claimRewardsTo(MAX_UINT256, rewardsCollector);
+        emit Harvest(msg.sender, tokens, rewardTotal, rewardSold, 0, HARVEST_COST);
+        return (tokens, rewardTotal, 0);
     }
 
     function spotDailySupplyRateProvider() public view returns (uint256) {
