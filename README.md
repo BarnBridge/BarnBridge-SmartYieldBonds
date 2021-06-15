@@ -70,7 +70,6 @@ Check out more detailed smart contract Slither graphs with all the dependecies: 
 
 
 ## Initial Setup
-
 ### Install NVM and the latest version of NodeJS 12.x
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash 
     # Restart terminal and/or run commands given at the end of the installation script
@@ -79,99 +78,45 @@ Check out more detailed smart contract Slither graphs with all the dependecies: 
 ### Use Git to pull down the BarnBridge-SmartYieldBonds repository from GitHub
     git clone https://github.com/BarnBridge/BarnBridge-SmartYieldBonds.git
     cd BarnBridge-SmartYieldBonds
-### Create config.ts using the sample template config.sample.ts
-    cp config.sample.ts config.ts
     
-## Updating config.ts
-
-### Create an API key with Alchemy Labs to run Mainnet Forking tests
-
+## Updating the .env file
+### Create an API key with a Provider that supports Forking such as Alchemy Labs to run Mainnet Forking tests
 Alchemy.io can be used to fork the current state of the Mainnet into your development environment. A free account will suffice. 
 
 1. Navigate to [Alchemy](https://alchemyapi.io) and create an account.
 2. Log in and create a new Project on Mainnet. 
-3. Navigate to the [Dashboard](https://dashboard.alchemyapi.io/) and copy the HTTPS link for your account. The link is in the form `https://eth-mainnet.alchemyapi.io/v2/<YOURAPIKEY>`. This can be configured in the `forking` sections of the `config.ts`. (Optional: update `blockNumber` to fork a more recent state, at time of writing it is `12488859`)
+3. Navigate to the [Dashboard](https://dashboard.alchemyapi.io/) and click View Key.  Paste the URL into the section labeled PROVIDER_FORKING in the `.env` file. 
+(Optional: update sectionlabeled BLOCKNUMBER in the `.env` file to fork a more recent state, at time of writing it is `12488859`)
 
-### Create an API key with Infura to deploy to Ethereum Public Testnets. In this guide, we are using Kovan.
-
-1. Navigate to [Infura.io](https://infura.io/) and create an account
-2. Log in and select "Get started and create your first project to access the Ethereum network"
-3. Create a project and name it appropriately
-4. On the Settings page, with Mainnet selected, copy the HTTPS URL and paste it in the `mainnet` section of `config.ts`
-5. Then, switch the endpoint to Kovan, copy the https URL and paste it into the section previously named `rinkeby` in the config.ts file, and rename the section to `kovan`. 
-6. Update the chainId to that of Kovan, 42
-7. Finally, insert the mnemonic phrase for your testing wallet. You can use a MetaMask instance, and switch the network to Kovan on the upper right. DO NOT USE YOUR PERSONAL METAMASK SEED PHRASE; USE A DIFFERENT BROWSER WITH AN INDEPENDENT METAMASK INSTALLATION
-8. You'll need some Kovan-ETH (it is free) in order to pay the gas costs of deploying the contracts on the TestNet; you can use your GitHub account to authenticate to the [KovanFaucet](https://faucet.kovan.network/) and receive 2 Kovan-ETH for free every 24 hours
+### Create an API key with a Provider to deploy to Ethereum Public Testnets. In this guide, we are using Infura on Kovan.
+4. Navigate to [Infura.io](https://infura.io/) and create an account
+5. Log in and select "Get started and create your first project to access the Ethereum network"
+6. Create a project and name it appropriately. On the Settings page, switch the Network to Kovan and note the project URL ie https://kovan.infura.io/v3/INFURA-API-KEY
+7. Copy the Project URL and paste it into the section labeled PROVIDER in the `.env` file.
 
 ### Create an API key with Etherscan 
-1. Navigate to [EtherScan](https://etherscan.io/) and create an account 
-2. Log in and navigate to [MyAPIKey](https://etherscan.io/myapikey) 
-3. Use the Add button to create an API key, and paste it into the indicated section towards the bottom of the `config.ts` file
+8. Navigate to [EtherScan](https://etherscan.io/) and create an account 
+9. Log in and navigate to [MyAPIKey](https://etherscan.io/myapikey) 
+10. Use the Add button to create an API key, and paste it into the section labeled ETHERSCAN in the `.env` file
 
-### Verify contents of config.ts; it should look like this:
+### Optional: Insert your own deployment of Governance.Sol contract address
+11. If you deployed Governance.sol from BarnBridge-DAO, insert the contract address into the field labeled DAO in the `.env` file.
 
-```js
-    import { HardhatUserConfig } from 'hardhat/config';
-    const config: HardhatUserConfig = {
-        // Your type-safe config goes here
-        networks: {
-            // Needed for `solidity-coverage`
-            coverage: {
-                forking: {
-                    url: 'https://eth-mainnet.alchemyapi.io/v2/API-KEY-HERE',
-                    blockNumber: 12488859,
-                },
-                allowUnlimitedContractSize: true,
-                url: 'http://localhost:8555',
-            },
-            hardhat: {
-                forking: {
-                    url: 'https://eth-mainnet.alchemyapi.io/v2/API-KEY-HERE',
-                    blockNumber: 12488859,
-                },
-            },
-            // Kovan
-            kovan: {
-                url: 'https://kovan.infura.io/v3/API-KEY-HERE',
-                chainId: 42, // Kovan Chain ID is 42
-                accounts: {
-                    mnemonic: '<YourKovanTestWalletMnemonicPhrase>',
-                    path: 'm/44\'/60\'/0\'/0',
-                    initialIndex: 0,
-                    count: 10,
-                },
-                gas: 'auto',
-                gasPrice: 1000000000, // 1 gwei
-                gasMultiplier: 1.5,
-            },
-            // Mainnet
-            mainnet: {
-                url: 'https://mainnet.infura.io/v3/API-KEY-HERE',
-                chainId: 1,
-                accounts: {
-                    mnemonic: '<USEWITHCAUTION!!!>',
-                    path: 'm/44\'/60\'/0\'/0',
-                    initialIndex: 1,
-                    count: 10,
-                },
-                gas: 'auto',
-                gasPrice: 73000000000, // 1 gwei
-                gasMultiplier: 1.5,
-            },
-        },
-        // Use to verify contracts on Etherscan
-        // https://buidler.dev/plugins/nomiclabs-buidler-etherscan.html
-        etherscan: {
-            apiKey: '<EtherScanAPIkey>',
-        },
-    };
-    export default config;
-```
+### Update the .env file with your test wallet info
+12. Finally, insert the mnemonic phrase for your testing wallet into the `.env` file. You can use a MetaMask instance, and switch the network to Kovan on the upper right. DO NOT USE YOUR PERSONAL METAMASK SEED PHRASE; USE A DIFFERENT BROWSER WITH AN INDEPENDENT METAMASK INSTALLATION
+13. You'll need some Kovan-ETH (it is free) in order to pay the gas costs of deploying the contracts on the TestNet; you can use your GitHub account to authenticate to the [KovanFaucet](https://faucet.kovan.network/) and receive 2 Kovan-ETH for free every 24 hours
+14. Use the [BarnBridgeFaucet](https://testnet.app.barnbridge.com/faucets) to swap some of your kETH for BOND, and also get test tokens for the originator platforms
+
+### Optional: Modify Deployment Controls in the .env file
+15. If you would only like to deploy certain SmartYield components, comment out DEPLOY_ALL in the `.env` file and un-comment out the components you'd like to deploy.
+
 ## Installing
-
 ### Install NodeJS dependencies which include HardHat
+
     npm install
+
 ### Compile the contracts
+
     npm run compile
     
 ## Running Tests
@@ -184,22 +129,16 @@ Alchemy.io can be used to fork the current state of the Mainnet into your develo
 
 ## MainNet Forking
 
-
     npm run test-mainnet    
     
 ## Deploying to Kovan
-
+Optional: Update the `.env` file indicating which specific Smart Yield pools you would like to deploy, or leave it as the default DEPLOY_ALL
 ### Use the code in the scripts folder to deploy the contracts on Kovan
 
-    npx hardhat run --network kovan scripts/deploy-kovan-aave-dai.ts
-    npx hardhat run --network kovan scripts/deploy-kovan-aave-usdc.ts
-    npx hardhat run --network kovan scripts/deploy-kovan-aave-usdt.ts
-    npx hardhat run --network kovan scripts/deploy-kovan-compound-dai.ts
-    npx hardhat run --network kovan scripts/deploy-kovan-compound-usdc.ts
-    npx hardhat run --network kovan scripts/deploy-kovan-cream-usdc.ts
-    npx hardhat run --network kovan scripts/deploy-kovan-bondmodel-v2-compounded.ts
+    npm run deploy-from-env
 
-### Deploy the Bot to further test the live contracts!
+### Optional: Deploy the Bot to further test the live contracts!
+Update bot-kovan-oracle-update.ts with the oracle addresses from deploy-from-env.
 
     npx hardhat run --network kovan scripts/bot-kovan-oracle-update.ts 
 
