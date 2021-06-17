@@ -2,6 +2,8 @@ let masterProvider: providers.JsonRpcProvider | undefined = undefined;
 let masterConfig: HardhatConfig | undefined = undefined;
 let mainnetProviderIndex = 0;
 let testnetProviderIndex = 0;
+let goerliProviderIndex = 0;
+let mumbaiProviderIndex = 0;
 
 const mainnetRpcProviderUrls = [
   'https://mainnet.infura.io/v3/bcb0d67752d84ccfaf5a27d7d7084b03',
@@ -25,11 +27,27 @@ const testnetRpcProviderUrls = [
   'https://kovan.infura.io/v3/40c9673d401a40c994c5110c6a0b7317', // +infura7
 ];
 
+const goerliRpcProviderUrls = [
+  'https://goerli.infura.io/v3/1e73db2462f44260b1708a31a331bfd6',
+  'https://goerli.infura.io/v3/bdb7e97c01cc48819dca502db609d3c5', // +infura1
+  'https://goerli.infura.io/v3/386879bd99f1464784912d63a449960b', // +infura2
+  'https://goerli.infura.io/v3/38297b14e8644962aed82190f18ee80a', // +infura3
+  'https://goerli.infura.io/v3/287dca8801ca46b6b496188ad077d2a1', // +infura4
+  'https://goerli.infura.io/v3/dec7f10727064199a5c23c7a2c33bfbe', // +infura5
+  'https://goerli.infura.io/v3/946b15e7b8d14ec8b8b9dc0e7ec1ee32', // +infura6
+  'https://goerli.infura.io/v3/40c9673d401a40c994c5110c6a0b7317', // +infura7
+];
+
+const mumbaiRpcProviderUrls = [
+  'https://rpc-mumbai.maticvigil.com',
+];
+
+
 import axios from 'axios';
 import _ from 'lodash';
 import { BigNumber as BN, Signer, providers, Wallet } from 'ethers';
 import { createProvider } from 'hardhat/internal/core/providers/construction';
-import { ethers, web3, config } from 'hardhat';
+import { hardhatArguments, ethers, web3, config } from 'hardhat';
 import { YieldOracleFactory } from '@typechain/YieldOracleFactory';
 import { YieldOracle } from '@typechain/YieldOracle';
 import { SmartYieldFactory } from '@typechain/SmartYieldFactory';
@@ -282,6 +300,23 @@ export const getProviderTestnet = async (): Promise<providers.JsonRpcSigner> => 
   return provider;
 };
 
+export const getProviderGoerli = async (): Promise<providers.JsonRpcSigner> => {
+
+  const provider = await buildProvider(goerliRpcProviderUrls[goerliProviderIndex]);
+  goerliProviderIndex = (++goerliProviderIndex) % goerliRpcProviderUrls.length;
+
+  return provider;
+};
+
+export const getProviderMumbai = async (): Promise<providers.JsonRpcSigner> => {
+
+  const provider = await buildProvider(mumbaiRpcProviderUrls[mumbaiProviderIndex]);
+  mumbaiProviderIndex = (++mumbaiProviderIndex) % mumbaiRpcProviderUrls.length;
+
+  return provider;
+};
+
+
 const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcSigner> => {
 
   function createProviderProxy(
@@ -309,10 +344,10 @@ const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcSign
     masterConfig = _.cloneDeep(config);
   }
 
-  const networkName = 'homestead' === masterProvider.network.name ? 'mainnet' : masterProvider.network.name;
+  const networkName = hardhatArguments.network || 'hardhat';
 
   const provider = createProvider(
-    masterProvider.network.name,
+    networkName,
     {
       ...masterConfig.networks[networkName],
       url: providerUrl,
