@@ -15,7 +15,7 @@ contract IdleProvider is IProvider {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    address public referral;
+    address public referral = 0x4cAE362D7F227e3d306f70ce4878E245563F3069;
     uint256 public constant MAX_UINT256 = uint256(-1);
     uint256 public constant EXP_SCALE = 1e18;
 
