@@ -8,7 +8,6 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "./../lib/math/MathUtils.sol";
 import "./../external-interfaces/idle/IIdleToken.sol";
-import "./../external-interfaces/idle/IIdleTokenHelper.sol";
 import "./IIdleCumulator.sol";
 import "../IController.sol";
 import "./../oracle/IYieldOracle.sol";
