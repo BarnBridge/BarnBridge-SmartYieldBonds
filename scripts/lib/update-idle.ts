@@ -3,26 +3,13 @@ let masterConfig: HardhatConfig | undefined = undefined;
 let mainnetProviderIndex = 0;
 let testnetProviderIndex = 0;
 
+
 const mainnetRpcProviderUrls = [
-  'https://mainnet.infura.io/v3/bcb0d67752d84ccfaf5a27d7d7084b03',
-  'https://mainnet.infura.io/v3/7980b6bc9a9a4804877acae78e214525', // +infura1
-  'https://mainnet.infura.io/v3/302f37044934401b8a6f8fdc6b8e56a3', // +infura2
-  'https://mainnet.infura.io/v3/94d26fc947464eb89c247f92a42d1737', // +infura3
-  'https://mainnet.infura.io/v3/c9a9e22e7a934e97ba1a4e29b90de102', // +infura4
-  'https://mainnet.infura.io/v3/10c4bf16332e48a78681c09aed0696f9', // +infura5
-  'https://mainnet.infura.io/v3/cf6780a68a6a49cb9049e22173a0b9c8', // +infura6
-  'https://mainnet.infura.io/v3/7b5995940eb4442daf64118978606568', // +infura7
+  'https://mainnet.infura.io/v3/0f57b5c22ed147458704002e133c08a4',
 ];
 
 const testnetRpcProviderUrls = [
-  'https://kovan.infura.io/v3/1e73db2462f44260b1708a31a331bfd6',
-  'https://kovan.infura.io/v3/bdb7e97c01cc48819dca502db609d3c5', // +infura1
-  'https://kovan.infura.io/v3/386879bd99f1464784912d63a449960b', // +infura2
-  'https://kovan.infura.io/v3/38297b14e8644962aed82190f18ee80a', // +infura3
-  'https://kovan.infura.io/v3/287dca8801ca46b6b496188ad077d2a1', // +infura4
-  'https://kovan.infura.io/v3/dec7f10727064199a5c23c7a2c33bfbe', // +infura5
-  'https://kovan.infura.io/v3/946b15e7b8d14ec8b8b9dc0e7ec1ee32', // +infura6
-  'https://kovan.infura.io/v3/40c9673d401a40c994c5110c6a0b7317', // +infura7
+  'https://kovan.infura.io/v3/0f57b5c22ed147458704002e133c08a4',
 ];
 
 import axios from 'axios';

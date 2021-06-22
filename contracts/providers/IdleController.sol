@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "./../lib/math/MathUtils.sol";
 import "./../external-interfaces/idle/IIdleToken.sol";
+import "./../external-interfaces/idle/IIdleTokenHelper.sol";
 import "./IIdleCumulator.sol";
 import "../IController.sol";
 import "./../oracle/IYieldOracle.sol";
@@ -52,7 +53,7 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     modifier onlyPool {
       require(
         msg.sender == pool,
-        "CC: only pool"
+        "IC: only pool"
       );
       _;
     }
@@ -129,19 +130,6 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
       return cTokens_.mul(exchangeRate_).div(EXP_SCALE);
     }
 
-    /* function harvest(uint256)
-      public
-    returns (uint256 rewardAmountGot, uint256 underlyingHarvestReward)
-    {
-        //uint256 amountRewarded = IdleProvider(pool).claimRewardsTo(MAX_UINT256, rewardsCollector);
-        (address[] memory tokens, uint256[] memory rewardTotal, uint256[] memory rewardSold) = IdleProvider(pool).claimRewardsTo(MAX_UINT256, rewardsCollector);
-
-        //emit Harvest(msg.sender, amountRewarded, 0, 0, 0, HARVEST_COST);
-        emit Harvest(msg.sender, tokens, rewardTotal, rewardSold, underlyingReward, HARVEST_COST);
-        //return (amountRewarded, 0);
-        return (underlyingReward, 0);
-    } */
-
     function harvest(uint256)
       public
       returns (address[] memory tokens, uint256[] memory rewardAmounts, uint256 underlyingHarvestReward)
@@ -153,7 +141,14 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     }
 
     function spotDailySupplyRateProvider() public view returns (uint256) {
-        return (IIdleToken(cToken).getAvgAPR()).div(36525);
+        // eg. [5000, 0, 5000, 0] for 50% in compound, 0% fulcrum, 50% aave, 0 dydx. same order of allAvailableTokens
+        uint256 apr = 0;
+        uint256[] memory allocations = IIdleToken(cToken).getAllocations();
+        (address[] memory addresses, uint256[] memory aprs) = IIdleToken(cToken).getAPRs();
+        for (uint256 i = 0; i<allocations.length; i++) {
+            apr = apr.add(allocations[i].mul(aprs[i]));
+        }
+        return apr.div(36500).div(10000);
     }
 
     function spotDailyDistributionRateProvider() public view returns (uint256) {

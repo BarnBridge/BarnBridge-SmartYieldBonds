@@ -5,9 +5,6 @@ pragma abicoder v2;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "./../lib/uniswap/UniswapV2Library.sol";
-import "./../lib/uniswap/UniswapV2OracleLibrary.sol";
-import "./../external-interfaces/uniswap/IUniswapV2Router.sol";
 import "./../external-interfaces/idle/IIdleToken.sol";
 
 import "../IProvider.sol";
@@ -48,7 +45,7 @@ contract IdleProvider is IProvider {
     modifier onlySmartYield {
       require(
         msg.sender == smartYield,
-        "PPC: only smartYield"
+        "IP: only smartYield"
       );
       _;
     }
@@ -56,7 +53,7 @@ contract IdleProvider is IProvider {
     modifier onlyController {
       require(
         msg.sender == controller,
-        "PPC: only controller"
+        "IP: only controller"
       );
       _;
     }
@@ -64,7 +61,7 @@ contract IdleProvider is IProvider {
     modifier onlySmartYieldOrController {
       require(
         msg.sender == smartYield || msg.sender == controller,
-        "PPC: only smartYield/controller"
+        "IP: only smartYield/controller"
       );
       _;
     }
@@ -72,7 +69,7 @@ contract IdleProvider is IProvider {
     modifier onlyControllerOrDao {
       require(
         msg.sender == controller || msg.sender == IdleController(controller).dao(),
-        "PPC: only controller/DAO"
+        "IP: only controller/DAO"
       );
       _;
     }
@@ -88,7 +85,7 @@ contract IdleProvider is IProvider {
     ) external {
         require(
           false == _setup,
-          "PPC: already setup"
+          "IP: already setup"
         );
 
         smartYield = smartYield_;
@@ -113,7 +110,7 @@ contract IdleProvider is IProvider {
         uint256 balanceAfter = IERC20(uToken).balanceOf(address(this));
         require(
             0 == (balanceAfter - balanceBefore - underlyingAmount_),
-            "PPC: _takeUnderlying amount"
+            "IP: _takeUnderlying amount"
         );
     }
 
@@ -124,7 +121,7 @@ contract IdleProvider is IProvider {
         uint256 balanceAfter = IERC20(uToken).balanceOf(to_);
         require(
           0 == (balanceAfter - balanceBefore - underlyingAmount_),
-          "PPC: _sendUnderlying amount"
+          "IP: _sendUnderlying amount"
         );
     }
 
@@ -213,7 +210,7 @@ contract IdleProvider is IProvider {
       uint256 govTokensLength = govTokens.length;
       uint256[] memory rewardAmount = new uint256[](govTokensLength);
       uint256[] memory rewardSold = new uint256[](govTokensLength);
-      for (uint256 i = 0; i < govTokens.length; i++) {
+      for (uint256 i = 0; i < govTokensLength; i++) {
           rewardAmount[i] = IERC20(govTokens[i]).balanceOf(address(this));
           rewardSold[i] = 0;
           IERC20(govTokens[i]).safeTransfer(to, IERC20(govTokens[i]).balanceOf(address(this)));
