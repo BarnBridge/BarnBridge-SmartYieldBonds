@@ -21,7 +21,6 @@
     "@types/node": "^14.14.2",
     "@typescript-eslint/eslint-plugin": "^4.5.0",
     "@typescript-eslint/parser": "^4.5.0",
-    "@uniswap/sdk": "^3.0.3",
     "axios": "^0.21.1",
     "bignumber.js": "^9.0.1",
     "chai": "^4.2.0",

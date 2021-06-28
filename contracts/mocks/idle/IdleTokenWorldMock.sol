@@ -52,9 +52,7 @@ contract IdleTokenWorldMock is IIdleToken, ERC20 {
 
     constructor(uint256 tokenPrice_, uint8 underlyingDecimals_, uint256 avgAPR_)
       ERC20("IdleToken mock", "IdleToken") {
-      //_setupDecimals(18);
       _underlying = address(new Erc20Mock("DAI Mock", "DAIMOCK", underlyingDecimals_));
-     //_comp = address(new Erc20Mock("COMP mock", "COMP", 18));
      _tokenPrice = tokenPrice_;
      _avgAPR = avgAPR_;
 
@@ -68,9 +66,6 @@ contract IdleTokenWorldMock is IIdleToken, ERC20 {
       _burn(to_, amount_);
     }
 
-    /* function underlying() external view returns (address) {
-        return token();
-    } */
     function mintIdleToken(uint256 _amount, bool _skipWholeRebalance, address _referral) external override returns (uint256) {
       IERC20(_underlying).safeTransferFrom(msg.sender, address(this), _amount);
       _mint(msg.sender, _amount/this.tokenPrice());
@@ -95,10 +90,6 @@ contract IdleTokenWorldMock is IIdleToken, ERC20 {
         return false;
     }
 
-    /* function rebalanceWithGST() external override returns (bool) {
-        return false;
-    } */
-
     function tokenPrice() external view override returns (uint256 price) {
         return _tokenPrice;
     }
@@ -118,18 +109,11 @@ contract IdleTokenWorldMock is IIdleToken, ERC20 {
     }
 
     function getGovTokensAmounts(address _usr) external view override returns (uint256[] memory amounts) {
-        /* uint256[] memory govTokensAmounts = new uint256[](3);
-        govTokensAmounts = [uint256(0), uint256(0), uint256(0)];
-        return govTokensAmounts; */
         amounts = new uint256[](3);
         amounts[0] = 0;
         amounts[1] = 0;
         amounts[2] = 0;
     }
-
-    /* function openRebalance(uint256[] calldata _newAllocations) external override returns (bool, uint256 avgApr) {
-        return (false, _avgAPR);
-    } */
 
     function flashLoanFee() external override view returns (uint256) {
         return 0;
@@ -142,10 +126,6 @@ contract IdleTokenWorldMock is IIdleToken, ERC20 {
     function maxFlashLoan(address _token) external override view returns (uint256) {
         return 0;
     }
-
-    /* function flashLoan(IERC3156FlashBorrower _receiver, address _token, uint256 _amount, bytes calldata _params) external override returns (bool) {
-        return false;
-    } */
 
     function getAllocations() external override view returns (uint256[] memory) {
         uint256[] memory allocs = new uint256[](1);

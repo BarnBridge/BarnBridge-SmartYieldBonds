@@ -178,9 +178,6 @@ contract IdleProvider is IProvider {
 
     // current total underlying balance, as measured by pool, without fees
     function underlyingBalance() external virtual override returns (uint256) {
-        // https://compound.finance/docs#protocol-math
-        // (total balance in underlying) - underlyingFees
-        // cTokenBalance * exchangeRateCurrent() / EXP_SCALE - underlyingFees;
         return cTokenBalance.mul(exchangeRateCurrent()).div(EXP_SCALE).sub(underlyingFees);
     }
 
@@ -190,7 +187,6 @@ contract IdleProvider is IProvider {
   // /externals
 
   // public
-    // get exchangeRateCurrent from compound and cache it for the current block
     function exchangeRateCurrent() public virtual returns (uint256) {
       // only once per block
       if (block.timestamp > exchangeRateCurrentCachedAt) {

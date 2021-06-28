@@ -19,14 +19,8 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_UINT256 = uint256(-1);
-    uint256 public constant DOUBLE_SCALE = 1e36;
-
-    uint256 public constant BLOCKS_PER_DAY = 5760; // 4 * 60 * 24 (assuming 4 blocks per minute)
-
     address public uToken;
     address public cToken;
-
-    uint256 public harvestedLast;
     address public rewardsCollector;
     // last time we cumulated
     uint256 public prevCumulationTime;
@@ -37,15 +31,7 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     // cumulative supply rate += ((new underlying) / underlying)
     uint256 public cumulativeSupplyRate;
 
-    // cumulative COMP distribution rate += ((new underlying) / underlying)
-    uint256 public cumulativeDistributionRate;
-
-    // compound.finance comptroller.compSupplyState right after the previous deposit/withdraw
-    //IComptroller.CompMarketState public prevCompSupplyState; //TODO
-
     uint256 public underlyingDecimals;
-
-    //event Harvest(address indexed caller, uint256 compRewardTotal, uint256 compRewardSold, uint256 underlyingPoolShare, uint256 underlyingReward, uint256 harvestCost); //TODO
 
     event Harvest(address indexed caller, address[] token, uint256[] rewardTotal, uint256[] rewardSold, uint256 underlyingReward, uint256 harvestCost);
 
@@ -77,7 +63,6 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     function _beforeCTokenBalanceChange() external override onlyPool {}
 
     function _afterCTokenBalanceChange(uint256 prevCTokenBalance_) external override onlyPool {
-        // at this point compound.finance state is updated since the pool did a deposit or withdrawl just before, so no need to ping
         updateCumulativesInternal(prevCTokenBalance_, false);
         IYieldOracle(oracle).update();
     }
@@ -105,9 +90,6 @@ contract IdleController is IController, IIdleCumulator, IYieldOraclelizable {
     }
 
     function providerRatePerDay() public override returns (uint256) {
-        if (IYieldOracle(oracle).consult(1 days) == 0) {
-            return MathUtils.min(BOND_MAX_RATE_PER_DAY, spotDailyRate());
-        }
         return MathUtils.min(
             MathUtils.min(BOND_MAX_RATE_PER_DAY, spotDailyRate()),
             IYieldOracle(oracle).consult(1 days)
