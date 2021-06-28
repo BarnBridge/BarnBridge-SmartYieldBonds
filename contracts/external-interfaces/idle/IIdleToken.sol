@@ -17,7 +17,6 @@ interface IIdleToken {
     function flashLoanFee() external view returns (uint256 fee);
     function flashFee(address _token, uint256 _amount) external view returns (uint256);
     function maxFlashLoan(address _token) external view returns (uint256);
-    //function flashLoan(IERC3156FlashBorrower _receiver, address _token, uint256 _amount, bytes calldata _params) external returns (bool);
     function getAllocations() external view returns (uint256[] memory);
     function getGovTokens() external view returns (address[] memory);
     function getAllAvailableTokens() external view returns (address[] memory);
