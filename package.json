@@ -52,6 +52,7 @@
     "bot-update-kovan": "hardhat run scripts/bot-kovan-oracle-update.ts --network kovan",
     "bot-update-mainnet": "hardhat run scripts/bot-mainnet-oracle-update.ts --network mainnet",
     "bot-update-mumbai": "hardhat run scripts/bot-mumbai-oracle-update.ts --network mumbai",
+    "bot-update-polygon": "hardhat run scripts/bot-polygon-oracle-update.ts --network polygon",
     "coverage": "hardhat coverage --network hardhat",
     "compile": "hardhat clean && hardhat compile",
     "compile-and-test": "hardhat clean && hardhat compile && hardhat test",
