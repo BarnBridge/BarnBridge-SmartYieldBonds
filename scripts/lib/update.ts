@@ -3,6 +3,7 @@ let masterConfig: HardhatConfig | undefined = undefined;
 let mainnetProviderIndex = 0;
 let testnetProviderIndex = 0;
 let goerliProviderIndex = 0;
+let polygonProviderIndex = 0;
 let mumbaiProviderIndex = 0;
 
 const mainnetRpcProviderUrls = [
@@ -38,13 +39,24 @@ const goerliRpcProviderUrls = [
   'https://goerli.infura.io/v3/40c9673d401a40c994c5110c6a0b7317', // +infura7
 ];
 
+const polygonRpcProviderUrls = [
+  'https://polygon-mainnet.infura.io/v3/dea9b5dfc59247d98577321e9aee9bee',
+  'https://polygon-mainnet.infura.io/v3/517061d0f2144b388e5a8563e4e0463c', // +infura1
+  'https://polygon-mainnet.infura.io/v3/585c123e356e470ea04f03f21fdf3344', // +infura2
+  'https://polygon-mainnet.infura.io/v3/18c384c68e38437ead18ef6ec3c49257', // +infura3
+  'https://polygon-mainnet.infura.io/v3/2ebc046896e142cfb0df185371a2fb31', // +infura4
+  'https://polygon-mainnet.infura.io/v3/b60faf94ca41448e9115f291acedb40a', // +infura5
+  'https://polygon-mainnet.infura.io/v3/55d9bf8593c54bdc89724465f7ffc5b3', // +infura6
+  'https://polygon-mainnet.infura.io/v3/9b362991d4284cf282b51e0966450571', // +infura7
+];
+
 const mumbaiRpcProviderUrls = [
   'https://rpc-mumbai.maticvigil.com',
 ];
 
-
 import axios from 'axios';
 import _ from 'lodash';
+import BNj from 'bignumber.js';
 import { BigNumber as BN, Signer, providers, Wallet } from 'ethers';
 import { createProvider } from 'hardhat/internal/core/providers/construction';
 import { hardhatArguments, ethers, web3, config } from 'hardhat';
@@ -316,6 +328,13 @@ export const getProviderMumbai = async (): Promise<providers.JsonRpcSigner> => {
   return provider;
 };
 
+export const getProviderPolygon = async (): Promise<providers.JsonRpcSigner> => {
+
+  const provider = await buildProvider(polygonRpcProviderUrls[polygonProviderIndex]);
+  polygonProviderIndex = (++polygonProviderIndex) % polygonRpcProviderUrls.length;
+
+  return provider;
+};
 
 const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcSigner> => {
 
@@ -457,6 +476,13 @@ export const getGasPriceEtherscan = async (): Promise<BN> => {
   return BN.from(req.data['result']['FastGasPrice']).mul(10 ** 9);
 };
 
+export const getGasPricePolygonGasStation = async (): Promise<BN> => {
+  const url = 'https://gasstation-mainnet.matic.network';;
+  const req = await axios.get(url);
+  const toWeiStr = (new BNj(req.data['fast'])).times(10 ** 9).toFixed(0);
+  return BN.from(toWeiStr);
+};
+
 export const getGasPriceGasNow = async (): Promise<BN> => {
   if (undefined === process.env.APIKEY_GASNOW) {
     console.error('env var APIKEY_GASNOW is not set!');
@@ -497,6 +523,24 @@ export const getGasPriceMainnet = async (): Promise<BN> => {
   process.exit(-1);
 };
 
+export const getGasPricePolygon = async (): Promise<BN> => {
+
+  try {
+    return await getGasPricePolygonGasStation();
+  } catch (e) {
+    console.error('Failed to get EthGasStation gas price:', e);
+  }
+
+  try {
+    return await getGasPriceWeb3();
+  } catch (e) {
+    console.error('Failed to get Web3 gas price:', e);
+  }
+
+  console.error('getGasPricePolygon failed to get any price!');
+  process.exit(-1);
+};
+
 export const getAllGasPrice = async (): Promise<{ EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null }> => {
   const rez: { EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null } = {} as { EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null };
 
@@ -529,6 +573,32 @@ export const getAllGasPrice = async (): Promise<{ EthGasStation: BN | null, Ethe
 
 export const dumpAllGasPrices = async (): Promise<void> => {
   const gasPrices = await getAllGasPrice();
+  for (const [provider, price] of Object.entries(gasPrices)) {
+    (gasPrices as any)[provider] = price?.toString();
+  }
+  console.table(gasPrices);
+};
+
+export const getAllGasPricePolygon = async (): Promise<{ PolygonGasStation: BN | null, Web3: BN | null }> => {
+  const rez: { PolygonGasStation: BN | null, Web3: BN | null } = {} as { PolygonGasStation: BN | null, Web3: BN | null };
+
+  try {
+    rez.PolygonGasStation = await getGasPricePolygonGasStation();
+  } catch (e) {
+    rez.PolygonGasStation = null;
+  }
+
+  try {
+    rez.Web3 = await getGasPriceWeb3();
+  } catch (e) {
+    rez.Web3 = null;
+  }
+
+  return rez;
+};
+
+export const dumpAllGasPricesPolygon = async (): Promise<void> => {
+  const gasPrices = await getAllGasPricePolygon();
   for (const [provider, price] of Object.entries(gasPrices)) {
     (gasPrices as any)[provider] = price?.toString();
   }
