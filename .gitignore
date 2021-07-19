@@ -9,3 +9,4 @@ coverage.json
 abi
 
 config.ts
+.env

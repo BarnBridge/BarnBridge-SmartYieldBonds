@@ -2,64 +2,21 @@ let masterProvider: providers.JsonRpcProvider | undefined = undefined;
 let masterConfig: HardhatConfig | undefined = undefined;
 let mainnetProviderIndex = 0;
 let testnetProviderIndex = 0;
-let goerliProviderIndex = 0;
-let polygonProviderIndex = 0;
-let mumbaiProviderIndex = 0;
+
 
 const mainnetRpcProviderUrls = [
-  'https://mainnet.infura.io/v3/bcb0d67752d84ccfaf5a27d7d7084b03',
-  'https://mainnet.infura.io/v3/7980b6bc9a9a4804877acae78e214525', // +infura1
-  'https://mainnet.infura.io/v3/302f37044934401b8a6f8fdc6b8e56a3', // +infura2
-  'https://mainnet.infura.io/v3/94d26fc947464eb89c247f92a42d1737', // +infura3
-  'https://mainnet.infura.io/v3/c9a9e22e7a934e97ba1a4e29b90de102', // +infura4
-  'https://mainnet.infura.io/v3/10c4bf16332e48a78681c09aed0696f9', // +infura5
-  'https://mainnet.infura.io/v3/cf6780a68a6a49cb9049e22173a0b9c8', // +infura6
-  'https://mainnet.infura.io/v3/7b5995940eb4442daf64118978606568', // +infura7
+  'https://mainnet.infura.io/v3/0f57b5c22ed147458704002e133c08a4',
 ];
 
 const testnetRpcProviderUrls = [
-  'https://kovan.infura.io/v3/1e73db2462f44260b1708a31a331bfd6',
-  'https://kovan.infura.io/v3/bdb7e97c01cc48819dca502db609d3c5', // +infura1
-  'https://kovan.infura.io/v3/386879bd99f1464784912d63a449960b', // +infura2
-  'https://kovan.infura.io/v3/38297b14e8644962aed82190f18ee80a', // +infura3
-  'https://kovan.infura.io/v3/287dca8801ca46b6b496188ad077d2a1', // +infura4
-  'https://kovan.infura.io/v3/dec7f10727064199a5c23c7a2c33bfbe', // +infura5
-  'https://kovan.infura.io/v3/946b15e7b8d14ec8b8b9dc0e7ec1ee32', // +infura6
-  'https://kovan.infura.io/v3/40c9673d401a40c994c5110c6a0b7317', // +infura7
-];
-
-const goerliRpcProviderUrls = [
-  'https://goerli.infura.io/v3/1e73db2462f44260b1708a31a331bfd6',
-  'https://goerli.infura.io/v3/bdb7e97c01cc48819dca502db609d3c5', // +infura1
-  'https://goerli.infura.io/v3/386879bd99f1464784912d63a449960b', // +infura2
-  'https://goerli.infura.io/v3/38297b14e8644962aed82190f18ee80a', // +infura3
-  'https://goerli.infura.io/v3/287dca8801ca46b6b496188ad077d2a1', // +infura4
-  'https://goerli.infura.io/v3/dec7f10727064199a5c23c7a2c33bfbe', // +infura5
-  'https://goerli.infura.io/v3/946b15e7b8d14ec8b8b9dc0e7ec1ee32', // +infura6
-  'https://goerli.infura.io/v3/40c9673d401a40c994c5110c6a0b7317', // +infura7
-];
-
-const polygonRpcProviderUrls = [
-  'https://polygon-mainnet.infura.io/v3/dea9b5dfc59247d98577321e9aee9bee',
-  'https://polygon-mainnet.infura.io/v3/517061d0f2144b388e5a8563e4e0463c', // +infura1
-  'https://polygon-mainnet.infura.io/v3/585c123e356e470ea04f03f21fdf3344', // +infura2
-  'https://polygon-mainnet.infura.io/v3/18c384c68e38437ead18ef6ec3c49257', // +infura3
-  'https://polygon-mainnet.infura.io/v3/2ebc046896e142cfb0df185371a2fb31', // +infura4
-  'https://polygon-mainnet.infura.io/v3/b60faf94ca41448e9115f291acedb40a', // +infura5
-  'https://polygon-mainnet.infura.io/v3/55d9bf8593c54bdc89724465f7ffc5b3', // +infura6
-  'https://polygon-mainnet.infura.io/v3/9b362991d4284cf282b51e0966450571', // +infura7
-];
-
-const mumbaiRpcProviderUrls = [
-  'https://rpc-mumbai.maticvigil.com',
+  'https://kovan.infura.io/v3/0f57b5c22ed147458704002e133c08a4',
 ];
 
 import axios from 'axios';
 import _ from 'lodash';
-import BNj from 'bignumber.js';
 import { BigNumber as BN, Signer, providers, Wallet } from 'ethers';
 import { createProvider } from 'hardhat/internal/core/providers/construction';
-import { hardhatArguments, ethers, web3, config } from 'hardhat';
+import { ethers, web3, config } from 'hardhat';
 import { YieldOracleFactory } from '@typechain/YieldOracleFactory';
 import { YieldOracle } from '@typechain/YieldOracle';
 import { SmartYieldFactory } from '@typechain/SmartYieldFactory';
@@ -184,11 +141,13 @@ export class UpdaterFast {
 
   private async shouldHarvest(harvestable: HarvestableData): Promise<number> {
     try {
-      const { 0: rewardExpected } = await harvestable.controller.connect(await this.providerGetter()).callStatic.harvest(0);
-      console.log(`... harvest reward: ${rewardExpected.toString()} (min: ${this.harvestMin.toString()})`);
-      if (rewardExpected.gte(this.harvestMin)) {
-        // harvest
-        return 0;
+      const { tokens, rewardAmounts, underlyingHarvestReward } = await harvestable.controller.connect(await this.providerGetter()).callStatic.harvest(0);
+      for (let i = 0; i < tokens.length; i++) {
+          console.log(`... harvest reward: ${rewardAmounts[i].toString()} (min: ${this.harvestMin.toString()})`);
+          if (rewardAmounts[i].gte(this.harvestMin)) {
+            // harvest
+            return 0;
+          }
       }
       return A_DAY;
     } catch (e) {
@@ -314,30 +273,6 @@ export const getProviderTestnet = async (): Promise<providers.JsonRpcSigner> => 
   return provider;
 };
 
-export const getProviderGoerli = async (): Promise<providers.JsonRpcSigner> => {
-
-  const provider = await buildProvider(goerliRpcProviderUrls[goerliProviderIndex]);
-  goerliProviderIndex = (++goerliProviderIndex) % goerliRpcProviderUrls.length;
-
-  return provider;
-};
-
-export const getProviderMumbai = async (): Promise<providers.JsonRpcSigner> => {
-
-  const provider = await buildProvider(mumbaiRpcProviderUrls[mumbaiProviderIndex]);
-  mumbaiProviderIndex = (++mumbaiProviderIndex) % mumbaiRpcProviderUrls.length;
-
-  return provider;
-};
-
-export const getProviderPolygon = async (): Promise<providers.JsonRpcSigner> => {
-
-  const provider = await buildProvider(polygonRpcProviderUrls[polygonProviderIndex]);
-  polygonProviderIndex = (++polygonProviderIndex) % polygonRpcProviderUrls.length;
-
-  return provider;
-};
-
 const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcSigner> => {
 
   function createProviderProxy(
@@ -365,10 +300,10 @@ const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcSign
     masterConfig = _.cloneDeep(config);
   }
 
-  const networkName = hardhatArguments.network || 'hardhat';
+  const networkName = 'homestead' === masterProvider.network.name ? 'mainnet' : masterProvider.network.name;
 
   const provider = createProvider(
-    networkName,
+    masterProvider.network.name,
     {
       ...masterConfig.networks[networkName],
       url: providerUrl,
@@ -478,13 +413,6 @@ export const getGasPriceEtherscan = async (): Promise<BN> => {
   return BN.from(req.data['result']['FastGasPrice']).mul(10 ** 9);
 };
 
-export const getGasPricePolygonGasStation = async (): Promise<BN> => {
-  const url = 'https://gasstation-mainnet.matic.network';;
-  const req = await axios.get(url);
-  const toWeiStr = (new BNj(req.data['fast'])).times(10 ** 9).toFixed(0);
-  return BN.from(toWeiStr);
-};
-
 export const getGasPriceGasNow = async (): Promise<BN> => {
   if (undefined === process.env.APIKEY_GASNOW) {
     console.error('env var APIKEY_GASNOW is not set!');
@@ -525,24 +453,6 @@ export const getGasPriceMainnet = async (): Promise<BN> => {
   process.exit(-1);
 };
 
-export const getGasPricePolygon = async (): Promise<BN> => {
-
-  try {
-    return await getGasPricePolygonGasStation();
-  } catch (e) {
-    console.error('Failed to get EthGasStation gas price:', e);
-  }
-
-  try {
-    return await getGasPriceWeb3();
-  } catch (e) {
-    console.error('Failed to get Web3 gas price:', e);
-  }
-
-  console.error('getGasPricePolygon failed to get any price!');
-  process.exit(-1);
-};
-
 export const getAllGasPrice = async (): Promise<{ EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null }> => {
   const rez: { EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null } = {} as { EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null };
 
@@ -575,32 +485,6 @@ export const getAllGasPrice = async (): Promise<{ EthGasStation: BN | null, Ethe
 
 export const dumpAllGasPrices = async (): Promise<void> => {
   const gasPrices = await getAllGasPrice();
-  for (const [provider, price] of Object.entries(gasPrices)) {
-    (gasPrices as any)[provider] = price?.toString();
-  }
-  console.table(gasPrices);
-};
-
-export const getAllGasPricePolygon = async (): Promise<{ PolygonGasStation: BN | null, Web3: BN | null }> => {
-  const rez: { PolygonGasStation: BN | null, Web3: BN | null } = {} as { PolygonGasStation: BN | null, Web3: BN | null };
-
-  try {
-    rez.PolygonGasStation = await getGasPricePolygonGasStation();
-  } catch (e) {
-    rez.PolygonGasStation = null;
-  }
-
-  try {
-    rez.Web3 = await getGasPriceWeb3();
-  } catch (e) {
-    rez.Web3 = null;
-  }
-
-  return rez;
-};
-
-export const dumpAllGasPricesPolygon = async (): Promise<void> => {
-  const gasPrices = await getAllGasPricePolygon();
   for (const [provider, price] of Object.entries(gasPrices)) {
     (gasPrices as any)[provider] = price?.toString();
   }
