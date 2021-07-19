@@ -85,11 +85,11 @@ describe('IdleProvider', async function () {
 
       const { pool, controller, underlying, deployerSign, smartYieldSign, deployerAddr, smartYieldAddr } = await bbFixtures(fixture());
 
-      await expect(pool.connect(deployerSign)._depositProvider(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('CrP: only smartYield/controller');
-      await expect(pool.connect(deployerSign)._withdrawProvider(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('CrP: only smartYield');
-      await expect(pool.connect(smartYieldSign)._depositProvider(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('CrP: only smartYield/controller');
-      await expect(pool.connect(smartYieldSign)._withdrawProvider(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('CrP: only smartYield');
-      await expect(pool.connect(smartYieldSign).claimRewardsTo(100, deployerAddr), 'should throw if not controller').revertedWith('CrP: only controller');
+      await expect(pool.connect(deployerSign)._depositProvider(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('IP: only smartYield/controller');
+      await expect(pool.connect(deployerSign)._withdrawProvider(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('IP: only smartYield');
+      await expect(pool.connect(smartYieldSign)._depositProvider(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('IP: only smartYield/controller');
+      await expect(pool.connect(smartYieldSign)._withdrawProvider(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('IP: only smartYield');
+      await expect(pool.connect(smartYieldSign).claimRewardsTo(100, deployerAddr), 'should throw if not controller').revertedWith('IP: only controller');
     });
 
     it('_depositProvider deposits to provider', async function () {
@@ -130,10 +130,10 @@ describe('IdleProvider', async function () {
 
       const { pool, controller, underlying, deployerSign, smartYieldSign, deployerAddr, smartYieldAddr } = await bbFixtures(fixture());
 
-      await expect(pool.connect(deployerSign)._takeUnderlying(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('CrP: only smartYield/controller');
-      await expect(pool.connect(deployerSign)._sendUnderlying(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('CrP: only smartYield');
-      await expect(pool.connect(smartYieldSign)._takeUnderlying(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('CrP: only smartYield/controller');
-      await expect(pool.connect(smartYieldSign)._sendUnderlying(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('CrP: only smartYield');
+      await expect(pool.connect(deployerSign)._takeUnderlying(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('IP: only smartYield/controller');
+      await expect(pool.connect(deployerSign)._sendUnderlying(deployerAddr, 1), 'should throw if not smartYieldAddr').revertedWith('IP: only smartYield');
+      await expect(pool.connect(smartYieldSign)._takeUnderlying(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('IP: only smartYield/controller');
+      await expect(pool.connect(smartYieldSign)._sendUnderlying(deployerAddr, 1), 'should not throw if smartYieldAddr').not.revertedWith('IP: only smartYield');
     });
 
     it('_takeUnderlying takes underlying & checks for allowance', async function () {
@@ -222,7 +222,7 @@ describe('IdleProvider', async function () {
       //TODO gov tokens
       const { pool, controller, deployerSign, rewardHolderSign, rewardHolderAddr } = await bbFixtures(fixture());
 
-      await expect(pool.connect(rewardHolderSign).setController(rewardHolderAddr), 'should throw if not dao/controller').revertedWith('CrP: only controller/DAO');
+      await expect(pool.connect(rewardHolderSign).setController(rewardHolderAddr), 'should throw if not dao/controller').revertedWith('IP: only controller/DAO');
 
       expect(await pool.callStatic.controller(), controller.address);
 
