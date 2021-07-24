@@ -12,6 +12,11 @@ Any questions? Please contact us on [Discord](https://discord.gg/FfEhsVk) or rea
 ## Specifications
 Contract Specifications can be found at [Specifications](https://github.com/BarnBridge/BarnBridge-SmartYieldBonds/blob/master/SPEC.md)
 
+## Audits
+* [Open Zeppelin](https://github.com/BarnBridge/BarnBridge-PM/blob/master/audits/BarnBridge%20SMART%20Yield%20audit%20by%20Open%20Zeppelin.pdf)
+* [Hacken (Compound)](https://github.com/BarnBridge/BarnBridge-PM/blob/master/audits/BarnBridge%20SMART%20Yield%20(compound)%20audit%20by%20Hacken.pdf)
+* [Hacken (Aave & Cream)](https://github.com/BarnBridge/BarnBridge-PM/blob/master/audits/BarnBridge%20SMART%20Yield%20(aave%2Bcream)%20audit%20by%20Hacken.pdf)
+
 ## Contracts
 ### SmartYield.sol
 SMART Yield implementation, contains all logic that is not liquidity provider specific. SmartYield also implements an ERC20 fungible token for juniors.
@@ -107,7 +112,7 @@ Alchemy.io can be used to fork the current state of the Mainnet into your develo
 
 ### Copy config.ts.dotenv to config.ts
     cp config.ts.dotenv config.ts
-    
+
 ## Installing
 ### Install NodeJS dependencies which include HardHat
 
