@@ -28,16 +28,19 @@ const decimals_dai = 18; // same as DAI
 
 // External Token Addresses
 const USDC = process.env.USDC;
+const USDT = process.env.USDC;
 const WETH = process.env.WETH;
 const DAI = process.env.DAI;
 
 // Provider Tokens Addresses
 const cUSDC = process.env.CUSDC;
+const cUSDT = process.env.CUSDT;
 const cDAI = process.env.CDAI;
 const COMP = process.env.COMP;
 const aUSDC = process.env.AUSDC;
 const aUSDT = process.env.AUSDT;
 const aGUSD = process.env.AGUSD;
+const aSUSD = process.env.ASUSD;
 const aDAI = process.env.ADAI;
 const crUSDC = process.env.CRUSDC;
 const crDAI = process.env.CRDAI;
@@ -45,12 +48,18 @@ const crUSDT = process.env.CRUSDT;
 
 // UniSwap Mappings
 const uniswapPath_cUSDC = [COMP, WETH, USDC];
+const uniswapPath_cUSDT = [COMP, WETH, USDT];
 const uniswapPath_cDAI = [COMP, WETH, DAI];
 
 // Compound USDC Symbol Mappings
 const seniorBondCONF_cUSDC = { name: 'BarnBridge cUSDC sBOND', symbol: 'bbscUSDC' };
 const juniorBondCONF_cUSDC = { name: 'BarnBridge cUSDC jBOND', symbol: 'bbjcUSDC' };
 const juniorTokenCONF_cUSDC = { name: 'BarnBridge cUSDC', symbol: 'bbcUSDC' };
+
+// Compound USDT Symbol Mappings
+const seniorBondCONF_cUSDT = { name: 'BarnBridge cUSDT sBOND', symbol: 'bbscUSDT' };
+const juniorBondCONF_cUSDT = { name: 'BarnBridge cUSDT jBOND', symbol: 'bbjcUSDT' };
+const juniorTokenCONF_cUSDT = { name: 'BarnBridge cUSDT', symbol: 'bbcUSDT' };
 
 // Compound DAI Symbol Mappings
 const seniorBondCONF_cDAI = { name: 'BarnBridge cDAI sBOND', symbol: 'bb_sBOND_cDAI' };
@@ -66,6 +75,11 @@ const juniorTokenCONF_aUSDC = { name: 'BarnBridge aUSDC', symbol: 'bb_aUSDC' };
 const seniorBondCONF_aUSDT = { name: 'BarnBridge aUSDT sBOND', symbol: 'bb_sBOND_aUSDT' };
 const juniorBondCONF_aUSDT = { name: 'BarnBridge aUSDT jBOND', symbol: 'bb_jBOND_aUSDT' };
 const juniorTokenCONF_aUSDT = { name: 'BarnBridge aUSDT', symbol: 'bb_aUSDT' };
+
+// Aave SUSD Symbol Mappings
+const seniorBondCONF_aSUSD = { name: 'BarnBridge aSUSD sBOND', symbol: 'bb_sBOND_aSUSD' };
+const juniorBondCONF_aSUSD= { name: 'BarnBridge aSUSD jBOND', symbol: 'bb_jBOND_aSUSD' };
+const juniorTokenCONF_aSUSD = { name: 'BarnBridge aSUSD', symbol: 'bb_aSUSD' };
 
 // Cream USDC Symbol Mappings
 const seniorBondCONF_crUSDC = { name: 'BarnBridge crUSDC sBOND', symbol: 'bb_sBOND_crUSDC' };
@@ -153,6 +167,30 @@ async function main() {
     console.log('oracle_cDAI:', oracle_cDAI.address);
   }
 
+  // Compound USDT
+  if ((process.env.DEPLOY_ALL === 'true') || (process.env.DEPLOY_CUSDT === 'true')) {
+    console.log('##### Deploying Compound USDT SmartYield #####');
+    const pool_cUSDT = await deployCompoundProvider(deployerSign, cUSDT);
+    const smartYield_cUSDT = await deploySmartYield(deployerSign, juniorTokenCONF_cUSDT.name, juniorTokenCONF_cUSDT.symbol, BN.from(decimals_dai));
+    const seniorBond_cUSDT = await deploySeniorBond(deployerSign, smartYield_cUSDT.address, seniorBondCONF_cUSDT.name, seniorBondCONF_cUSDT.symbol);
+    const juniorBond_cUSDT = await deployJuniorBond(deployerSign, smartYield_cUSDT.address, juniorBondCONF_cUSDT.name, juniorBondCONF_cUSDT.symbol);
+    const controller_cUSDT = await deployCompoundController(deployerSign, pool_cUSDT.address, smartYield_cUSDT.address, bondModel.address, uniswapPath_cUSDT);
+    const oracle_cUSDT = await deployYieldOracle(deployerSign, controller_cUSDT.address, oracleCONF.windowSize, oracleCONF.granularity);
+    await controller_cUSDT.setOracle(oracle_cUSDT.address);
+    await controller_cUSDT.setFeesOwner(feesOwner);
+    await smartYield_cUSDT.setup(controller_cUSDT.address, pool_cUSDT.address, seniorBond_cUSDT.address, juniorBond_cUSDT.address);
+    await pool_cUSDT.setup(smartYield_cUSDT.address, controller_cUSDT.address);
+    await controller_cUSDT.setGuardian(dao);
+    await controller_cUSDT.setDao(dao);
+    console.log('----- Compound USDT SmartYield DEPLOYED ----');
+    console.log('compoundProvider_cUSDT:', pool_cUSDT.address);
+    console.log('smartYield_cUSDT:', smartYield_cUSDT.address);
+    console.log('seniorBond_cUSDT:', seniorBond_cUSDT.address);
+    console.log('juniorBond_cUSDT:', juniorBond_cUSDT.address);
+    console.log('controller_cUSDT:', controller_cUSDT.address);
+    console.log('oracle_cUSDT:', oracle_cUSDT.address);
+  }
+
   // Aave USDC
   if ((process.env.DEPLOY_ALL === 'true') || (process.env.DEPLOY_AUSDC === 'true')) {
     console.log('##### Deploying Aave USDC SmartYield #####');
@@ -204,8 +242,37 @@ async function main() {
       console.log('controller_aUSDT:', controller_aUSDT.address, '[', pool_aUSDT.address, smartYield_aUSDT.address, bondModelV2.address, deployerSign.address, ']');
       console.log('oracle_aUSDT:', oracle_aUSDT.address, '[', controller_aUSDT.address, oracleCONF.windowSize, oracleCONF.granularity, ']');
     }
+
+    // Aave sUSD
+    if ((process.env.DEPLOY_ALL === 'true') || (process.env.DEPLOY_ASUSD === 'true')) {
+      console.log('##### Deploying Aave SUSD SmartYield #####');
+      const aToken_aSUSD = IATokenFactory.connect(aSUSD, deployerSign);
+      const underlyingTOKEN = await aToken_aSUSD.callStatic.UNDERLYING_ASSET_ADDRESS();
+      const pool_aSUSD = await deployAaveProvider(deployerSign, aSUSD);
+      const smartYield_aSUSD = await deploySmartYield(deployerSign, juniorTokenCONF_aSUSD.name, juniorTokenCONF_aSUSD.symbol, BN.from(decimals_usdt));
+      const seniorBond_aSUSD = await deploySeniorBond(deployerSign, smartYield_aSUSD.address, seniorBondCONF_aSUSD.name, seniorBondCONF_aSUSD.symbol);
+      const juniorBond_aSUSD = await deployJuniorBond(deployerSign, smartYield_aSUSD.address, juniorBondCONF_aSUSD.name, juniorBondCONF_aSUSD.symbol);
+      const controller_aSUSD = await deployAaveController(deployerSign, pool_aSUSD.address, smartYield_aSUSD.address, bondModelV2.address, deployerSign.address);
+      const oracle_aSUSD = await deployYieldOracle(deployerSign, controller_aSUSD.address, oracleCONF.windowSize, oracleCONF.granularity);
+      await (await controller_aSUSD.setOracle(oracle_aSUSD.address)).wait(2);
+      await (await controller_aSUSD.setFeesOwner(feesOwner)).wait(2);
+      await (await smartYield_aSUSD.setup(controller_aSUSD.address, pool_aSUSD.address, seniorBond_aSUSD.address, juniorBond_aSUSD.address)).wait(2);
+      await (await pool_aSUSD.setup(smartYield_aSUSD.address, controller_aSUSD.address)).wait(2);
+      await (await controller_aSUSD.setGuardian(dao)).wait(2);
+      await (await controller_aSUSD.setDao(dao)).wait(2);
+      console.log('----- Aave SUSD SmartYield DEPLOYED ----');
+      console.log('AaveProvider_aSUSD:', pool_aSUSD.address, '[', aSUSD, ']');
+      console.log('smartYield_aSUSD:', smartYield_aSUSD, '[', juniorTokenCONF_aSUSD.name, juniorTokenCONF_aSUSD.symbol, decimals_usdt, ']');
+      console.log('seniorBond_aSUSD:', seniorBond_aSUSD.address, '[', smartYield_aSUSD.address, seniorBondCONF_aSUSD.name, seniorBondCONF_aSUSD.symbol, ']');
+      console.log('juniorBond_aSUSD:', juniorBond_aSUSD.address, '[', smartYield_aSUSD.address, juniorBondCONF_aSUSD.name, juniorBondCONF_aSUSD.symbol, ']');
+      console.log('controller_aSUSD:', controller_aSUSD.address, '[', pool_aSUSD.address, smartYield_aSUSD.address, bondModelV2.address, deployerSign.address, ']');
+      console.log('oracle_aSUSD:', oracle_aSUSD.address, '[', controller_aSUSD.address, oracleCONF.windowSize, oracleCONF.granularity, ']');
+    }
+
+
     // TODO: Kovan Aave GUSD once deployed
     // TODO: Kovan Aave DAI once deployed
+    // TODO: Kovan Aave RAI once deployed
 
     // Cream USDC
     if ((process.env.DEPLOY_ALL === 'true') || (process.env.DEPLOY_CRUSDC === 'true')) {
