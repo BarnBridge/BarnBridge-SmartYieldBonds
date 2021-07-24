@@ -98,13 +98,16 @@ Alchemy.io can be used to fork the current state of the Mainnet into your develo
 11. If you deployed Governance.sol from BarnBridge-DAO, insert the contract address into the field labeled DAO in the `.env` file.
 
 ### Update the .env file with your test wallet info
-12. Finally, insert the mnemonic phrase for your testing wallet into the `.env` file. You can use a MetaMask instance, and switch the network to Kovan on the upper right. DO NOT USE YOUR PERSONAL METAMASK SEED PHRASE; USE A DIFFERENT BROWSER WITH AN INDEPENDENT METAMASK INSTALLATION
+12. Insert the mnemonic phrase for your testing wallet into the `.env` file. You can use a MetaMask instance, and switch the network to Kovan on the upper right. DO NOT USE YOUR PERSONAL METAMASK SEED PHRASE; USE A DIFFERENT BROWSER WITH AN INDEPENDENT METAMASK INSTALLATION
 13. You'll need some Kovan-ETH (it is free) in order to pay the gas costs of deploying the contracts on the TestNet; you can use your GitHub account to authenticate to the [KovanFaucet](https://faucet.kovan.network/) and receive 2 Kovan-ETH for free every 24 hours
 14. Use the [BarnBridgeFaucet](https://testnet.app.barnbridge.com/faucets) to swap some of your kETH for BOND, and also get test tokens for the originator platforms
 
 ### Optional: Modify Deployment Controls in the .env file
 15. If you would only like to deploy certain SmartYield components, comment out DEPLOY_ALL in the `.env` file and un-comment out the components you'd like to deploy.
 
+### Copy config.ts.dotenv to config.ts
+    cp config.ts.dotenv config.ts
+    
 ## Installing
 ### Install NodeJS dependencies which include HardHat
 

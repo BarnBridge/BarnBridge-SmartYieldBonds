@@ -6,7 +6,7 @@ const config: HardhatUserConfig = {
         // Needed for `solidity-coverage`
         coverage: {
             forking: {
-                url: process.env.PROVIDER_FORKING,
+                url: 'https://eth-mainnet.alchemyapi.io/v2/' + process.env.ALCHEMY,
                 blockNumber: Number(process.env.BLOCKNUMBER),
             },
             allowUnlimitedContractSize: true,
@@ -15,13 +15,13 @@ const config: HardhatUserConfig = {
 
         hardhat: {
             forking: {
-                url: process.env.PROVIDER_FORKING,
+                url: 'https://eth-mainnet.alchemyapi.io/v2/' + process.env.ALCHEMY,
                 blockNumber: Number(process.env.BLOCKNUMBER),
             },
         },
 
         env_network: {
-            url: process.env.PROVIDER,
+            url: 'https://' + process.env.CHAIN + '.infura.io/v3/' + process.env.INFURA,
             chainId: Number(process.env.CHAINID),
             accounts: {
                 mnemonic: process.env.MNEMONIC,
@@ -36,7 +36,7 @@ const config: HardhatUserConfig = {
 
         // Mainnet
         mainnet: {
-            url: process.env.PROVIDER,
+            url: "https://mainnet.infura.io/v3/YOUR-INFURA-KEY",
             chainId: 1,
             accounts: ["0xaaaa"],
             gas: "auto",
