@@ -5,6 +5,7 @@ const smartYields = {
   // compound
   'USDC/compound/v1': '0x4B8d90D68F26DEF303Dcb6CFc9b63A1aAEC15840',
   'DAI/compound/v1': '0x673f9488619821aB4f4155FdFFe06f6139De518F',
+  'USDT/compound/v1': '0x3E3349E43e5EeaAEDC5Dc2cf7e022919a6751907',
 
   // cream
   'USDC/cream/v1': '0x62e479060c89C48199FC7ad43b1432CC585BA1b9',
@@ -16,10 +17,12 @@ const smartYields = {
   'USDT/aave/v1': '0x660dAF6643191cF0eD045B861D820F283cA078fc',
   'DAI/aave/v1': '0x6c9DaE2C40b1e5883847bF5129764e76Cb69Fc57',
   'GUSD/aave/v1': '0x6324538cc222b43490dd95CEBF72cf09d98D9dAe',
+  'RAI/aave/v1': '0x4dB6fb0218cE5DA392f1E6475A554BAFcb62EF30',
+  'SUSD/aave/v1': '0xEc810FDd49e756fB7Ce87DC9D53C7cAB58EAB4Ce',
 };
 
 const harvestable = [
-  'USDC/aave/v1', 'USDT/aave/v1', 'DAI/aave/v1', 'GUSD/aave/v1',
+  'USDC/aave/v1', 'USDT/aave/v1', 'DAI/aave/v1', 'GUSD/aave/v1', 'RAI/aave/v1', 'SUSD/aave/v1',
 ];
 
 const gasStationUrl = process.env.GAS_STATION_URL;

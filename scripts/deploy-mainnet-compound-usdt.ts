@@ -50,8 +50,12 @@ async function main() {
   await smartYield.setup(controller.address, pool.address, seniorBond.address, juniorBond.address);
   await pool.setup(smartYield.address, controller.address);
 
-  await controller.setBondLifeMax(30);
+  await controller.setBondLifeMax(365);
+  await controller.setFeeBuyJuniorToken(BN.from('5000000000000000'));
+  await controller.setFeeRedeemSeniorBond(BN.from('50000000000000000'));
   await bondModel.setMaxPoolRatio(BN.from('650000000000000000'));
+  await controller.setGuardian('0x54e6a2f9991b6b6d57d152d21427e8cb80b25e91');
+  await bondModel.setGuardian('0x54e6a2f9991b6b6d57d152d21427e8cb80b25e91');
 
   console.log('CONF --------');
   console.log('cUSDT:', cUSDT);
