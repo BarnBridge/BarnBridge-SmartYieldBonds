@@ -24,6 +24,9 @@ import { CreamController } from '@typechain/CreamController';
 import AaveControllerArtifact from './../../artifacts/contracts/providers/AaveController.sol/AaveController.json';
 import { AaveController } from '@typechain/AaveController';
 
+import IdleControllerArtifact from './../../artifacts/contracts/providers/IdleController.sol/IdleController.json';
+import { IdleController } from '@typechain/IdleController';
+
 import JuniorBondArtifact from './../../artifacts/contracts/JuniorBond.sol/JuniorBond.json';
 import { JuniorBond } from '@typechain/JuniorBond';
 
@@ -54,6 +57,9 @@ import { CreamProvider } from '@typechain/CreamProvider';
 import AaveProviderArtifact from './../../artifacts/contracts/providers/AaveProvider.sol/AaveProvider.json';
 import { AaveProvider } from '@typechain/AaveProvider';
 
+import IdleProviderArtifact from './../../artifacts/contracts/providers/IdleProvider.sol/IdleProvider.json';
+import { IdleProvider } from '@typechain/IdleProvider';
+
 // ---- mocks
 
 import HarvestWorldMockArtifact from './../../artifacts/contracts/mocks/barnbridge/harvest/HarvestWorldMock.sol/HarvestWorldMock.json';
@@ -70,6 +76,9 @@ import { CTokenWorldMock } from '@typechain/CTokenWorldMock';
 
 import CrCTokenWorldMockArtifact from './../../artifacts/contracts/mocks/cream/CrCTokenWorldMock.sol/CrCTokenWorldMock.json';
 import { CrCTokenWorldMock } from '@typechain/CrCTokenWorldMock';
+
+import IdleTokenWorldMockArtifact from './../../artifacts/contracts/mocks/idle/IdleTokenWorldMock.sol/IdleTokenWorldMock.json';
+import { IdleTokenWorldMock } from '@typechain/IdleTokenWorldMock';
 
 import ATokenWorldMockArtifact from './../../artifacts/contracts/mocks/aave/ATokenWorldMock.sol/ATokenWorldMock.json';
 import { ATokenWorldMock } from '@typechain/ATokenWorldMock';
@@ -106,6 +115,10 @@ export const deployCreamController = (deployerSign: Wallet, poolAddress: string,
 
 export const deployAaveController = (deployerSign: Wallet, poolAddress: string, smartYieldAddress: string, bondModelAddress: string, rewardsCollectorAddress: string): Promise<AaveController> => {
   return (deployContract(deployerSign, AaveControllerArtifact, [poolAddress, smartYieldAddress, bondModelAddress, rewardsCollectorAddress])) as Promise<AaveController>;
+};
+
+export const deployIdleController = (deployerSign: Wallet, poolAddress: string, smartYieldAddress: string, bondModelAddress: string, rewardsCollectorAddress: string): Promise<IdleController> => {
+  return (deployContract(deployerSign, IdleControllerArtifact, [poolAddress, smartYieldAddress, bondModelAddress, rewardsCollectorAddress])) as Promise<IdleController>;
 };
 
 export const deployJuniorBondMock = (deployerSign: Wallet, smartYield: SmartYield): Promise<JuniorBond> => {
@@ -148,6 +161,10 @@ export const deployAaveProvider = (deployerSign: Wallet, aTokenAddress: string):
   return (deployContract(deployerSign, AaveProviderArtifact, [aTokenAddress])) as Promise<AaveProvider>;
 };
 
+export const deployIdleProvider = (deployerSign: Wallet, idleTokenAddress: string): Promise<IdleProvider> => {
+  return (deployContract(deployerSign, IdleProviderArtifact, [idleTokenAddress])) as Promise<IdleProvider>;
+};
+
 export const deploySmartYield = (deployerSign: Wallet, name: string, symbol: string, decimals: BigNumberish): Promise<SmartYield> => {
   return (deployContract(deployerSign, SmartYieldArtifact, [name, symbol, decimals])) as Promise<SmartYield>;
 };
@@ -178,6 +195,10 @@ export const deployCTokenWorldMock = (deployerSign: Wallet, exchangeRateStored: 
 
 export const deployCrCTokenWorldMock = (deployerSign: Wallet, exchangeRateStored: BigNumberish, supplyRatePerBlock: BigNumberish, compSpeed: BigNumberish, underlyingDecimals: BigNumberish): Promise<CrCTokenWorldMock> => {
   return (deployContract(deployerSign, CrCTokenWorldMockArtifact, [exchangeRateStored, supplyRatePerBlock, compSpeed, underlyingDecimals])) as Promise<CrCTokenWorldMock>;
+};
+
+export const deployIdleTokenWorldMock = (deployerSign: Wallet, tokenPrice_: BigNumberish, underlyingDecimals_: BigNumberish, avgAPR_: BigNumberish): Promise<IdleTokenWorldMock> => {
+  return (deployContract(deployerSign, IdleTokenWorldMockArtifact, [tokenPrice_, underlyingDecimals_, avgAPR_])) as Promise<IdleTokenWorldMock>;
 };
 
 export const deployATokenWorldMock = (deployerSign: Wallet, liquidityIndex_: BigNumberish, currentLiquidityRate_: BigNumberish, underlyingDecimals: BigNumberish): Promise<ATokenWorldMock> => {
