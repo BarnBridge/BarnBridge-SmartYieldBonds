@@ -135,6 +135,7 @@ export class UpdaterFast {
 
     for (const key in sy) {
       const connections = (await connect(sy[key], await this.providerGetter()));
+      console.log(`${key} (${sy[key]}) >`);
       const properties = (await getOracleInfo(connections.oracle.connect(await this.providerGetter())));
       const oracle: OracleData = {
         id: key,
@@ -433,11 +434,12 @@ const getOracleInfo = async (oracle: YieldOracle) => {
   console.log('periodSize: ', periodSize.toString());
   console.log('yieldObservations:');
   observations.map((o, i) => {
-    console.log(`[${i}]:`, o.timestamp.toString(), o.yieldCumulative.toString());
+    console.log(`[${i}]:`, o.timestamp.toString(), o.yieldCumulative.toString(), `Delta: ${BN.from(block.timestamp).sub(o.timestamp)}`);
   });
   console.log('Latest yieldObservation:', latestObservation.timestamp.toString(), latestObservation.yieldCumulative.toString());
   console.log('First observation index:', ((await oracle.observationIndexOf(block.timestamp)) + 1) % (granularity));
   console.log('Update observation index:', (await oracle.observationIndexOf(block.timestamp)));
+
   console.log('---');
 
   return { windowSize, granularity, periodSize, observations, latestObservation, block };
