@@ -19,7 +19,7 @@ const smartYields = {
   'GUSD/aave/v1': '0x6324538cc222b43490dd95CEBF72cf09d98D9dAe',
   'RAI/aave/v1': '0x4dB6fb0218cE5DA392f1E6475A554BAFcb62EF30',
   'SUSD/aave/v1': '0xEc810FDd49e756fB7Ce87DC9D53C7cAB58EAB4Ce',
-  'FEI/aave/v1': '0x8Ea7D9FA613Ea66e8021338B7Fc19F3F239665Fc',
+  'FEI/aave/v1': '0xA3abb32c657adA8803bF6AEEF6Eb42B29c74bf28',
 };
 
 const harvestable = [

@@ -20,7 +20,7 @@ const feesOwner = '0x4cAE362D7F227e3d306f70ce4878E245563F3069';
 // externals ---
 
 // aave
-const aFEI = '0xAcF35Af93a65904C50ED93dfb010bAAdEBb4ccF0';
+const aFEI = '0x683923dB55Fead99A79Fa01A27EeC3cB19679cC3';
 
 async function main() {
 
