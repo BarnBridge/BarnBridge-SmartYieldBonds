@@ -260,6 +260,7 @@ export const getProvider = async (): Promise<providers.JsonRpcSigner> => {
     process.exit(-1);
   }
 
+  console.log('getProvider() url: ', rpcProviderUrls[providerIndex]);
   const provider = await buildProvider(rpcProviderUrls[providerIndex]);
   providerIndex = (++providerIndex) % rpcProviderUrls.length;
 
