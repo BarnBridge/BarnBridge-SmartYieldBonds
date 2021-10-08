@@ -31,7 +31,7 @@ const gasStationUrl = process.env.GAS_STATION_URL;
 // -----
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
 import { ethers } from 'hardhat';
-import { walletBalance, UpdaterFast, getGasPriceMainnet, dumpAllGasPrices, getProviderMainnet } from './lib/update';
+import { walletBalance, UpdaterFast, getGasPriceMainnet, dumpAllGasPrices, getProvider, dumpRpcProviderUrls } from './lib/update';
 
 async function main() {
 
@@ -41,8 +41,9 @@ async function main() {
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
 
   const gasPriceGetter = getGasPriceMainnet;
-  const providerGetter = getProviderMainnet;
+  const providerGetter = getProvider;
 
+  dumpRpcProviderUrls();
   console.log('Starting YieldOracle.update() bot ...');
   console.log('gas prices :');
   await dumpAllGasPrices();

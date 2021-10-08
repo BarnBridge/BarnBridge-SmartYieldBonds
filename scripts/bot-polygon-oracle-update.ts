@@ -15,7 +15,7 @@ const harvestable = [
 // -----
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
 import { ethers, network } from 'hardhat';
-import { walletBalance, UpdaterFast, getGasPricePolygon, dumpAllGasPricesPolygon, getProviderPolygon } from './lib/update';
+import { walletBalance, UpdaterFast, getGasPricePolygon, dumpAllGasPricesPolygon, getProvider, dumpRpcProviderUrls } from './lib/update';
 
 async function main() {
 
@@ -25,8 +25,9 @@ async function main() {
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
 
   const gasPriceGetter = getGasPricePolygon;
-  const providerGetter = getProviderPolygon;
+  const providerGetter = getProvider;
 
+  dumpRpcProviderUrls();
   console.log('Starting YieldOracle.update() bot ...');
   console.log('network    :', network.name);
   console.log('gas prices :');
