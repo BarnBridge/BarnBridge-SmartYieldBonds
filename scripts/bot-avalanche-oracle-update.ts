@@ -6,7 +6,7 @@ const smartYields = {};
 const harvestable: string[] = [];
 
 const smartAlphaUpkeep: SmartAlphaKeepers = [
-  { address: '0x24089B7C909Ec9C17D85E344B6CCb6e102081203', epoch0: , epochDuration: 604800 },
+  { address: '0x24089B7C909Ec9C17D85E344B6CCb6e102081203', epoch0: 1633356000, epochDuration: 604800 },
 ];
 
 // -----
