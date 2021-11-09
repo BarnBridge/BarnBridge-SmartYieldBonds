@@ -26,12 +26,16 @@ const harvestable = [
   'USDC/aave/v1', 'USDT/aave/v1', 'DAI/aave/v1', 'GUSD/aave/v1', 'RAI/aave/v1', 'SUSD/aave/v1',
 ];
 
+const smartAlphaUpkeep: SmartAlphaKeepers = [
+  { address: '0xb25a05A38E5e2201dD6E813396e223532Ec4dC0D', epoch0: 1631541600, epochDuration: 604800 },
+];
+
 const gasStationUrl = process.env.GAS_STATION_URL;
 
 // -----
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
 import { ethers } from 'hardhat';
-import { walletBalance, UpdaterFast, getGasPriceMainnet, dumpAllGasPrices, getProvider, dumpRpcProviderUrls } from './lib/update';
+import { walletBalance, UpdaterFast, getGasPriceMainnet, dumpAllGasPrices, getProvider, dumpRpcProviderUrls, SmartAlphaKeepers } from './lib/update';
 
 async function main() {
 
@@ -51,11 +55,11 @@ async function main() {
   console.log('ETH balance:', (await walletBalance(walletSign.address)).toString());
   console.log('gas price  :', (await gasPriceGetter()).toString());
 
-  console.log('pools:');
+  console.log('SY pools:');
   console.table(smartYields);
 
   const updater = new UpdaterFast(0.7, DAYS_5, harvestMin, providerGetter, gasPriceGetter);
-  await updater.initialize(smartYields, harvestable);
+  await updater.initialize(smartYields, harvestable, smartAlphaUpkeep);
 
   await updater.updateLoop();
 }

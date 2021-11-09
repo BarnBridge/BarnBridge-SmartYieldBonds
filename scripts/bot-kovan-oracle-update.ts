@@ -28,10 +28,12 @@ const harvestable = [
   'DAI/aave/v1/testnetpub', 'USDC/aave/v1/testnetpub', 'USDT/aave/v1/testnetpub',
 ];
 
+const smartAlphaUpkeep: SmartAlphaKeepers = [];
+
 // -----
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
 import { ethers } from 'hardhat';
-import { getGasPriceWeb3, walletBalance, UpdaterFast, getProvider, dumpRpcProviderUrls } from './lib/update';
+import { getGasPriceWeb3, walletBalance, UpdaterFast, getProvider, dumpRpcProviderUrls, SmartAlphaKeepers } from './lib/update';
 
 async function main() {
 
@@ -45,11 +47,11 @@ async function main() {
   console.log('wallet     :', walletSign.address);
   console.log('ETH balance:', (await walletBalance(walletSign.address)).toString());
   console.log('gas price  :', (await gasPriceGetter()).toString());
-  console.log('pools:');
+  console.log('SY pools:');
   console.table(smartYields);
 
   const updater = new UpdaterFast(0.5, 60 * 10, BN.from(10), providerGetter, gasPriceGetter);
-  await updater.initialize(smartYields, harvestable);
+  await updater.initialize(smartYields, harvestable, smartAlphaUpkeep);
 
   await updater.updateLoop();
 }

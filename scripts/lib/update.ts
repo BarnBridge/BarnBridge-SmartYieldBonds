@@ -14,6 +14,8 @@ import { SmartYieldFactory } from '@typechain/SmartYieldFactory';
 import { CompoundControllerFactory } from '@typechain/CompoundControllerFactory';
 import { SmartYield } from '@typechain/SmartYield';
 import { CompoundController } from '@typechain/CompoundController';
+import { IEpochAdvancer } from '@typechain/IEpochAdvancer';
+import { IEpochAdvancerFactory } from '@typechain/IEpochAdvancerFactory';
 import { EthereumProvider, HardhatConfig } from 'hardhat/types';
 import { A_DAY } from '@testhelp/index';
 
@@ -21,6 +23,8 @@ import { createUpdatableTargetProxy } from './updatable-target-proxy';
 import { HARDHAT_NETWORK_RESET_EVENT } from 'hardhat/internal/constants';
 import { EthersProviderWrapper } from './ethers-provider-wrapper';
 
+export type SmartAlphaKeepers = { epoch0: number, epochDuration: number, address: string }[];
+export type SmartAlphaKeepersInst = (SmartAlphaKeepers[number] & { advancer: IEpochAdvancer });
 export type PoolName = string;
 export type SmartYields = { [key in PoolName]: string };
 export type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
@@ -51,6 +55,7 @@ export class UpdaterFast {
 
   public oracles: OracleData[] = [];
   public harvestables: HarvestableData[] = [];
+  public smartAlphaUpkeep: SmartAlphaKeepersInst[] = [];
 
   public providerGetter: () => Promise<providers.JsonRpcSigner>;
   public gasPriceGetter: () => Promise<BN>;
@@ -77,9 +82,18 @@ export class UpdaterFast {
     return block;
   }
 
-  public async initialize(sy: SmartYields, harvestable: string[]): Promise<void> {
+  public async initialize(sy: SmartYields, harvestable: string[], saKeepers: SmartAlphaKeepers): Promise<void> {
 
     const block = await this.getCurrentBlock();
+
+    for (const keeper of saKeepers) {
+      this.smartAlphaUpkeep.push({
+        epoch0: keeper.epoch0,
+        epochDuration: keeper.epochDuration,
+        address: keeper.address,
+        advancer: IEpochAdvancerFactory.connect(keeper.address, await this.providerGetter()),
+      });
+    }
 
     for (const key in sy) {
       const connections = (await connect(sy[key], await this.providerGetter()));
@@ -113,7 +127,7 @@ export class UpdaterFast {
         return o.periodSize.toNumber();
       }
       return Math.min(maxSleep, o.periodSize.toNumber());
-    }, 0);
+    }, 86400);
 
     this.maxSleepSec = Math.ceil(this.maxSleepSec / 2);
   }
@@ -129,7 +143,7 @@ export class UpdaterFast {
     return secToHarvest;
   }
 
-  private async shouldHarvest(harvestable: HarvestableData): Promise<number> {
+  private async willHarvest(harvestable: HarvestableData): Promise<number> {
     try {
       const { 0: rewardExpected } = await harvestable.controller.connect(await this.providerGetter()).callStatic.harvest(0);
       console.log(`... harvest reward: ${rewardExpected.toString()} (min: ${this.harvestMin.toString()})`);
@@ -185,6 +199,53 @@ export class UpdaterFast {
     await (await oracle.oracle.connect(await this.providerGetter()).update({ gasLimit: 400_000, gasPrice })).wait(1);
   }
 
+  private secondsUntilShouldUpkeep(blockTimestamp: BN, advancer: SmartAlphaKeepersInst): number {
+    const currentEpoch = blockTimestamp.sub(advancer.epoch0).div(advancer.epochDuration);
+    const epochStart = BN.from(advancer.epoch0).add(currentEpoch.mul(advancer.epochDuration));
+    const currentEpochElapsed = blockTimestamp.sub(epochStart);
+
+    // trigger window after 30m but before 24h
+    if (currentEpochElapsed.gte(30*60) && currentEpochElapsed.lte(24*60*60)) {
+      return 0;
+    } else if (currentEpochElapsed.gt(24*60*60)) {
+      // update window has passed, call on next epoch
+      return BN.from(advancer.epochDuration).sub(currentEpochElapsed).toNumber();
+    } else {
+      // update window in less than 1h
+      return BN.from(30*60).sub(currentEpochElapsed).toNumber();
+    }
+    return 0;
+  }
+
+  private async willUpkeep(blockTimestamp: BN, advancer: SmartAlphaKeepersInst): Promise<number> {
+    const {0: needsUpkeep} = await advancer.advancer.callStatic.checkUpkeep([]);
+    if (needsUpkeep) {
+      return 0;
+    }
+    const currentEpoch = blockTimestamp.sub(advancer.epoch0).div(advancer.epochDuration);
+    const epochStart = BN.from(advancer.epoch0).add(currentEpoch.mul(advancer.epochDuration));
+    const currentEpochElapsed = blockTimestamp.sub(epochStart);
+
+    return BN.from(advancer.epochDuration).sub(currentEpochElapsed).toNumber();
+  }
+
+  private async doUpkeep(blockTimestamp: BN, advancer: SmartAlphaKeepersInst) {
+    let needsUpkeep = true;
+    let calls = 1;
+    while (needsUpkeep) {
+      ({0: needsUpkeep} = await advancer.advancer.callStatic.checkUpkeep([]));
+      if (false === needsUpkeep) {
+        console.log('... no more upkeep needed.');
+        break;
+      }
+
+      const gasPrice = await this.gasPriceGetter();
+      console.log(`... gasPrice=${gasPrice.toString()}, call#=${calls}`);
+      await (await advancer.advancer.connect(await this.providerGetter()).performUpkeep([], { gasLimit: 2_000_000, gasPrice })).wait(1);
+      calls++;
+    }
+  }
+
   public async updateLoop(): Promise<void> {
 
     // eslint-disable-next-line no-constant-condition
@@ -225,13 +286,35 @@ export class UpdaterFast {
         console.log(`... sleep until harvest ${sleep}s`);
 
         if (0 === sleep) {
-          sleep = await this.shouldHarvest(this.harvestables[f]);
+          sleep = await this.willHarvest(this.harvestables[f]);
           console.log(`... will harvest ${sleep}s (${0 === sleep ? 'yes' : 'skip, wait'})`);
         }
 
         if (0 === sleep) {
           console.log('... harvesting');
           await this.doHarvest(this.harvestables[f]);
+          console.log('... done.');
+          continue;
+        }
+
+        sleepSeconds = Math.min(sleep, sleepSeconds);
+      }
+
+      for (let f = 0; f < this.smartAlphaUpkeep.length; f++) {
+        console.log(`SmartAlpha Upkeep advancer ${this.smartAlphaUpkeep[f].address}`);
+        const block = await this.getCurrentBlock();
+
+        let sleep = this.secondsUntilShouldUpkeep(BN.from(block.timestamp), this.smartAlphaUpkeep[f]);
+        console.log(`... sleep until upkeep ${sleep}s`);
+
+        if (0 === sleep) {
+          sleep = await this.willUpkeep(BN.from(block.timestamp), this.smartAlphaUpkeep[f]);
+          console.log(`... will upkeep ${sleep}s (${0 === sleep ? 'yes' : 'skip, wait'})`);
+        }
+
+        if (0 === sleep) {
+          console.log('... calling upkeep');
+          await this.doUpkeep(BN.from(block.timestamp), this.smartAlphaUpkeep[f]);
           console.log('... done.');
           continue;
         }
@@ -456,6 +539,18 @@ export const getGasPriceMainnet = async (): Promise<BN> => {
   process.exit(-1);
 };
 
+export const getGasPriceBasic = async (): Promise<BN> => {
+
+  try {
+    return await getGasPriceWeb3();
+  } catch (e) {
+    console.error('Failed to get Web3 gas price:', e);
+  }
+
+  console.error('getGasPriceBasic failed to get any price!');
+  process.exit(-1);
+};
+
 export const getGasPricePolygon = async (): Promise<BN> => {
 
   try {
@@ -524,8 +619,28 @@ export const getAllGasPricePolygon = async (): Promise<{ PolygonGasStation: BN |
   return rez;
 };
 
+export const getAllGasPriceBasic = async (): Promise<{ Web3: BN | null }> => {
+  const rez: { Web3: BN | null } = {} as { Web3: BN | null };
+
+  try {
+    rez.Web3 = await getGasPriceWeb3();
+  } catch (e) {
+    rez.Web3 = null;
+  }
+
+  return rez;
+};
+
 export const dumpAllGasPricesPolygon = async (): Promise<void> => {
   const gasPrices = await getAllGasPricePolygon();
+  for (const [provider, price] of Object.entries(gasPrices)) {
+    (gasPrices as any)[provider] = price?.toString();
+  }
+  console.table(gasPrices);
+};
+
+export const dumpAllGasPricesBasic = async (): Promise<void> => {
+  const gasPrices = await getAllGasPriceBasic();
   for (const [provider, price] of Object.entries(gasPrices)) {
     (gasPrices as any)[provider] = price?.toString();
   }
