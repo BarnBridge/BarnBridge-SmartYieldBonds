@@ -1,25 +1,18 @@
 import 'tsconfig-paths/register';
 // -----
 
-const smartYields = {
-  // aave
-  'DAI/aave/v1': '0xDAA037F99d168b552c0c61B7Fb64cF7819D78310',
-  'USDC/aave/v1': '0x7d0BdcDF61655d2eF3D339D2B15421f4F6A28D2f',
-  'USDT/aave/v1': '0x18efBF54e18efbdd55e94176C65959864efc7D8e',
-};
+const smartYields = {};
 
-const harvestable = [
-  'USDC/aave/v1', 'USDT/aave/v1', 'DAI/aave/v1',
-];
+const harvestable: string[] = [];
 
 const smartAlphaUpkeep: SmartAlphaKeepers = [
-  { address: '0xf4ccb110c9c4af2270b6e2e8472f4524efc8c18e', epoch0: 1632751200, epochDuration: 604800 },
+  { address: '0x24089B7C909Ec9C17D85E344B6CCb6e102081203', epoch0: , epochDuration: 604800 },
 ];
 
 // -----
 import { Wallet, BigNumber as BN, Signer } from 'ethers';
 import { ethers, network } from 'hardhat';
-import { walletBalance, UpdaterFast, getGasPricePolygon, dumpAllGasPricesPolygon, getProvider, dumpRpcProviderUrls, SmartAlphaKeepers } from './lib/update';
+import { walletBalance, UpdaterFast, dumpAllGasPricesBasic, getGasPriceBasic, getProvider, dumpRpcProviderUrls, SmartAlphaKeepers } from './lib/update';
 
 async function main() {
 
@@ -28,14 +21,14 @@ async function main() {
 
   const [walletSign, ...signers] = (await ethers.getSigners()) as unknown[] as Wallet[];
 
-  const gasPriceGetter = getGasPricePolygon;
+  const gasPriceGetter = getGasPriceBasic;
   const providerGetter = getProvider;
 
   dumpRpcProviderUrls();
   console.log('Starting YieldOracle.update() bot ...');
   console.log('network    :', network.name);
   console.log('gas prices :');
-  await dumpAllGasPricesPolygon();
+  await dumpAllGasPricesBasic();
   console.log('wallet     :', walletSign.address);
   console.log('ETH balance:', (await walletBalance(walletSign.address)).toString());
   console.log('gas price  :', (await gasPriceGetter()).toString());

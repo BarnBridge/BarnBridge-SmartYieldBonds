@@ -539,6 +539,18 @@ export const getGasPriceMainnet = async (): Promise<BN> => {
   process.exit(-1);
 };
 
+export const getGasPriceBasic = async (): Promise<BN> => {
+
+  try {
+    return await getGasPriceWeb3();
+  } catch (e) {
+    console.error('Failed to get Web3 gas price:', e);
+  }
+
+  console.error('getGasPriceBasic failed to get any price!');
+  process.exit(-1);
+};
+
 export const getGasPricePolygon = async (): Promise<BN> => {
 
   try {
@@ -607,8 +619,28 @@ export const getAllGasPricePolygon = async (): Promise<{ PolygonGasStation: BN |
   return rez;
 };
 
+export const getAllGasPriceBasic = async (): Promise<{ Web3: BN | null }> => {
+  const rez: { Web3: BN | null } = {} as { Web3: BN | null };
+
+  try {
+    rez.Web3 = await getGasPriceWeb3();
+  } catch (e) {
+    rez.Web3 = null;
+  }
+
+  return rez;
+};
+
 export const dumpAllGasPricesPolygon = async (): Promise<void> => {
   const gasPrices = await getAllGasPricePolygon();
+  for (const [provider, price] of Object.entries(gasPrices)) {
+    (gasPrices as any)[provider] = price?.toString();
+  }
+  console.table(gasPrices);
+};
+
+export const dumpAllGasPricesBasic = async (): Promise<void> => {
+  const gasPrices = await getAllGasPriceBasic();
   for (const [provider, price] of Object.entries(gasPrices)) {
     (gasPrices as any)[provider] = price?.toString();
   }
