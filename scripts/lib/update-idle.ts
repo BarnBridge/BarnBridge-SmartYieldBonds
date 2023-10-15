@@ -1,21 +1,28 @@
 let masterProvider: providers.JsonRpcProvider | undefined = undefined;
 let masterConfig: HardhatConfig | undefined = undefined;
-let providerIndex = 0;
+let mainnetProviderIndex = 0;
+let testnetProviderIndex = 0;
+
+
+const mainnetRpcProviderUrls = [
+  'https://mainnet.infura.io/v3/0f57b5c22ed147458704002e133c08a4',
+];
+
+const testnetRpcProviderUrls = [
+  'https://kovan.infura.io/v3/0f57b5c22ed147458704002e133c08a4',
+];
 
 import axios from 'axios';
 import _ from 'lodash';
-import BNj from 'bignumber.js';
 import { BigNumber as BN, Signer, providers, Wallet } from 'ethers';
 import { createProvider } from 'hardhat/internal/core/providers/construction';
-import { hardhatArguments, ethers, web3, config } from 'hardhat';
+import { ethers, web3, config } from 'hardhat';
 import { YieldOracleFactory } from '@typechain/YieldOracleFactory';
 import { YieldOracle } from '@typechain/YieldOracle';
 import { SmartYieldFactory } from '@typechain/SmartYieldFactory';
 import { CompoundControllerFactory } from '@typechain/CompoundControllerFactory';
 import { SmartYield } from '@typechain/SmartYield';
 import { CompoundController } from '@typechain/CompoundController';
-import { IEpochAdvancer } from '@typechain/IEpochAdvancer';
-import { IEpochAdvancerFactory } from '@typechain/IEpochAdvancerFactory';
 import { EthereumProvider, HardhatConfig } from 'hardhat/types';
 import { A_DAY } from '@testhelp/index';
 
@@ -23,8 +30,6 @@ import { createUpdatableTargetProxy } from './updatable-target-proxy';
 import { HARDHAT_NETWORK_RESET_EVENT } from 'hardhat/internal/constants';
 import { EthersProviderWrapper } from './ethers-provider-wrapper';
 
-export type SmartAlphaKeepers = { epoch0: number, epochDuration: number, address: string }[];
-export type SmartAlphaKeepersInst = (SmartAlphaKeepers[number] & { advancer: IEpochAdvancer });
 export type PoolName = string;
 export type SmartYields = { [key in PoolName]: string };
 export type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
@@ -57,7 +62,6 @@ export class UpdaterFast {
 
   public oracles: OracleData[] = [];
   public harvestables: HarvestableData[] = [];
-  public smartAlphaUpkeep: SmartAlphaKeepersInst[] = [];
 
   public providerGetter: () => Promise<providers.JsonRpcSigner>;
   public gasPriceGetter: () => Promise<BN>;
@@ -84,22 +88,12 @@ export class UpdaterFast {
     return block;
   }
 
-  public async initialize(sy: SmartYields, harvestable: string[], saKeepers: SmartAlphaKeepers): Promise<void> {
+  public async initialize(sy: SmartYields, harvestable: string[]): Promise<void> {
 
     const block = await this.getCurrentBlock();
 
-    for (const keeper of saKeepers) {
-      this.smartAlphaUpkeep.push({
-        epoch0: keeper.epoch0,
-        epochDuration: keeper.epochDuration,
-        address: keeper.address,
-        advancer: IEpochAdvancerFactory.connect(keeper.address, await this.providerGetter()),
-      });
-    }
-
     for (const key in sy) {
       const connections = (await connect(sy[key], await this.providerGetter()));
-      console.log(`${key} (${sy[key]}) >`);
       const properties = (await getOracleInfo(connections.oracle.connect(await this.providerGetter())));
       const oracle: OracleData = {
         id: key,
@@ -129,7 +123,7 @@ export class UpdaterFast {
         return o.periodSize.toNumber();
       }
       return Math.min(maxSleep, o.periodSize.toNumber());
-    }, 86400);
+    }, 0);
 
     this.maxSleepSec = Math.ceil(this.maxSleepSec / 2);
   }
@@ -145,13 +139,15 @@ export class UpdaterFast {
     return secToHarvest;
   }
 
-  private async willHarvest(harvestable: HarvestableData): Promise<number> {
+  private async shouldHarvest(harvestable: HarvestableData): Promise<number> {
     try {
-      const { 0: rewardExpected } = await harvestable.controller.connect(await this.providerGetter()).callStatic.harvest(0);
-      console.log(`... harvest reward: ${rewardExpected.toString()} (min: ${this.harvestMin.toString()})`);
-      if (rewardExpected.gte(this.harvestMin)) {
-        // harvest
-        return 0;
+      const { tokens, rewardAmounts, underlyingHarvestReward } = await harvestable.controller.connect(await this.providerGetter()).callStatic.harvest(0);
+      for (let i = 0; i < tokens.length; i++) {
+          console.log(`... harvest reward: ${rewardAmounts[i].toString()} (min: ${this.harvestMin.toString()})`);
+          if (rewardAmounts[i].gte(this.harvestMin)) {
+            // harvest
+            return 0;
+          }
       }
       return A_DAY;
     } catch (e) {
@@ -201,53 +197,6 @@ export class UpdaterFast {
     await (await oracle.oracle.connect(await this.providerGetter()).update({ gasLimit: 400_000, gasPrice })).wait(1);
   }
 
-  private secondsUntilShouldUpkeep(blockTimestamp: BN, advancer: SmartAlphaKeepersInst): number {
-    const currentEpoch = blockTimestamp.sub(advancer.epoch0).div(advancer.epochDuration);
-    const epochStart = BN.from(advancer.epoch0).add(currentEpoch.mul(advancer.epochDuration));
-    const currentEpochElapsed = blockTimestamp.sub(epochStart);
-
-    // trigger window after 30m but before 24h
-    if (currentEpochElapsed.gte(30*60) && currentEpochElapsed.lte(24*60*60)) {
-      return 0;
-    } else if (currentEpochElapsed.gt(24*60*60)) {
-      // update window has passed, call on next epoch
-      return BN.from(advancer.epochDuration).sub(currentEpochElapsed).toNumber();
-    } else {
-      // update window in less than 1h
-      return BN.from(30*60).sub(currentEpochElapsed).toNumber();
-    }
-    return 0;
-  }
-
-  private async willUpkeep(blockTimestamp: BN, advancer: SmartAlphaKeepersInst): Promise<number> {
-    const {0: needsUpkeep} = await advancer.advancer.callStatic.checkUpkeep([]);
-    if (needsUpkeep) {
-      return 0;
-    }
-    const currentEpoch = blockTimestamp.sub(advancer.epoch0).div(advancer.epochDuration);
-    const epochStart = BN.from(advancer.epoch0).add(currentEpoch.mul(advancer.epochDuration));
-    const currentEpochElapsed = blockTimestamp.sub(epochStart);
-
-    return BN.from(advancer.epochDuration).sub(currentEpochElapsed).toNumber();
-  }
-
-  private async doUpkeep(blockTimestamp: BN, advancer: SmartAlphaKeepersInst) {
-    let needsUpkeep = true;
-    let calls = 1;
-    while (needsUpkeep) {
-      ({0: needsUpkeep} = await advancer.advancer.callStatic.checkUpkeep([]));
-      if (false === needsUpkeep) {
-        console.log('... no more upkeep needed.');
-        break;
-      }
-
-      const gasPrice = await this.gasPriceGetter();
-      console.log(`... gasPrice=${gasPrice.toString()}, call#=${calls}`);
-      await (await advancer.advancer.connect(await this.providerGetter()).performUpkeep([], { gasLimit: 2_000_000, gasPrice })).wait(1);
-      calls++;
-    }
-  }
-
   public async updateLoop(): Promise<void> {
 
     // eslint-disable-next-line no-constant-condition
@@ -288,7 +237,7 @@ export class UpdaterFast {
         console.log(`... sleep until harvest ${sleep}s`);
 
         if (0 === sleep) {
-          sleep = await this.willHarvest(this.harvestables[f]);
+          sleep = await this.shouldHarvest(this.harvestables[f]);
           console.log(`... will harvest ${sleep}s (${0 === sleep ? 'yes' : 'skip, wait'})`);
         }
 
@@ -302,71 +251,26 @@ export class UpdaterFast {
         sleepSeconds = Math.min(sleep, sleepSeconds);
       }
 
-      for (let f = 0; f < this.smartAlphaUpkeep.length; f++) {
-        console.log(`SmartAlpha Upkeep advancer ${this.smartAlphaUpkeep[f].address}`);
-        const block = await this.getCurrentBlock();
-
-        let sleep = this.secondsUntilShouldUpkeep(BN.from(block.timestamp), this.smartAlphaUpkeep[f]);
-        console.log(`... sleep until upkeep ${sleep}s`);
-
-        if (0 === sleep) {
-          sleep = await this.willUpkeep(BN.from(block.timestamp), this.smartAlphaUpkeep[f]);
-          console.log(`... will upkeep ${sleep}s (${0 === sleep ? 'yes' : 'skip, wait'})`);
-        }
-
-        if (0 === sleep) {
-          console.log('... calling upkeep');
-          await this.doUpkeep(BN.from(block.timestamp), this.smartAlphaUpkeep[f]);
-          console.log('... done.');
-          continue;
-        }
-
-        sleepSeconds = Math.min(sleep, sleepSeconds);
-      }
-
       console.log(`Sleeping ${sleepSeconds}s ...`);
       await sleep(sleepSeconds * 1000);
     }
   }
 }
 
-export const getProvider = async (): Promise<providers.JsonRpcSigner> => {
+export const getProviderMainnet = async (): Promise<providers.JsonRpcSigner> => {
 
-  let rpcProviderUrls = [];
-  try {
-    rpcProviderUrls = JSON.parse(process.env.RPC_PROVIDER_URLS || 'RPC_PROVIDER_URLS_NOT_SET') as any[];
-  } catch (e) {
-    console.log(`Error parsing env RPC_PROVIDER_URLS: ${process.env.RPC_PROVIDER_URLS}, error:`, e);
-    process.exit(-1);
-  }
-
-  if (!Array.isArray(rpcProviderUrls) || rpcProviderUrls.length == 0) {
-    console.log('RPC_PROVIDER_URLS not array or object.');
-    process.exit(-1);
-  }
-
-  console.log('getProvider() url: ', rpcProviderUrls[providerIndex]);
-  const provider = await buildProvider(rpcProviderUrls[providerIndex]);
-  providerIndex = (++providerIndex) % rpcProviderUrls.length;
+  const provider = await buildProvider(mainnetRpcProviderUrls[mainnetProviderIndex]);
+  mainnetProviderIndex = (++mainnetProviderIndex) % mainnetRpcProviderUrls.length;
 
   return provider;
 };
 
-export const dumpRpcProviderUrls = (): void => {
-  let rpcProviderUrls = [];
-  try {
-    rpcProviderUrls = JSON.parse(process.env.RPC_PROVIDER_URLS || 'RPC_PROVIDER_URLS_NOT_SET') as any[];
-  } catch (e) {
-    console.log('Error parsing env RPC_PROVIDER_URLS:', e);
-    process.exit(-1);
-  }
+export const getProviderTestnet = async (): Promise<providers.JsonRpcSigner> => {
 
-  if (!Array.isArray(rpcProviderUrls) || rpcProviderUrls.length == 0) {
-    console.log('RPC_PROVIDER_URLS not array or object.');
-    process.exit(-1);
-  }
+  const provider = await buildProvider(testnetRpcProviderUrls[testnetProviderIndex]);
+  testnetProviderIndex = (++testnetProviderIndex) % testnetRpcProviderUrls.length;
 
-  console.log('RPC PROVIDER URLS: ', rpcProviderUrls);
+  return provider;
 };
 
 const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcSigner> => {
@@ -396,10 +300,10 @@ const buildProvider = async (providerUrl: string): Promise<providers.JsonRpcSign
     masterConfig = _.cloneDeep(config);
   }
 
-  const networkName = hardhatArguments.network || 'hardhat';
+  const networkName = 'homestead' === masterProvider.network.name ? 'mainnet' : masterProvider.network.name;
 
   const provider = createProvider(
-    networkName,
+    masterProvider.network.name,
     {
       ...masterConfig.networks[networkName],
       url: providerUrl,
@@ -466,12 +370,11 @@ const getOracleInfo = async (oracle: YieldOracle) => {
   console.log('periodSize: ', periodSize.toString());
   console.log('yieldObservations:');
   observations.map((o, i) => {
-    console.log(`[${i}]:`, o.timestamp.toString(), o.yieldCumulative.toString(), `Delta: ${BN.from(block.timestamp).sub(o.timestamp)}`);
+    console.log(`[${i}]:`, o.timestamp.toString(), o.yieldCumulative.toString());
   });
   console.log('Latest yieldObservation:', latestObservation.timestamp.toString(), latestObservation.yieldCumulative.toString());
   console.log('First observation index:', ((await oracle.observationIndexOf(block.timestamp)) + 1) % (granularity));
   console.log('Update observation index:', (await oracle.observationIndexOf(block.timestamp)));
-
   console.log('---');
 
   return { windowSize, granularity, periodSize, observations, latestObservation, block };
@@ -510,11 +413,14 @@ export const getGasPriceEtherscan = async (): Promise<BN> => {
   return BN.from(req.data['result']['FastGasPrice']).mul(10 ** 9);
 };
 
-export const getGasPricePolygonGasStation = async (): Promise<BN> => {
-  const url = 'https://gasstation-mainnet.matic.network';
+export const getGasPriceGasNow = async (): Promise<BN> => {
+  if (undefined === process.env.APIKEY_GASNOW) {
+    console.error('env var APIKEY_GASNOW is not set!');
+    process.exit(-1);
+  }
+  const url = 'https://www.gasnow.org/api/v3/gas/price?utm_source=' + process.env.APIKEY_GASNOW;
   const req = await axios.get(url);
-  const toWeiStr = (new BNj(req.data['fast'])).times(10 ** 9).toFixed(0);
-  return BN.from(toWeiStr);
+  return BN.from(req.data['data']['fast']);
 };
 
 export const getGasPriceMainnet = async (): Promise<BN> => {
@@ -532,6 +438,12 @@ export const getGasPriceMainnet = async (): Promise<BN> => {
   }
 
   try {
+    return await getGasPriceGasNow();
+  } catch (e) {
+    console.error('Failed to get Gasnow gas price:', e);
+  }
+
+  try {
     return await getGasPriceWeb3();
   } catch (e) {
     console.error('Failed to get Web3 gas price:', e);
@@ -541,38 +453,8 @@ export const getGasPriceMainnet = async (): Promise<BN> => {
   process.exit(-1);
 };
 
-export const getGasPriceBasic = async (): Promise<BN> => {
-
-  try {
-    return await getGasPriceWeb3();
-  } catch (e) {
-    console.error('Failed to get Web3 gas price:', e);
-  }
-
-  console.error('getGasPriceBasic failed to get any price!');
-  process.exit(-1);
-};
-
-export const getGasPricePolygon = async (): Promise<BN> => {
-
-  try {
-    return await getGasPricePolygonGasStation();
-  } catch (e) {
-    console.error('Failed to get EthGasStation gas price:', e);
-  }
-
-  try {
-    return await getGasPriceWeb3();
-  } catch (e) {
-    console.error('Failed to get Web3 gas price:', e);
-  }
-
-  console.error('getGasPricePolygon failed to get any price!');
-  process.exit(-1);
-};
-
-export const getAllGasPrice = async (): Promise<{ EthGasStation: BN | null, Etherscan: BN | null, Web3: BN | null }> => {
-  const rez: { EthGasStation: BN | null, Etherscan: BN | null, Web3: BN | null } = {} as { EthGasStation: BN | null, Etherscan: BN | null, Web3: BN | null };
+export const getAllGasPrice = async (): Promise<{ EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null }> => {
+  const rez: { EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null } = {} as { EthGasStation: BN | null, Etherscan: BN | null, GasNow: BN | null, Web3: BN | null };
 
   try {
     rez.EthGasStation = await getGasPriceEthGasStation();
@@ -587,6 +469,12 @@ export const getAllGasPrice = async (): Promise<{ EthGasStation: BN | null, Ethe
   }
 
   try {
+    rez.GasNow = await getGasPriceGasNow();
+  } catch (e) {
+    rez.GasNow = null;
+  }
+
+  try {
     rez.Web3 = await getGasPriceWeb3();
   } catch (e) {
     rez.Web3 = null;
@@ -597,52 +485,6 @@ export const getAllGasPrice = async (): Promise<{ EthGasStation: BN | null, Ethe
 
 export const dumpAllGasPrices = async (): Promise<void> => {
   const gasPrices = await getAllGasPrice();
-  for (const [provider, price] of Object.entries(gasPrices)) {
-    (gasPrices as any)[provider] = price?.toString();
-  }
-  console.table(gasPrices);
-};
-
-export const getAllGasPricePolygon = async (): Promise<{ PolygonGasStation: BN | null, Web3: BN | null }> => {
-  const rez: { PolygonGasStation: BN | null, Web3: BN | null } = {} as { PolygonGasStation: BN | null, Web3: BN | null };
-
-  try {
-    rez.PolygonGasStation = await getGasPricePolygonGasStation();
-  } catch (e) {
-    rez.PolygonGasStation = null;
-  }
-
-  try {
-    rez.Web3 = await getGasPriceWeb3();
-  } catch (e) {
-    rez.Web3 = null;
-  }
-
-  return rez;
-};
-
-export const getAllGasPriceBasic = async (): Promise<{ Web3: BN | null }> => {
-  const rez: { Web3: BN | null } = {} as { Web3: BN | null };
-
-  try {
-    rez.Web3 = await getGasPriceWeb3();
-  } catch (e) {
-    rez.Web3 = null;
-  }
-
-  return rez;
-};
-
-export const dumpAllGasPricesPolygon = async (): Promise<void> => {
-  const gasPrices = await getAllGasPricePolygon();
-  for (const [provider, price] of Object.entries(gasPrices)) {
-    (gasPrices as any)[provider] = price?.toString();
-  }
-  console.table(gasPrices);
-};
-
-export const dumpAllGasPricesBasic = async (): Promise<void> => {
-  const gasPrices = await getAllGasPriceBasic();
   for (const [provider, price] of Object.entries(gasPrices)) {
     (gasPrices as any)[provider] = price?.toString();
   }
